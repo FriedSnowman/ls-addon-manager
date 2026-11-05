@@ -23,7 +23,7 @@ FetchContent_MakeAvailable(imgui)
 FetchContent_Declare(
     minhook
     GIT_REPOSITORY https://github.com/TsudaKageyu/minhook.git
-    GIT_TAG        v1.3.4
+    GIT_TAG        c3fcafdc10146beb5919319d0683e44e3c30d537 # v1.3.4; immutable source revision
 )
 FetchContent_MakeAvailable(minhook)
 

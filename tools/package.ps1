@@ -3,10 +3,9 @@
 # writes them out for installing by hand (since 0.9.12; the zip held every file twice before).
 # The DLSSNR model is never packaged. NVIDIA's NGX library is linked into Neural Rendering and ships under NVIDIA's licence (NOTICE.md), with
 # NVIDIA-LICENSE.txt beside it. Neural Rendering is left out (with a note) when it did not build; work-in-progress addons unless -IncludeWip.
-#   powershell -File tools\package.ps1 [-Version 0.7.0] [-SkipBuild]
+#   powershell -File tools\package.ps1 [-Version 0.7.0]
 param(
     [string]$Version = '',
-    [switch]$SkipBuild,
     [switch]$IncludeWip   # also package addons marked work in progress (none are now)
 )
 $ErrorActionPreference = 'Stop'
@@ -14,11 +13,11 @@ $root = Split-Path $PSScriptRoot -Parent
 if (-not $Version) {   # default: the release number in version.h
     $Version = (Select-String -Path "$root\manager\sdk\include\eam\version.h" -Pattern 'EAM_VERSION_STRING "([^"]+)"').Matches[0].Groups[1].Value
 }
-if (-not $SkipBuild) {
-    & powershell -NoProfile -File "$PSScriptRoot\build_all.ps1" -Only host,nr
-    if ($LASTEXITCODE -ne 0) { Write-Host 'Some target did not build (Neural Rendering needs the NVIDIA SDK in external\ngx); packaging what is there.' }
-}
+# Always build locally; downloaded or stale release artifacts are not a fallback.
+& powershell -NoProfile -File "$PSScriptRoot\build_all.ps1" -Only host,nr
+if ($LASTEXITCODE -ne 0) { throw 'Local build failed; refusing to package existing artifacts.' }
 
+if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version must be three nonnegative numbers separated by dots.' }
 $name = "LSAddonManager-$Version-x64"
 $dist = "$root\dist"
 $stage = "$dist\$name"
@@ -77,14 +76,17 @@ if (Test-Path $payloadDir) { Remove-Item -Recurse -Force $payloadDir }
 New-Item -ItemType Directory -Force $payloadDir | Out-Null
 Copy-Item "$stage\Lossless.dll", "$stage\manager-icon.ico", "$stage\manager-icon.png" $payloadDir
 Copy-Item "$stage\addons" "$payloadDir\addons" -Recurse
-if (-not (Test-Path "$setupBuild\CMakeCache.txt")) { & cmake -S "$root\installer" -B $setupBuild -G 'Visual Studio 17 2022' -A x64 | Out-Null }
+& cmake -S "$root\installer" -B $setupBuild -G 'Visual Studio 17 2022' -A x64 | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Installer configure failed' }
 & cmake --build $setupBuild --config Release --target pack_payload | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'the installer packer did not build' }
 $bundle = "$dist\payload-$Version.bin"
 & "$setupBuild\Release\pack_payload.exe" $payloadDir $bundle
 if ($LASTEXITCODE -ne 0) { throw 'packing the installer files failed' }
 & cmake -S "$root\installer" -B $setupBuild "-DSETUP_PAYLOAD=$bundle" | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Installer payload configure failed' }
 & cmake --build $setupBuild --config Release --target LSAddonManagerSetup 2>&1 | Select-String -Pattern ' error |warning C' | ForEach-Object { Write-Host $_.Line }
+if ($LASTEXITCODE -ne 0) { throw 'Installer build failed; refusing stale Setup output.' }
 $setupExe = "$setupBuild\Release\LSAddonManagerSetup.exe"
 if (-not (Test-Path $setupExe)) { throw 'the Setup exe did not build' }
 
