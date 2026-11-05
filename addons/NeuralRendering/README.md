@@ -18,6 +18,8 @@ SDR Rec.709 and linear scRGB are supported at the capture boundary. Direct HDR10
 
 Model and composition controls use the pinned OptiScaler implementation's values directly. There is no conversion of retired DLSS5NR01 settings; the new addon has a separate ID and schema.
 
+**Restore OptiScaler defaults** restores the model and composition values below, keeping the selected model file, working resolution and flow settings. Existing saved adjustments are preserved until this button is used. Composition is under **Composition (advanced)** and is normally best left at its defaults. scRGB reference white is the capture-specific 203-nit baseline, not an inferred game exposure.
+
 | New setting | OptiScaler value / meaning | Default |
 |---|---|---:|
 | Preset | `DLSSNR.Hint.Render.Preset`, 0–3 | 0 |

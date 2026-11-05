@@ -265,6 +265,14 @@ EAM_EXPORT void AddonRenderSettings() {
         rebuild = true;
     }
     eam::ui::SectionLabel("Model controls (OptiScaler units)");
+    if (ImGui::Button("Restore OptiScaler defaults")) {
+        settings.model = neural::ModelSettings{};
+        settings.composition = neural::CompositionSettings{};
+        changed = true;
+        rebuild = true;
+    }
+    ImGui::TextWrapped(
+        "Restores model and composition controls. Keeps your model file, working resolution and flow settings.");
     int preset = int(settings.model.preset);
     if (ImGui::Combo("Preset", &preset, "Default (0)\0Preset 1\0Preset 2\0Preset 3\0")) {
         settings.model.preset = preset;
@@ -281,26 +289,29 @@ EAM_EXPORT void AddonRenderSettings() {
     rebuild |= Slider("Skin structure", &settings.model.skinStructure, -1, 2);
     ImGui::TextDisabled("Skin -1 follows local structure. Style names follow the upstream UI.");
     rebuild |= ImGui::Checkbox("Automatic mask", &settings.model.autoMask);
-    eam::ui::SectionLabel("Composition");
-    changed |= Slider("Detail", &settings.composition.detail, 0, 4);
-    changed |= Slider("Colour", &settings.composition.colour, 0, 4);
-    changed |= Slider("Maximum luminance ratio", &settings.composition.maxRatio, 1, 8);
-    int proxy = int(settings.composition.reversible);
-    if (ImGui::Combo("HDR proxy", &proxy,
-                     "Knee (default)\0Neutwo composed\0Neutwo replace\0Hybrid composed\0Hybrid replace\0")) {
-        settings.composition.reversible = proxy;
-        rebuild = true;
+    ImGui::TextWrapped("Composition uses the OptiScaler defaults. Usually leave these unchanged.");
+    if (ImGui::CollapsingHeader("Composition (advanced)")) {
+        changed |= Slider("Detail", &settings.composition.detail, 0, 4);
+        changed |= Slider("Colour", &settings.composition.colour, 0, 4);
+        changed |= Slider("Maximum luminance ratio", &settings.composition.maxRatio, 1, 8);
+        int proxy = int(settings.composition.reversible);
+        if (ImGui::Combo("HDR proxy", &proxy,
+                         "Knee (default)\0Neutwo composed\0Neutwo replace\0Hybrid composed\0Hybrid replace\0")) {
+            settings.composition.reversible = proxy;
+            rebuild = true;
+        }
+        rebuild |= ImGui::SliderFloat("scRGB reference white", &settings.composition.whiteNits, 80, 1000, "%.0f nits");
+        int reconstruction = int(settings.composition.reconstruction);
+        if (ImGui::Combo("Reconstruction", &reconstruction, "Classic\0Matched residual (default)\0")) {
+            settings.composition.reconstruction = reconstruction;
+            changed = true;
+        }
+        changed |= ImGui::Checkbox("Apply model result", &settings.composition.apply);
+        ImGui::TextWrapped(
+            "Detail and colour default to 1. Replace proxies use the model image directly. Apply-off keeps "
+            "processing active for comparison. Working resolution and model changes rebuild the pipeline "
+            "after release; original captures pass through during rebuilding.");
     }
-    rebuild |= ImGui::SliderFloat("scRGB reference white", &settings.composition.whiteNits, 80, 1000, "%.0f nits");
-    int reconstruction = int(settings.composition.reconstruction);
-    if (ImGui::Combo("Reconstruction", &reconstruction, "Classic\0Matched residual (default)\0")) {
-        settings.composition.reconstruction = reconstruction;
-        changed = true;
-    }
-    changed |= ImGui::Checkbox("Apply model result", &settings.composition.apply);
-    ImGui::TextWrapped("Detail and colour default to 1. Replace proxies use the model image directly. Apply-off keeps "
-                       "processing active for comparison. Working resolution and model changes rebuild the pipeline "
-                       "after release; original captures pass through during rebuilding.");
     if (ImGui::Button("Retry initialization")) {
         rebuild = true;
         changed = true;
