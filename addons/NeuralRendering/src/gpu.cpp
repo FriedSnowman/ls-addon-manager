@@ -172,7 +172,7 @@ void Gpu::Initialize(const LUID *luid) {
     D3D12_COMMAND_QUEUE_DESC q{};
     q.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
     Check(device->CreateCommandQueue(&q, IID_PPV_ARGS(&queue)), "Create NR queue");
-    Check(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)), "Create queue fence");
+    Check(device->CreateFence(0, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&fence)), "Create queue fence");
 }
 Resource Gpu::Texture(uint32_t w, uint32_t h, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags) {
     Resource r;

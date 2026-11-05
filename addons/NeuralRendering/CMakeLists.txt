@@ -30,6 +30,8 @@ neural_shader(flow_pack shaders/flow_pack.hlsl)
 neural_shader(flow_convert shaders/flow_convert.hlsl)
 neural_shader(optiscaler third_party/optiscaler/dlssnr.hlsl)
 neural_shader(initialize_guides shaders/initialize_guides.hlsl)
+neural_shader(bridge shaders/bridge.hlsl)
+neural_shader(scene_change shaders/scene_change.hlsl)
 
 add_library(neural_backend STATIC src/gpu.cpp src/optical_flow.cpp src/composition.cpp src/model.cpp src/runtime.cpp ${shader_headers})
 target_include_directories(neural_backend PUBLIC src third_party/nvof "${CMAKE_CURRENT_BINARY_DIR}/generated")
@@ -46,3 +48,29 @@ set_target_properties(neural_forwarder PROPERTIES PREFIX "" OUTPUT_NAME "NeuralR
 add_executable(neural_modeltest tests/model_test.cpp)
 target_link_libraries(neural_modeltest PRIVATE neural_backend)
 add_dependencies(neural_modeltest neural_forwarder)
+
+add_library(neural_pipeline STATIC src/pipeline.cpp src/service.cpp)
+target_include_directories(neural_pipeline PUBLIC ../../manager/sdk/include)
+target_link_libraries(neural_pipeline PUBLIC neural_backend d3d11)
+add_executable(neural_pipelinetest tests/pipeline_test.cpp)
+target_link_libraries(neural_pipelinetest PRIVATE neural_pipeline)
+add_dependencies(neural_pipelinetest neural_forwarder)
+
+option(NEURAL_BUILD_ADDON "Build the manager addon and its settings panel" ON)
+if(NEURAL_BUILD_ADDON)
+    include(FetchContent)
+    FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG 367b2c24f399988ddafc0bb4628da0106bcc09be)
+    FetchContent_MakeAvailable(imgui)
+    add_library(DLSSNR02 SHARED src/addon.cpp
+        ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp
+        ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
+    target_include_directories(DLSSNR02 PRIVATE ${imgui_SOURCE_DIR})
+    target_link_libraries(DLSSNR02 PRIVATE neural_pipeline comdlg32)
+    add_dependencies(DLSSNR02 neural_forwarder)
+    set_target_properties(DLSSNR02 PROPERTIES PREFIX "" OUTPUT_NAME "DLSSNR02")
+    target_compile_options(DLSSNR02 PRIVATE $<$<CONFIG:Release>:/Zi>)
+    target_link_options(DLSSNR02 PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF /MAP>)
+    add_custom_command(TARGET DLSSNR02 POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/addon.json" $<TARGET_FILE_DIR:DLSSNR02>)
+endif()
