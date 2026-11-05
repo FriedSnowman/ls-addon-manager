@@ -2,3 +2,6 @@
 *.png binary
 *.ico binary
 *.bmp binary
+# Reviewed upstream bytes must hash identically after checkout on every platform.
+addons/NeuralRendering/third_party/nvof/*.h text eol=lf whitespace=-blank-at-eol
+addons/NeuralRendering/third_party/optiscaler/*.hlsl text eol=lf
