@@ -14,9 +14,8 @@
 #   gui        eam_guitest: the manager window, three times (defaults, a saved placement, interface size 150 %)
 #   installer  the Setup program's core and its file bundle, on fake Lossless Scaling folders
 #   setupexe   the Setup exe end to end (silent install, repair, uninstall, the wizard window)
-#   nr         Neural Rendering's requirements check and frame tap, and the model scenarios for the files changed (needs the NVIDIA SDK configured and
-#              LS_DIR pointing at a Lossless Scaling folder with nvngx_dlssnr.dll); -All runs every scenario
-param([string[]]$Only = @(), [switch]$All, [switch]$List)
+#   nr         NVIDIA flow and OptiScaler composition; -ModelPath (or NR_MODEL / LS_DIR) also runs model and pipeline lifecycle tests
+param([string[]]$Only = @(), [switch]$All, [switch]$List, [string]$ModelPath = $env:NR_MODEL)
 $root = Split-Path $PSScriptRoot -Parent   # the repository folder
 $mgr = "$root\manager\build\Release"
 $nrBuild = "$root\addons\Upscalers\build"
@@ -48,6 +47,10 @@ $suites = [ordered]@{
     setupexe  = @{ When = '^installer/src/|^installer/tests/setup_exe_test|^installer/CMakeLists|^tools/package';
                    Build = @('installer', 'setup_core', 'setup_cli', 'pack_payload', 'LSAddonManagerSetup');
                    Script = "$root\installer\tests\setup_exe_test.ps1" }
+    nr        = @{ When = '^addons/NeuralRendering/|^manager/sdk/|^manager/src/core/real_frame';
+                   Build = @('neural','DLSSNR02','neural_flowtest','neural_compositiontest','neural_modeltest','neural_pipelinetest');
+                   Runs = @(@('NVIDIA independent optical flow', "$root\addons\NeuralRendering\build\Release\neural_flowtest.exe", @()),
+                            @('OptiScaler composition parity', "$root\addons\NeuralRendering\build\Release\neural_compositiontest.exe", @())) }
     scalers   = @{ When = '^addons/Upscalers/|^manager/sdk/';
                    Build = @('scalers', 'nr_taptest', 'nr_rectest', 'nr_lsrec', 'DLSS4DLAA', 'FSR3UPSC');
                    Runs = @(@('Recorder codec and file', "$nrBuild\Release\nr_rectest.exe", @()),
@@ -55,10 +58,15 @@ $suites = [ordered]@{
 }
 # the XeSS Upscaler is built only when Intel's SDK is in external\xess (tools\fetch_xess_sdk.ps1)
 if (Test-Path "$root\addons\Upscalers\external\xess\inc\xess\xess_d3d12.h") { $suites.scalers.Build += 'XESSUPSC' }
-$buildDirs = @{ manager = "$root\manager\build"; installer = "$root\installer\build"; scalers = $nrBuild }
+$buildDirs = @{ manager = "$root\manager\build"; installer = "$root\installer\build"; scalers = $nrBuild; neural = "$root\addons\NeuralRendering\build" }
 
 if ($List) { foreach ($n in $suites.Keys) { Write-Host ("{0,-10} when {1}" -f $n, $suites[$n].When) }; exit 0 }
 
+if(-not $ModelPath -and $env:LS_DIR){$candidate=Join-Path $env:LS_DIR 'nvngx_dlssnr.dll';if(Test-Path -LiteralPath $candidate){$ModelPath=$candidate}}
+if($ModelPath){
+    $suites.nr.Runs += @(@('NR model lifecycle', "$root\addons\NeuralRendering\build\Release\neural_modeltest.exe", @($ModelPath)),
+                         @('Complete capture pipeline', "$root\addons\NeuralRendering\build\Release\neural_pipelinetest.exe", @($ModelPath)))
+}
 # which suites
 $chosen = @()
 if ($Only.Count) { $chosen = @($Only | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) }   # with -All: these suites at full depth
@@ -83,16 +91,19 @@ foreach ($n in $chosen) {
 $skipped = @{}
 foreach ($which in $targetsByDir.Keys) {
     $dir = $buildDirs[$which]
-    if ($which -eq 'scalers' -and -not (Test-Path "$dir\CMakeCache.txt")) { Write-Host '(Neural Rendering is not configured here: it needs the NVIDIA SDK; its suite is skipped)'; $skipped[$which] = $true; continue }
+    if ($which -eq 'neural' -and -not (Test-Path "$dir\CMakeCache.txt")) { & cmake -S "$root\addons\NeuralRendering" -B $dir -G 'Visual Studio 17 2022' -A x64; if($LASTEXITCODE -ne 0){throw 'NR configure failed'} }
+    if ($which -eq 'scalers' -and -not (Test-Path "$dir\CMakeCache.txt")) { Write-Host '(Standalone upscalers are not configured here; their suite is skipped)'; $skipped[$which] = $true; continue }
     if ($which -eq 'installer' -and -not (Test-Path "$dir\CMakeCache.txt")) { & cmake -S "$root\installer" -B $dir -G 'Visual Studio 17 2022' -A x64 2>&1 | Select-String -Pattern 'error' | ForEach-Object { Write-Host $_.Line } }
     [string[]]$targets = @($targetsByDir[$which] | Select-Object -Unique)
     & cmake --build $dir --config Release --parallel --target @targets 2>&1 | Select-String -Pattern ' error ' | ForEach-Object { Write-Host $_.Line }
+    if($LASTEXITCODE -ne 0){throw "Build failed: $which"}
 }
+if(($chosen -contains 'nr') -and -not $ModelPath){Write-Host 'NR model/pipeline tests need -ModelPath or NR_MODEL; running flow and composition only.'}
 Write-Host ("built in {0:0} s" -f $total.Elapsed.TotalSeconds)
 
 # 2. What to run. The window tests (gui, features, setupexe) open windows and use the hotkey, so they run one after another; everything else
-#    (including the model scenarios on the GPU) runs beside them, all at once.
-$serialSuites = @('gui', 'features', 'setupexe')
+#    runs beside them. NR hardware programs run serially to avoid GPU test contention.
+$serialSuites = @('gui', 'features', 'setupexe', 'nr')
 $runs = @()
 foreach ($n in $chosen) {
     $s = $suites[$n]
@@ -109,7 +120,7 @@ function Start-Run($r, $i) {
     $r | Add-Member -NotePropertyName Out -NotePropertyValue (Join-Path $outDir "$i.txt") -Force
     if ($r.Exe -notin @('python', 'powershell') -and -not (Test-Path $r.Exe)) { $r | Add-Member -NotePropertyName Missing -NotePropertyValue $true -Force; return }
     $argText = ($r.Args | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '
-    $start = @{ FilePath = $r.Exe; NoNewWindow = $true; PassThru = $true; RedirectStandardOutput = $r.Out; RedirectStandardError = "$($r.Out).err" }
+    $start = @{ FilePath = $r.Exe; WindowStyle = 'Hidden'; PassThru = $true; RedirectStandardOutput = $r.Out; RedirectStandardError = "$($r.Out).err" }
     if ($argText) { $start.ArgumentList = $argText }
     $p = Start-Process @start
     $null = $p.Handle   # keeps the exit code readable after the process ends
@@ -140,5 +151,8 @@ foreach ($r in $runs) {
 }
 Write-Host ("{0:0} s in all" -f $total.Elapsed.TotalSeconds)
 if ($fail) { Write-Host "$fail test program(s) failed"; exit 1 }
-Remove-Item -LiteralPath $outDir -Recurse -Force -ErrorAction SilentlyContinue
+$resolved=[IO.Path]::GetFullPath($outDir)
+$boundary=[IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')+'\'
+if(-not $resolved.StartsWith($boundary,[StringComparison]::OrdinalIgnoreCase)){throw 'Test output escaped the temporary directory'}
+Remove-Item -LiteralPath $resolved -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host 'all addon tests passed'

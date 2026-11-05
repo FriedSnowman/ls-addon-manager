@@ -1,6 +1,6 @@
 # The tests that need neither a GPU nor a game nor NVIDIA's SDK, from a clean checkout: what the GitHub Actions build runs on every push, and what anyone can run to
 # see that a checkout is healthy. It configures and builds what it needs (Dear ImGui and MinHook are fetched at pinned versions), runs the tests, and builds the sample
-# addon the way its README describes. It does not build Neural Rendering (that needs NVIDIA's SDK, which cannot be redistributed) and does not open any window.
+# addon the way its README describes. It does not execute Neural Rendering (hardware/model tests are separate) and does not open any window.
 #   powershell -File tools\ci.ps1
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -35,6 +35,10 @@ Build "$root\installer\build" @('setup_core', 'setup_cli', 'setup_test', 'setup_
 Run 'installer core (fake Lossless Scaling folders)' "$root\installer\build\Release\setup_test.exe"
 Run 'installer file bundle' "$root\installer\build\Release\setup_payload_test.exe"
 Run 'Setup exe, silent mode' 'powershell' @('-NoProfile', '-File', "$root\installer\tests\setup_exe_test.ps1", '-Root', $root, '-NoWindow')
+
+Section 'the independent NR addon (build only; no proprietary model or SDK needed)'
+Configure "$root\addons\NeuralRendering" "$root\addons\NeuralRendering\build"
+Build "$root\addons\NeuralRendering\build" @('DLSSNR02','neural_flowtest','neural_compositiontest','neural_modeltest','neural_pipelinetest')
 
 Section 'the sample addon, built as its README says'
 Configure "$root\examples\SampleAddon" "$root\examples\SampleAddon\build"

@@ -188,6 +188,22 @@ Result Install(const std::wstring& lsDir, const std::wstring& payloadDir) {
         const std::wstring stale = JoinPath(lsDir, L"addons\\DLSS5NR01\\nvngx.dll_lspnr.dll");
         if (Exists(stale)) Rename(j, stale, JoinPath(backupDir, L"nvngx.dll_lspnr.dll"), "moved the old helper DLL nvngx.dll_lspnr.dll to the backups");
 
+        // Retire only files owned by the old NR addons. Models, settings and arbitrary
+        // user files remain at their original paths. Every rename participates in rollback.
+        for (const wchar_t* folder : {L"DLSS5NR01", L"LSP-NeuralRender"}) {
+            const auto oldDir = JoinPath(lsDir, std::wstring(L"addons\\") + folder);
+            const DWORD attributes = GetFileAttributesW(oldDir.c_str());
+            if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) continue;
+            for (const wchar_t* file : {L"DLSS5NR01.dll", L"LSP-NeuralRender.dll", L"nvngx.dll_dlss5nr01.dll",
+                                      L"nvngx.dll_lspnr.dll", L"nr_selftest.exe", L"nr_requirements.exe", L"addon.json"}) {
+                const auto from = JoinPath(oldDir, file);
+                if (!Exists(from)) continue;
+                const auto to = JoinPath(backupDir, std::wstring(L"retired-nr\\") + folder + L"\\" + file);
+                if (!MakeDirs(ParentOf(to))) throw Failure{"could not create retired NR backup folder"};
+                Rename(j, from, to, "retired old NR file " + Narrow(file));
+            }
+        }
+
         // is it what was meant?
         const State after = Inspect(lsDir);
         if (after.situation != Situation::Installed || after.installedVersion != payload.version) throw Failure{ "the folder did not end up in the expected state" };

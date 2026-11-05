@@ -7,8 +7,7 @@
 //
 // Two generators, each fed this project's motion estimate (src/engine/flow_estimator.cpp) with a flat depth, as the upscalers are:
 // AMD's FSR 3.1 frame generation (gen=fsr, the default; the FidelityFX runtime the FSR Upscaler ships) and Intel's XeSS frame generation
-// (gen=xess; libxess_fg.dll from Intel's SDK, tools
-etch_xess_sdk.ps1). Both run at present time on a swap chain of their own, as in a game.
+// (gen=xess; libxess_fg.dll from Intel's SDK, tools/fetch_xess_sdk.ps1). Both run at present time on a swap chain of their own.
 // Frames are compared in their SDR view: HDR recordings are rolled off as screenshots show them.
 //
 //   nr_fgeval <recording.lsrec> <output folder> [gen=fsr|xess] [first=N] [count=N] [worst=N] [fsr=<amd_fidelityfx_dx12.dll>] [xessfg=<libxess_fg.dll>]

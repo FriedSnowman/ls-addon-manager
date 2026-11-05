@@ -174,7 +174,7 @@ int wmain(int argc,wchar_t** argv) {
         ImGuiMemAllocFunc alloc;ImGuiMemFreeFunc freeFn;void* user;ImGui::GetAllocatorFunctions(&alloc,&freeFn,&user);
         initialize(&host,ImGui::GetCurrentContext(),reinterpret_cast<void*>(alloc),reinterpret_cast<void*>(freeFn),user);
     }
-    double nrStoppedAt=-1,scalerStoppedAt=-1;
+    double nrStoppedAt=-1,scalerStoppedAt=-1,nrAcceptedAtScalerStop=0;
     RealFrameHook::SetSettings(fg,capture,scaling,hdr);
     apply(0,0,scaling,0,1.0f,0,0,0,fg,0,0,2.0f,120.0f,100,0,0,0,0,0,2,0,hdr,capture,1,0,0,0,0,0,0,0,0,0);
     SetForegroundWindow(window);printf("Activate %d\n",activate(window));
@@ -183,7 +183,7 @@ int wmain(int argc,wchar_t** argv) {
         if(lifecycle&&!changed&&GetTickCount64()>start+(scalerAddon?15000:4000)){changed=true;
             if(lifecycle==1)SetWindowPos(window,nullptr,0,0,820,660,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
             else if(lifecycle==3&&shutdown){shutdown();shutdown=nullptr;nrStoppedAt=eam::Metrics::Instance().Now();puts("NR stopped while upscaler remains active");}
-            else if(lifecycle==4&&scalerShutdown){scalerShutdown();scalerShutdown=nullptr;scalerStoppedAt=eam::Metrics::Instance().Now();puts("Upscaler stopped while NR remains active");}
+            else if(lifecycle==4&&scalerShutdown){scalerShutdown();scalerShutdown=nullptr;scalerStoppedAt=eam::Metrics::Instance().Now();nrAcceptedAtScalerStop=eam::Metrics::Instance().Get("DLSSNR02","accepted",60).last();puts("Upscaler stopped while NR remains active");}
             else{printf("Toggle stop %d\n",activate(window));
                 const auto pause=GetTickCount64()+500;while(GetTickCount64()<pause){MSG m;while(PeekMessageW(&m,nullptr,0,0,PM_REMOVE)){TranslateMessage(&m);DispatchMessageW(&m);}Sleep(10);}
                 SetForegroundWindow(window);RealFrameHook::SetSettings(fg,capture,scaling,hdr);printf("Toggle start %d\n",activate(window));}
@@ -192,7 +192,7 @@ int wmain(int argc,wchar_t** argv) {
     stop();
     if(host.neural){const auto status=eam::Metrics::Instance().GetStatus("DLSSNR02",60);printf("NR status: %s\n",status.text.c_str());for(const auto& series:eam::Metrics::Instance().Snapshot(60))if(series.addon=="DLSSNR02")printf("NR metric %s %.4f %s\n",series.key.c_str(),series.last(),series.unit.c_str());printf("NR accepted %u edited %u\n",neuralAccepted,neuralEdited);}
     if(scalerAddon){auto metric=eam::Metrics::Instance().Get(scalerId,"dlss_ms",60);printf("Upscaler %s samples=%zu last=%.4f status=%s\n",scalerId.c_str(),metric.samples.size(),metric.last(),eam::Metrics::Instance().GetStatus(scalerId,60).text.c_str());if(metric.samples.empty()||(nrStoppedAt>=0&&metric.samples.back().t<nrStoppedAt+1))++failures;}
-    if(scalerStoppedAt>=0){auto metric=eam::Metrics::Instance().Get("DLSSNR02","model_ms",60);if(metric.samples.empty()||metric.samples.back().t<scalerStoppedAt+1){++failures;puts("NR did not publish completed work after upscaler shutdown");}}
+    if(scalerStoppedAt>=0){auto metric=eam::Metrics::Instance().Get("DLSSNR02","accepted",60);printf("NR accepted after upscaler shutdown %.0f\n",metric.last()-nrAcceptedAtScalerStop);if(metric.samples.empty()||metric.samples.back().t<scalerStoppedAt+1||metric.last()<nrAcceptedAtScalerStop+30){++failures;puts("NR did not complete new work after upscaler shutdown");}}
     if(shutdown)shutdown();if(scalerShutdown)scalerShutdown();if(scalerAddon)FreeLibrary(scalerAddon);if(addon)FreeLibrary(addon);if(host.neural)ImGui::DestroyContext();
     host.SetPreDispatchCallback(nullptr,nullptr);host.SetRealFrameCallback(nullptr);D3D11Hook::Shutdown();PostMessageW(window,WM_CLOSE,0,0);CloseHandle(child.hProcess);CloseHandle(child.hThread);printf("Total passes %u real frames %u verified %u failures %u epochs %u cleared histories %u\n",passes,realFrames,checked,failures,epochCount,clearedHistories);
     for(const auto& entry:eam::Logger::Instance().GetEntries())printf("[%s] %s\n",entry.source.c_str(),entry.message.c_str());

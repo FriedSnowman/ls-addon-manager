@@ -5,13 +5,18 @@
 #   * backs the old file up into <LS folder>\backups\ (never deletes) with a timestamp before replacing it.
 #   powershell -File deploy.ps1 -What host|dlaa|fsr|xess|all [-StopLS] [-LsDir '<Lossless Scaling folder>']   (or set the LS_DIR environment variable) [-Game WowB]
 param(
-    [Parameter(Mandatory = $true)][ValidateSet('host', 'dlaa', 'fsr', 'xess', 'all')][string]$What,
+    [Parameter(Mandatory = $true)][ValidateSet('host', 'nr', 'dlaa', 'fsr', 'xess', 'all')][string]$What,
     [switch]$StopLS,
     [string]$LsDir = $(if ($env:LS_DIR) { $env:LS_DIR } else { 'C:\Program Files (x86)\Steam\steamapps\common\Lossless Scaling' }),
     [string]$Game = 'WowB'
 )
 $root = Split-Path $PSScriptRoot -Parent   # the repository folder
 $items = @{
+    nr = @{ Src = "$root\addons\NeuralRendering\build\Release\DLSSNR02.dll"; Dst = "$LsDir\addons\DLSSNR02\DLSSNR02.dll";
+            Extra = @("$root\addons\NeuralRendering\addon.json", "$root\addons\NeuralRendering\build\Release\NeuralRendering_nvngx.dll",
+                      "$root\addons\NeuralRendering\NOTICE.md", "$root\addons\NeuralRendering\README.md", "$root\addons\NeuralRendering\icon.svg",
+                      @{Src="$root\addons\NeuralRendering\LICENSE";Rel='LICENSE.txt'},
+                      @{Src="$root\build\NeuralRendering-source.zip";Rel='NeuralRendering-source.zip'}) }
     host     = @{ Src = "$root\manager\build\Release\Lossless.dll"; Dst = "$LsDir\Lossless.dll"; Extra = @("$root\manager\manager-icon.ico", "$root\manager\manager-icon.png") }
     dlaa     = @{ Src = "$root\addons\Upscalers\build\Release\DLSS4DLAA.dll"; Dst = "$LsDir\addons\DLSS4DLAA\DLSS4DLAA.dll"; Extra = @("$root\addons\Upscalers\products\DLSS4DLAA\addon.json", "$root\addons\Upscalers\products\DLSS4DLAA\icon.svg",
                   @{ Src = "$root\addons\Upscalers\build\Release\dlss\nvngx_dlss.dll"; Rel = 'dlss\nvngx_dlss.dll' }, @{ Src = "$root\addons\Upscalers\external\ngx\LICENSE.txt"; Rel = 'NVIDIA-LICENSE.txt' },
@@ -36,7 +41,8 @@ if ($ls) {
     Stop-Process -Id $ls.Id; Start-Sleep 2
 }
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$names = if ($What -eq 'all') { @('host', 'dlaa', 'fsr', 'xess') } else { @($What) }
+$names = if ($What -eq 'all') { @('host', 'nr', 'dlaa', 'fsr', 'xess') } else { @($What) }
+if($names -contains 'nr'){& "$PSScriptRoot\package_neural_source.ps1" -Destination "$root\build\NeuralRendering-source.zip"}
 foreach ($n in $names) {
     $it = $items[$n]
     if (-not (Test-Path $it.Src)) { Write-Host "[$n] not built: $($it.Src)"; continue }
@@ -64,7 +70,9 @@ if ($names -contains 'host') {
         if (Test-Path $from) {
             $aside = "$LsDir\backups\retired-addons-$stamp"
             New-Item -ItemType Directory -Force $aside | Out-Null
-            Move-Item $from "$aside\$old"
+            $resolved=[IO.Path]::GetFullPath($from);$target=[IO.Path]::GetFullPath("$aside\$old");$boundary=[IO.Path]::GetFullPath($LsDir).TrimEnd('\')+'\'
+            if(-not $resolved.StartsWith($boundary,[StringComparison]::OrdinalIgnoreCase) -or -not $target.StartsWith($boundary,[StringComparison]::OrdinalIgnoreCase)){throw 'Retired folder escaped the LS installation'}
+            Move-Item -LiteralPath $resolved -Destination $target
             Write-Host "[host] moved the retired addon folder $old to $aside"
         }
     }

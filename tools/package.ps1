@@ -1,27 +1,33 @@
 # Builds Release and assembles dist\LSAddonManager-<version>-x64.zip: LSAddonManagerSetup.exe, one file that carries the manager and the addons
 # that build, with an install note and the licences. The files are not in the zip a second time: `LSAddonManagerSetup.exe --extract <folder>`
 # writes them out for installing by hand (since 0.9.12; the zip held every file twice before).
-# The DLSSNR model is never packaged. NVIDIA's NGX library is linked into Neural Rendering and ships under NVIDIA's licence (NOTICE.md), with
-# NVIDIA-LICENSE.txt beside it. Neural Rendering is left out (with a note) when it did not build; work-in-progress addons unless -IncludeWip.
-#   powershell -File tools\package.ps1 [-Version 0.7.0]
+# The user-provided NR model is never packaged. All four built addon products are required.
+# GPL NR corresponding source and its exact ImGui build dependency ship inside the payload.
+#   powershell -File tools/package.ps1 [-Version 0.9.15]
 param(
     [string]$Version = '',
     [switch]$IncludeWip   # also package addons marked work in progress (none are now)
 )
 $ErrorActionPreference = 'Stop'
+function RemoveUnder([string]$Path,[string]$Parent) {
+    $absolute=[IO.Path]::GetFullPath($Path)
+    $boundary=[IO.Path]::GetFullPath($Parent).TrimEnd('\')+'\'
+    if(-not $absolute.StartsWith($boundary,[StringComparison]::OrdinalIgnoreCase)){throw "Refusing removal outside $boundary : $absolute"}
+    if(Test-Path -LiteralPath $absolute){Remove-Item -LiteralPath $absolute -Recurse -Force}
+}
 $root = Split-Path $PSScriptRoot -Parent
 if (-not $Version) {   # default: the release number in version.h
     $Version = (Select-String -Path "$root\manager\sdk\include\eam\version.h" -Pattern 'EAM_VERSION_STRING "([^"]+)"').Matches[0].Groups[1].Value
 }
 # Always build locally; downloaded or stale release artifacts are not a fallback.
-& powershell -NoProfile -File "$PSScriptRoot\build_all.ps1" -Only host,scalers
+& powershell -NoProfile -File "$PSScriptRoot\build_all.ps1" -Only host,neural,scalers
 if ($LASTEXITCODE -ne 0) { throw 'Local build failed; refusing to package existing artifacts.' }
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version must be three nonnegative numbers separated by dots.' }
 $name = "LSAddonManager-$Version-x64"
 $dist = "$root\dist"
 $stage = "$dist\$name"
-if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
+RemoveUnder $stage $dist
 New-Item -ItemType Directory -Force "$stage\addons" | Out-Null
 
 function Need($path, $what) { if (-not (Test-Path $path)) { throw "missing build output: $what ($path)" } }
@@ -29,7 +35,13 @@ Need "$root\manager\build\Release\Lossless.dll" 'the manager'
 Copy-Item "$root\manager\build\Release\Lossless.dll" $stage
 Copy-Item "$root\manager\manager-icon.ico", "$root\manager\manager-icon.png" $stage
 
+& "$PSScriptRoot\package_neural_source.ps1" -Destination "$root\build\NeuralRendering-source.zip"
+
 $addons = @(
+    @{ Id = 'DLSSNR02'; Dir = "$root\addons\NeuralRendering"; Bin = "$root\addons\NeuralRendering\build\Release";
+       Files = @('DLSSNR02.dll','NeuralRendering_nvngx.dll');
+       Extra = @{ 'NOTICE.md' = "$root\addons\NeuralRendering\NOTICE.md"; 'README.md' = "$root\addons\NeuralRendering\README.md";
+                  'NeuralRendering-source.zip' = "$root\build\NeuralRendering-source.zip" } },
     # DLSS Upscaler (a preview since 0.9.1: its addon.json keeps it off until switched on): built from the same sources; its addon.json lives
     # in products\DLSS4DLAA, and NVIDIA's DLSS runtime ships in its dlss folder
     @{ Id = 'DLSS4DLAA'; Dir = "$root\addons\Upscalers\products\DLSS4DLAA"; Bin = "$root\addons\Upscalers\build\Release"; Files = @('DLSS4DLAA.dll');
@@ -53,7 +65,7 @@ $included = @(); $skipped = @()
 foreach ($a in $addons) {
     if ($a.Wip -and -not $IncludeWip) { Write-Host "$($a.Id) is work in progress: not packaged (-IncludeWip packages it)."; continue }
     $missing = @($a.Files | Where-Object { -not (Test-Path "$($a.Bin)\$_") })
-    if ($missing.Count) { $skipped += $a.Id; continue }
+    if ($missing.Count) { throw "Required addon $($a.Id) is incomplete: $($missing -join ', ')" }
     $dst = "$stage\addons\$($a.Id)"
     New-Item -ItemType Directory -Force $dst | Out-Null
     foreach ($f in $a.Files) { Copy-Item "$($a.Bin)\$f" $dst }
@@ -68,7 +80,7 @@ foreach ($a in $addons) {
 # It is built in its own folder (installer\build_setup), so the test build of the installer, which carries no files, stays as the tests expect.
 $setupBuild = "$root\installer\build_setup"
 $payloadDir = "$dist\payload-$Version"
-if (Test-Path $payloadDir) { Remove-Item -Recurse -Force $payloadDir }
+RemoveUnder $payloadDir $dist
 New-Item -ItemType Directory -Force $payloadDir | Out-Null
 Copy-Item "$stage\Lossless.dll", "$stage\manager-icon.ico", "$stage\manager-icon.png" $payloadDir
 Copy-Item "$stage\addons" "$payloadDir\addons" -Recurse
@@ -88,7 +100,7 @@ if (-not (Test-Path $setupExe)) { throw 'the Setup exe did not build' }
 
 # Check the finished exe as a person would use it: it must report the version it carries, and install into a fake Lossless Scaling folder byte for byte
 $check = "$env:TEMP\setup_check_$PID"
-if (Test-Path $check) { Remove-Item -Recurse -Force $check }
+RemoveUnder $check $env:TEMP
 New-Item -ItemType Directory $check | Out-Null
 $vlog = "$check\version.log"
 $p = Start-Process $setupExe -ArgumentList '--version', '--no-remember', '--log', "`"$vlog`"" -PassThru -Wait -WindowStyle Hidden
@@ -121,11 +133,11 @@ $want = @(Get-ChildItem $payloadDir -Recurse -File)
 $bad = @($want | Where-Object { (Get-FileHash $_.FullName).Hash -ne (Get-FileHash ("$ex\" + $_.FullName.Substring($payloadDir.Length + 1)) -ErrorAction SilentlyContinue).Hash })
 if ($bad.Count -or @(Get-ChildItem $ex -Recurse -File).Count -ne $want.Count) { throw "the Setup exe's --extract gave other files than the package: $($bad.Name -join ', ')" }
 Write-Host "  Setup exe checked: --extract writes the $($want.Count) files byte for byte"
-Remove-Item -Recurse -Force $check -ErrorAction SilentlyContinue
+RemoveUnder $check $env:TEMP
 Copy-Item $setupExe "$stage\LSAddonManagerSetup.exe"
-Remove-Item -Recurse -Force $payloadDir
+RemoveUnder $payloadDir $dist
 # the files are inside Setup: not in the zip a second time
-Remove-Item -Recurse -Force "$stage\Lossless.dll", "$stage\manager-icon.ico", "$stage\manager-icon.png", "$stage\addons"
+foreach($file in 'Lossless.dll','manager-icon.ico','manager-icon.png','addons'){RemoveUnder (Join-Path $stage $file) $stage}
 
 Copy-Item "$root\LICENSE" "$stage\LICENSE.txt"
 Copy-Item "$root\NOTICE.md", "$root\DISCLAIMER.md", "$root\CHANGELOG.md" $stage
@@ -138,7 +150,9 @@ For manual installation, --extract files extracts the payload. Preserve the orig
 Lossless.dll as Lossless_original.dll before replacing the proxy.
 
 Only locally built addons are included. The retired DLSS5NR01 plugin is ignored by
-the manager. User model files and settings are preserved. No neural model is included.
+the manager. Its owned executables move to backups on upgrade; user models and
+settings stay at their paths. DLSSNR02 uses fresh settings and NVIDIA hardware only.
+No neural model is included. Corresponding NR source and licences are in the addon folder.
 See README.md, NOTICE.md and DISCLAIMER.md in the source checkout.
 "@ | Set-Content -Encoding UTF8 "$stage\INSTALL.txt"
 

@@ -1,6 +1,6 @@
 # Questions and answers
 
-Short answers to the things people ask most. The [README](../README.md) has the overview and a troubleshooting table; Neural Rendering has its own [user guide](../addons/DLSS5NR01/docs/user-guide.md) with a longer troubleshooting section.
+Short answers to the things people ask most. See the [README](../README.md) and the new [Neural Rendering guide](../addons/NeuralRendering/README.md) for supported profiles, controls and validation limits.
 
 ## Before you install
 
@@ -12,13 +12,13 @@ on disk, and uninstalling puts its own file back.
 No. It runs inside Lossless Scaling, not inside the game. (Whether a game's anti-cheat has an opinion about Lossless Scaling itself is between you and the game; the manager does not change that, and cannot promise anything about it.)
 
 **Which versions and games has it been tested with?**
-Lossless Scaling **3.2.2.0** on Windows 11 with an NVIDIA RTX GPU, and the game **World of Warcraft: Forever** (the beta). Other versions, cards and games are untested. If you try one, tell us how it went.
+Historical manager tests used LS 3.2.2.0, Windows 11, NVIDIA RTX GPU and World of Warcraft: Forever. The replacement NR addon was validated separately on NVIDIA RTX GPU with synthetic captures through LS 3.2.2.0. Representative gameplay quality for the replacement remains unvalidated; see its guide for exact supported runtime hashes.
 
 **Steam or non-Steam Lossless Scaling?**
 Either. Setup looks in Steam libraries and in usual places on every drive, and lets you pick any folder. The copy it was developed with is not from Steam.
 
 **Is it free? Is it safe to download?**
-It is free and MIT-licensed, and the source is in this repository. The files are **not signed**, because signing costs money and free signing for open-source projects needs an application; Windows SmartScreen and some antivirus programs therefore
+The manager is MIT-licensed; the new NR addon combines GPL-3.0-only source and includes corresponding source with its binaries. Vendor runtimes have separate terms; see [NOTICE.md](../NOTICE.md). Project-built files are **not signed**; Windows SmartScreen and some antivirus programs therefore
 distrust them. You can build everything yourself from the source (see the README).
 
 **Does it send anything over the internet?**
@@ -64,10 +64,10 @@ Both are switched off until you turn them on in the *Features* tab. Windowed mod
 ## DLSS 5 Neural Rendering
 
 **Where do I get `nvngx_dlssnr.dll`?**
-This project does not distribute it, does not download it and does not say where to find it. You provide your own copy, and put it next to `LosslessScaling.exe` (Setup and the addon's *Browse for the model file...* button can copy it there). Everything else works without it.
+This project does not distribute or download it. Supply your own validated copy and select its existing path with **Browse** in the addon panel. The default is beside `LosslessScaling.exe`; browsing does not copy it. Other addons work without this model.
 
-**What does "Test compatibility" tell me?**
-It runs your model file once, in a separate program, on your graphics card, and says whether it loads, creates its feature and changes a test picture. It is the way to find out before playing that a model build cannot run on your card. It does not prove the picture looks right in every game.
+**How is compatibility checked?**
+The new addon checks the LS/model hashes and queried NVIDIA optical-flow capabilities, then reports initialization or capture errors in its panel. Unknown profiles bypass unchanged. Developer model/pipeline harnesses test the supported runtime independently; passing them does not establish gameplay quality.
 
 **Can I share what worked on my card?**
 Yes, please: see [model-compatibility.md](model-compatibility.md).
@@ -84,7 +84,7 @@ A game with DLSS built in moves its camera by a fraction of a pixel every frame,
 game renders. Lossless Scaling only sees the finished frames, without those shifts, so the upscalers work as a very good upscaler and
 anti-aliasing rather than adding new detail. The difference to NIS shows most in motion, on fine detail and foliage, and when the game
 renders well below the screen's size (2560x1440 to 4K, for example); on a clean, low-detail game it is smaller. The
-[upscalers' guide](../addons/DLSS5NR01/docs/upscalers.md) has the settings that help most (the model, sharpening, stability).
+[upscalers' guide](../addons/Upscalers/docs/upscalers.md) has the settings that help most (the model, sharpening, stability).
 
 **DLSS, FSR or XeSS?**
 On an NVIDIA RTX card try DLSS and FSR: DLSS smooths edges better, FSR 3.1 costs less and keeps text crisper, and FSR 4 is the best in

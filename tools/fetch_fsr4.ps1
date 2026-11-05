@@ -41,6 +41,9 @@ try {
     New-Item -ItemType Directory -Force $Dest | Out-Null
     Move-Item -Force $dll $target
 } finally {
-    Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue   # the download and the unpacked copy (temporary files of this script)
+    $absolute=[IO.Path]::GetFullPath($work)
+    $boundary=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')+'\'
+    if(-not $absolute.StartsWith($boundary,[StringComparison]::OrdinalIgnoreCase)){throw 'Refusing cleanup outside the temporary folder'}
+    Remove-Item -LiteralPath $absolute -Recurse -Force -ErrorAction SilentlyContinue   # the download and the unpacked copy (temporary files of this script)
 }
 Write-Host "FSR 4.1.1b (OptiScaler) is in $Dest."

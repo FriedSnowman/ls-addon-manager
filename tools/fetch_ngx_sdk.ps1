@@ -1,4 +1,4 @@
-# Fetches the NVIDIA DLSS SDK files the Neural Rendering addon needs from NVIDIA's own public repository, https://github.com/NVIDIA/DLSS, into
+# Fetches the NVIDIA DLSS SDK files the retained standalone upscalers need from NVIDIA's own public repository, https://github.com/NVIDIA/DLSS, into
 # addons\Upscalers\external\ngx: the headers and static library to build it, NVIDIA's DLSS runtime (nvngx_dlss.dll, for the DLAA model), and
 # NVIDIA's licence, which goes into the release next to them. Nothing is taken from anywhere else, and nothing is committed: that folder is
 # ignored by git. NVIDIA's licence allows the runtime and the library's object code to ship inside an application such as this one, under

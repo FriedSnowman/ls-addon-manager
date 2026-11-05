@@ -24,7 +24,13 @@ function Hash($p) {
 }
 
 $tmp = Join-Path $env:TEMP "setup_exe_test_$PID"
-if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
+function RemoveTestTemp {
+    $resolved=[IO.Path]::GetFullPath($tmp)
+    $boundary=[IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')+'\'
+    if(-not $resolved.StartsWith($boundary,[StringComparison]::OrdinalIgnoreCase)){throw 'Setup test escaped the temporary directory'}
+    if(Test-Path -LiteralPath $resolved){Remove-Item -LiteralPath $resolved -Recurse -Force}
+}
+RemoveTestTemp
 New-Item -ItemType Directory $tmp | Out-Null
 
 function Run($exeArgs, $name) {   # runs the (windowless) exe, returns exit code and its log text
@@ -44,11 +50,11 @@ function MakeLs($name, $dll = 'fake_original.dll') {
 
 # The files to install, laid out like the release zip
 $payload = "$tmp\payload"
-New-Item -ItemType Directory "$payload\addons\DLSS5NR01" -Force | Out-Null
+New-Item -ItemType Directory "$payload\addons\DLSSNR02" -Force | Out-Null
 Copy-Item $ours "$payload\Lossless.dll"
 Set-Content "$payload\manager-icon.ico" 'icon'; Set-Content "$payload\manager-icon.png" 'png'
-Set-Content "$payload\addons\DLSS5NR01\DLSS5NR01.dll" 'addon dll'
-Set-Content "$payload\addons\DLSS5NR01\addon.json" '{ "id": "DLSS5NR01" }'
+Set-Content "$payload\addons\DLSSNR02\DLSSNR02.dll" 'addon dll'
+Set-Content "$payload\addons\DLSSNR02\addon.json" '{ "id": "DLSSNR02" }'
 $ls = MakeLs 'ls1'
 $configBefore = Get-Content "$ls\addons\config.json" -Raw
 
@@ -62,7 +68,7 @@ $r = Run @('--silent', 'install', '--folder', "`"$ls`"", '--payload', "`"$payloa
 Check 'install succeeds' ($r.Code -eq 0) "$($r.Code) $($r.Log)"
 Check 'the original Lossless.dll is kept as Lossless_original.dll, byte for byte' ((Hash "$ls\Lossless_original.dll") -eq (Hash "$fakes\fake_original.dll"))
 Check 'our Lossless.dll is in place, byte for byte' ((Hash "$ls\Lossless.dll") -eq (Hash $ours))
-Check 'the addon files came across, byte for byte' ((Hash "$ls\addons\DLSS5NR01\DLSS5NR01.dll") -eq (Hash "$payload\addons\DLSS5NR01\DLSS5NR01.dll") -and (Hash "$ls\addons\DLSS5NR01\addon.json") -eq (Hash "$payload\addons\DLSS5NR01\addon.json"))
+Check 'the addon files came across, byte for byte' ((Hash "$ls\addons\DLSSNR02\DLSSNR02.dll") -eq (Hash "$payload\addons\DLSSNR02\DLSSNR02.dll") -and (Hash "$ls\addons\DLSSNR02\addon.json") -eq (Hash "$payload\addons\DLSSNR02\addon.json"))
 Check 'the icons came across' ((Test-Path "$ls\manager-icon.ico") -and (Test-Path "$ls\manager-icon.png"))
 Check 'the person''s settings and other addons are untouched' ((Get-Content "$ls\addons\config.json" -Raw) -eq $configBefore -and (Test-Path "$ls\addons\OtherAddon\other.dll"))
 Check 'the replaced original went to a backups folder' ((Get-ChildItem "$ls\backups" -Recurse -Filter 'Lossless.dll' -ErrorAction SilentlyContinue | Measure-Object).Count -ge 1)
@@ -81,7 +87,7 @@ Check 'repair keeps the new original and puts ours back' ($r.Code -eq 0 -and (Ha
 
 $r = Run @('--silent', 'uninstall', '--folder', "`"$ls`"") 'uninstall'
 Check 'uninstall puts Lossless Scaling''s own Lossless.dll back' ($r.Code -eq 0 -and (Hash "$ls\Lossless.dll") -eq (Hash "$fakes\fake_original_new.dll")) "$($r.Code) $($r.Log)"
-Check 'uninstall leaves the addons and the settings' ((Test-Path "$ls\addons\DLSS5NR01\DLSS5NR01.dll") -and (Get-Content "$ls\addons\config.json" -Raw) -eq $configBefore)
+Check 'uninstall leaves the addons and the settings' ((Test-Path "$ls\addons\DLSSNR02\DLSSNR02.dll") -and (Get-Content "$ls\addons\config.json" -Raw) -eq $configBefore)
 
 Write-Host '== refusals'
 $other = "$tmp\not_ls"; New-Item -ItemType Directory $other | Out-Null; Set-Content "$other\file.txt" 'x'
@@ -143,5 +149,5 @@ Check 'the window left no write-test file behind' (-not (Get-ChildItem $ls3 -For
 $mine = (Get-ItemProperty 'HKCU:\Software\LSAddonManager' -ErrorAction SilentlyContinue).LastFolder
 Check 'the person''s remembered folder was not touched by any of it' (-not $mine -or $mine -eq $rememberedBefore) "now: $mine"
 Remove-Item 'HKCU:\Software\LSAddonManager\SetupTest' -Recurse -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+RemoveTestTemp
 if ($fail) { Write-Host "SETUP EXE TEST FAILED ($fail failed)"; exit 1 } else { Write-Host 'SETUP EXE TEST PASSED (0 failed)' }

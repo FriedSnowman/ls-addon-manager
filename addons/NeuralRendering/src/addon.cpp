@@ -116,8 +116,17 @@ void Status(bool force = false) {
     host->PublishMetric(Id, "summary_wait_ms", m.summaryWaitMs, "ms");
     host->PublishMetric(Id, "accepted", double(m.accepted), "frames");
     host->PublishMetric(Id, "bypassed", double(m.bypassed), "frames");
+    if (m.accepted + m.bypassed)
+        host->PublishMetric(Id, "keepup_pct", 100.0 * m.accepted / (m.accepted + m.bypassed), "%");
 }
 bool Frame(const EamRealFrame &frame, void *) {
+    static std::chrono::steady_clock::time_point last;
+    static uint64_t epoch = 0;
+    const auto now = std::chrono::steady_clock::now();
+    if (host && epoch == frame.epoch && last.time_since_epoch().count())
+        host->PublishMetric(Id, "frame_ms", std::chrono::duration<double, std::milli>(now - last).count(), "ms");
+    last = now;
+    epoch = frame.epoch;
     const bool result = service && service->Process(frame);
     Status();
     return result;

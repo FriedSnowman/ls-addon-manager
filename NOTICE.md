@@ -14,7 +14,8 @@ new. The original copyright and licence are in [LICENSE](LICENSE), which must st
 |------|--------|---------|
 | `manager/` | Echo-Storm, on FrankBarretta's LosslessProxy | MIT, [LICENSE](LICENSE) |
 | `manager/src/features` (ReShade passthrough, Windowed mode) | FrankBarretta's addons, reworked and built in by Echo-Storm | MIT, [LICENSE](LICENSE) |
-| `addons/DLSS5NR01` | Echo-Storm; it began as andreiday's DLSS 5 plugin for LosslessProxy, with thanks. The same sources also build the DLSS Upscaler, the FSR Upscaler and the XeSS Upscaler | MIT, its `LICENSE` |
+| `addons/Upscalers` | Echo-Storm; retained standalone DLSS, FSR and XeSS products, separated from the retired NR plugin | MIT, its `LICENSE` |
+| `addons/NeuralRendering` | FriedSnowman, with pinned OptiScaler and RenoDX-derived composition; see its [NOTICE](addons/NeuralRendering/NOTICE.md) | GPL-3.0-only; corresponding source included with binaries |
 | `tools/` | Echo-Storm | MIT |
 
 ## Third-party code that is built in or fetched at build time
@@ -26,20 +27,20 @@ new. The original copyright and licence are in [LICENSE](LICENSE), which must st
 | [stb_image](https://github.com/nothings/stb) | public domain / MIT | `manager/third_party/stb_image.h` |
 | [MinHook](https://github.com/TsudaKageyu/minhook) | BSD-2-Clause | fetched by CMake for the manager (its code hooks and the Windowed feature) |
 | Icon shapes | drawn in the manner of the [Lucide](https://lucide.dev) set (ISC) | `manager/sdk/include/eam/icons.h` |
-| [AMD FidelityFX API headers](https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK) (SDK v1.1.4, FSR 3.1.4), unchanged | MIT (AMD) | `addons/DLSS5NR01/third_party/ffx`, compiled into the upscaler addons |
-| FSR 4.1.1b INT8 with the RDNA 2 fix: AMD's FSR 4 upscaler library (AMD FidelityFX Upscaler Library 4.1.1.2740), as changed by the OptiScaler team so it runs on cards AMD's own FSR 4 does not; not signed. With thanks to the OptiScaler team | AMD's FidelityFX SDK 2.x licence (binary form; `LICENSE.txt` beside it, from `addons/DLSS5NR01/third_party/ffx4`) | fetched by `tools/fetch_fsr4.ps1` (pinned SHA-256); ships in `addons/FSR3UPSC/runtimes/FSR/0dd77d9c/` with `ABOUT.txt` and `LICENSE.txt`, as the FSR Upscaler's second choice (0.9.5). A stand-in until AMD's own FSR 4 runs on every card |
+| [AMD FidelityFX API headers](https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK) (SDK v1.1.4, FSR 3.1.4), unchanged | MIT (AMD) | `addons/Upscalers/third_party/ffx`, compiled into the upscaler addons |
+| FSR 4.1.1b INT8 with the RDNA 2 fix: AMD's FSR 4 upscaler library (AMD FidelityFX Upscaler Library 4.1.1.2740), as changed by the OptiScaler team so it runs on cards AMD's own FSR 4 does not; not signed. With thanks to the OptiScaler team | AMD's FidelityFX SDK 2.x licence (binary form; `LICENSE.txt` beside it, from `addons/Upscalers/third_party/ffx4`) | fetched by `tools/fetch_fsr4.ps1` (pinned SHA-256); ships in `addons/FSR3UPSC/runtimes/FSR/0dd77d9c/` with `ABOUT.txt` and `LICENSE.txt`, as the FSR Upscaler's second choice (0.9.5). A stand-in until AMD's own FSR 4 runs on every card |
 | Intel's XeSS runtime (`libxess.dll` 2.0.2.68, from the XeSS SDK 3.0.2, signed by Intel), unmodified | Intel Simplified Software License | fetched with Intel's headers by `tools/fetch_xess_sdk.ps1` (pinned SHA-256s, Intel's signature checked; the headers are never committed); ships in `addons/XESSUPSC/xess/` with `Intel-XeSS-LICENSE.txt`, with the XeSS Upscaler (since 0.9.12) |
 | AMD's FidelityFX runtime (`amd_fidelityfx_dx12.dll`, the SDK v1.1.4 prebuilt, signed by AMD), unmodified | MIT (AMD) | fetched by `tools/fetch_ffx_sdk.ps1` (pinned SHA-256, AMD's signature checked); ships in `addons/FSR3UPSC/fsr/` with `AMD-FidelityFX-LICENSE.txt`, with the FSR Upscaler (in the release since 0.9.1) |
 
 ## NVIDIA software in the release (not MIT)
 
-The Neural Rendering addon uses **NVIDIA DLSS** technology. NVIDIA, the NVIDIA logo and DLSS are trademarks of NVIDIA Corporation; this
+The standalone DLSS Upscaler and new Neural Rendering addon use **NVIDIA DLSS** technology. The new NR addon dynamically loads the installed driver and user-provided model; it does not link or distribute the proprietary NGX SDK. The following SDK/runtime entries apply to the retained upscaler products. NVIDIA, the NVIDIA logo and DLSS are trademarks of NVIDIA Corporation; this
 project is not affiliated with or endorsed by NVIDIA. Parts of NVIDIA's DLSS SDK, taken from NVIDIA's public repository
 ([NVIDIA/DLSS](https://github.com/NVIDIA/DLSS), release 310.9.1) by `tools/fetch_ngx_sdk.ps1`, are in the released files:
 
 | What | Where in the release | Terms |
 |------|----------------------|-------|
-| NVIDIA's NGX SDK library (`nvsdk_ngx_s.lib`), as object code | linked into `addons/DLSS5NR01/DLSS5NR01.dll` and `nr_selftest.exe` | NVIDIA RTX SDKs licence |
+| NVIDIA's NGX SDK library (`nvsdk_ngx_s.lib`), as object code | linked into the retained `addons/Upscalers` products (including `DLSS4DLAA.dll`), not the new NR addon | NVIDIA RTX SDKs licence |
 | NVIDIA's DLSS runtime (`nvngx_dlss.dll` 310.9.1), unmodified | `addons/DLSS4DLAA/dlss/nvngx_dlss.dll`, with the DLSS Upscaler (in the release since 0.9.1) | NVIDIA RTX SDKs licence |
 | NVIDIA's licence text | `NVIDIA-LICENSE.txt` in each of those addon folders | |
 
@@ -52,4 +53,4 @@ SHA-256.
 
 - **Lossless Scaling** is its author's product. This project is unofficial and is not affiliated with or endorsed by them.
 - The **DLSS NR model** (`nvngx_dlssnr.dll`, needed to run DLSS 5 Neural Rendering) belongs to NVIDIA and is not a file NVIDIA offers for
-  redistribution. It is never included, downloaded or linked here, and this project does not say where to find it: the person supplies their own.
+  redistribution by this project. It is never included or downloaded here, and this project does not say where to find it: the person supplies their own.

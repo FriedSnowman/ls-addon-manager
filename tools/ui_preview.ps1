@@ -7,5 +7,6 @@ New-Item -ItemType Directory -Force $Out | Out-Null
 $root = Split-Path $PSScriptRoot -Parent   # the repository folder
 $exe = "$root\manager\build\Release\eam_uipreview.exe"
 $dlls = @('DLSS4DLAA', 'FSR3UPSC', 'XESSUPSC') | ForEach-Object { Join-Path $root "addons\Upscalers\build\Release\$_.dll" }   # their panels, in the Addons shots
+$dlls = @((Join-Path $root 'addons\NeuralRendering\build\Release\DLSSNR02.dll')) + @($dlls)
 & $exe ($Out -replace '\\', '/') $Scale @($dlls | Where-Object { Test-Path $_ }) | Select-Object -Last 8
 python "$PSScriptRoot\bmp2png.py" $Out

@@ -10,13 +10,13 @@
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace eam {
 
 namespace {
 
-constexpr const char* kNr = "DLSS4DLAA";
 constexpr double kGraphSeconds = 20.0;   // the length of the graphs
 constexpr double kStatSeconds = 10.0;    // what the tiles average over
 
@@ -99,9 +99,25 @@ void RenderTabPerformance() {
     GpuStats::Instance().Wanted();
     Metrics& M = Metrics::Instance();
     const double now = M.Now();
-    const Metrics::Series frame = M.Get(kNr, "frame_ms", kGraphSeconds + 1);
-    const Metrics::Series model = M.Get(kNr, "dlss_ms", kGraphSeconds + 1);
-    const Metrics::Series keep = M.Get(kNr, "keepup_pct", kGraphSeconds + 1);
+    const char* source = "DLSSNR02";
+    const char* modelKey = "model_ms";
+    const auto recent = [&](const char* id) {
+        auto s = M.Get(id, "frame_ms", 6);
+        return !s.samples.empty() && now - s.samples.back().t < 5;
+    };
+    if (!recent(source)) {
+        for (const auto& candidate : {std::pair<const char*, const char*>{"DLSS4DLAA", "dlss_ms"},
+                                     {"FSR3UPSC", "fsr_ms"}, {"XESSUPSC", "xess_ms"}}) {
+            if (recent(candidate.first)) {
+                source = candidate.first;
+                modelKey = candidate.second;
+                break;
+            }
+        }
+    }
+    const Metrics::Series frame = M.Get(source, "frame_ms", kGraphSeconds + 1);
+    const Metrics::Series model = M.Get(source, modelKey, kGraphSeconds + 1);
+    const Metrics::Series keep = M.Get(source, "keepup_pct", kGraphSeconds + 1);
     const Metrics::Series util = M.Get("system", "gpu_util", kGraphSeconds + 1);
     const Metrics::Series power = M.Get("system", "gpu_power_w", kGraphSeconds + 1);
     const GpuStats::Snapshot gpu = GpuStats::Instance().Get();
@@ -113,7 +129,7 @@ void RenderTabPerformance() {
 
     if (!haveFrames && !haveGpu) {
         widgets::EmptyState(ImGui::GetContentRegionAvail().x, "No live data yet",
-                            gpu.ok ? "Waiting for the GPU..." : "Start scaling a game with an addon that reports performance (DLSS Upscaler does). GPU figures need an NVIDIA GPU.");
+                            gpu.ok ? "Waiting for the GPU..." : "Start scaling with Neural Rendering or a standalone upscaler. GPU figures need an NVIDIA GPU.");
         if (!gpu.ok && !gpu.why.empty()) { ImGui::Dummy(ImVec2(0, S(6))); ImGui::TextDisabled("GPU: %s", gpu.why.c_str()); }
         ImGui::EndChild();
         return;
@@ -128,14 +144,14 @@ void RenderTabPerformance() {
     char big[64], sub[96];
     if (haveFrames && fs.avg > 0.1f) snprintf(big, sizeof big, "%.0f fps", 1000.0f / fs.avg); else snprintf(big, sizeof big, "-");
     snprintf(sub, sizeof sub, haveFrames ? "%.1f ms average" : "no frames", fs.avg);
-    Tile("t1", tileW, "GAME FRAME RATE", big, sub, U(eam::ui::theme::kAccent));
+    Tile("t1", tileW, "OBSERVED FRAME RATE", big, sub, U(eam::ui::theme::kAccent));
     ImGui::SameLine();
     if (haveFrames) snprintf(big, sizeof big, "%.1f ms", fs.p95); else snprintf(big, sizeof big, "-");
     snprintf(sub, sizeof sub, haveFrames ? "worst frame %.0f ms" : "", fs.mx);
     Tile("t2", tileW, "SLOWEST 5% OF FRAMES", big, sub, U(fs.p95 > 25.0f ? eam::ui::theme::kWarn : eam::ui::theme::kAccent));
     ImGui::SameLine();
     if (!model.samples.empty()) snprintf(big, sizeof big, "%.1f ms", ms.avg); else snprintf(big, sizeof big, "-");
-    snprintf(sub, sizeof sub, !keep.samples.empty() ? "keeps up %.0f%%" : "", ks.avg);
+    snprintf(sub, sizeof sub, !keep.samples.empty() ? "enhanced %.0f%% this epoch" : "", ks.avg);
     Tile("t3", tileW, "MODEL COST", big, sub, U(ks.n && ks.avg < 90.0f ? eam::ui::theme::kWarn : eam::ui::theme::kAccent));
     ImGui::SameLine();
     if (haveGpu) snprintf(big, sizeof big, "%u%%", gpu.utilGpu); else snprintf(big, sizeof big, "-");
@@ -154,7 +170,7 @@ void RenderTabPerformance() {
             eam::ui::LineGraph("frames", pts.data(), (int)pts.size(), ImVec2(0, ImGui::GetFontSize() * 7.0f), 0.0f, top, U(eam::ui::theme::kAccent), guides, labels, 2, 33.3f, U(eam::ui::theme::kWarn), "ms");
         else { ImGui::TextDisabled("No frames in the last few seconds."); }
     }
-    widgets::Tip("Time between the game's real frames as Lossless Scaling sees them. A flat line at 16.7 ms is a steady 60 fps. Spikes above the upper dashed line (33 ms) turn amber.");
+    widgets::Tip("Time between observed addon frames. Neural Rendering reports real captures; standalone upscalers can also observe generated output. A flat line at 16.7 ms is a steady 60 fps. Spikes above the upper dashed line (33 ms) turn amber.");
 
     // ---- model and GPU graphs, side by side
     ImGui::Dummy(ImVec2(0, S(6)));
@@ -211,7 +227,7 @@ void RenderTabPerformance() {
         Reading(U(eam::ui::theme::kWarn), "The GPU is slowing down because of temperature. Check the case airflow and the fan curve."); said = true;
     }
     if (ks.n && ks.avg < 90.0f) {
-        char b[200]; snprintf(b, sizeof b, "The model runs on only %.0f%% of frames: the enhancement lags behind the picture. Lower Model resolution in the addon's settings.", ks.avg);
+        char b[200]; snprintf(b, sizeof b, "The model runs on only %.0f%% of frames: other frames pass through unchanged, including during initialization. Lower Working resolution if bypasses continue.", ks.avg);
         Reading(U(eam::ui::theme::kWarn), b); said = true;
     }
     if (haveFrames && fs.n > 30) {

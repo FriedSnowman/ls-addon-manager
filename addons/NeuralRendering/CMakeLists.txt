@@ -58,6 +58,9 @@ add_dependencies(neural_pipelinetest neural_forwarder)
 
 option(NEURAL_BUILD_ADDON "Build the manager addon and its settings panel" ON)
 if(NEURAL_BUILD_ADDON)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../dependencies/imgui/imgui.cpp" AND NOT FETCHCONTENT_SOURCE_DIR_IMGUI)
+        set(FETCHCONTENT_SOURCE_DIR_IMGUI "${CMAKE_CURRENT_SOURCE_DIR}/../../dependencies/imgui")
+    endif()
     include(FetchContent)
     FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git
         GIT_TAG 367b2c24f399988ddafc0bb4628da0106bcc09be)
