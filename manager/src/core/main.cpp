@@ -3,6 +3,7 @@
 #include "proxy_exports.h"
 #include "shader_hook.h"
 #include "d3d11_hook.h"
+#include "real_frame_hook.h"
 #include "instance_guard.h"
 #include "../addon/addon_manager.h"
 #include "../config/config_manager.h"
@@ -129,11 +130,13 @@ extern "C" __declspec(dllexport) void __fastcall ApplySettings(
     LOG_INFO("Core", "ApplySettings: scalingMode=%d fit=%d type=%d subtype=%d factor=%.2f sharpness=%d | frameGen type=%d size=%d mode=%d mult=%.2f target=%.1f flowScale=%d | capture=%d sync=%d maxLatency=%d queue=%d",
              scalingMode, scalingFitMode, scalingType, scalingSubtype, scaleFactor, sharpness, frameGenType, frameGenSize, frameGenMode, frameGenMultiplier,
              frameGenTarget, frameGenFlowScale, captureApi, syncMode, maxFrameLatency, queueTarget);
+    RealFrameHook::SettingsChanging();
     if (g_realApplySettings)
         g_realApplySettings(scalingMode, scalingFitMode, scalingType, scalingSubtype, scaleFactor, resizeBeforeScale, sharpness, vrs, frameGenType,
                             frameGenSize, frameGenMode, frameGenMultiplier, frameGenTarget, frameGenFlowScale, clipCursor, adjustCursorSpeed, hideCursor,
                             scaleCursor, syncMode, maxFrameLatency, gsyncSupport, hdrSupport, captureApi, queueTarget, drawFps, gpuId, displayId,
                             cropLeft, cropTop, cropRight, cropBottom, multiDisplayMode);
+    RealFrameHook::SetSettings(frameGenType, captureApi, scalingType, hdrSupport != 0);
     eam::EventBus::Instance().Publish(EAM_EVENT_SETTINGS_APPLIED);
 }
 

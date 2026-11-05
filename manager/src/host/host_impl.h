@@ -38,6 +38,10 @@ public:
     void* GetDispatchingContext() override;
     void* CreateImage(const void* rgba, uint32_t width, uint32_t height, uint32_t pitch) override;
     void ReleaseImage(void* image) override;
+    bool SetRealFrameCallback(EamRealFrameCallback, void* userData = nullptr) override;
+    EamFrameSupport GetRealFrameSupport() override;
+    bool HasRealFrameCallback() const { return m_realCount.load(std::memory_order_acquire) != 0; }
+    bool InvokeRealFrame(const EamRealFrame&);
 
     void SetStatus(const char* addonId, const char* text, int level) override;
     void PublishMetric(const char* addonId, const char* key, double value, const char* unit) override;
@@ -65,6 +69,8 @@ private:
     void* m_d3d11Context = nullptr;
 
     std::mutex m_dispatchMutex;
+    Hook<EamRealFrameCallback> m_realHook{};
+    std::atomic<size_t> m_realCount{0};
     std::vector<Hook<EamPreDispatchCallback>> m_preHooks;
     std::vector<Hook<EamPostDispatchCallback>> m_postHooks;
     // How many of each there are, read without the lock: every one of Lossless Scaling's dispatches asks, and usually there are none.
