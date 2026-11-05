@@ -17,11 +17,10 @@ const ImU32 kRed = IM_COL32(208, 80, 80, 255);
 const ImU32 kGrey = IM_COL32(102, 102, 102, 255);
 const ImU32 kChipRed = IM_COL32(208, 128, 128, 255);
 
-// The dot on the icon's corner: red for trouble, amber when it is on but unchecked, green when it is running, grey otherwise.
+// The dot on the icon's corner: red for a fault, green when it is running, grey otherwise.
 ImU32 DotColour(const AddonInfo& a) {
     using namespace eam::ui::theme;
-    if (a.faulted || a.security == SecurityVerdict::Tampered) return kRed;
-    if (a.security == SecurityVerdict::Unknown && a.enabled) return U(kWarn);
+    if (a.faulted) return kRed;
     if (a.IsLoaded()) return U(kAccent);
     return kGrey;
 }
@@ -33,7 +32,6 @@ Chip ChipFor(const AddonInfo& a) {
     using namespace eam::ui::theme;
     if (a.manifest.wip) return { "WIP", U(kWarn) };
     if (a.faulted) return { "ERROR", kChipRed };
-    if (a.security == SecurityVerdict::Tampered) return { "TAMPERED", kChipRed };
     if (a.enabled && !a.IsLoaded()) return { a.RequiresRestart() ? "RESTART TO APPLY" : "NOT LOADED", U(kWarn) };
     return {};
 }

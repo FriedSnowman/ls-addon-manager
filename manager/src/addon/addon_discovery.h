@@ -11,7 +11,7 @@ std::string WideToUtf8(const std::wstring& text);
 
 // Looks inside one addon folder and fills in what is on disk: the id, the manifest, the DLL, an .ini and an icon. The DLL is the one the
 // manifest names, else <folder>.dll, else the first .dll in the folder. Returns false when there is no DLL, which means it is not an addon.
-// The user's switch and the security verdict are not decided here.
+// The user's switch is not decided here.
 bool DiscoverAddon(const std::filesystem::path& folder, AddonInfo& info);
 
 // A vector icon (icon.svg): the d="..." of each of its paths, in order, and the width of its viewBox (24 without one). False when it has

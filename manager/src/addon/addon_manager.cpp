@@ -4,7 +4,6 @@
 #include "addon_install.h"
 #include "addon_manifest.h"
 #include "addon_runtime.h"
-#include "addon_security.h"
 #include "../config/config_manager.h"
 #include "../event/event_system.h"
 #include "../features/features.h"
@@ -23,9 +22,6 @@ namespace fs = std::filesystem;
 namespace eam {
 
 namespace {
-
-// Settings > Security: 0 allow everything, 1 warn about anything not on trusted_addons.json, 2 refuse it.
-int SecurityLevel() { return ConfigManager::Instance().GlobalGetOr<int>(nullptr, "security_level", 0); }
 
 void Announce(uint32_t event, const AddonInfo& addon) {
     EamAddonEventData data;
@@ -54,7 +50,6 @@ AddonManager::AddonManager(HostImpl* host, const std::wstring& addonsPath)
     : m_host(host), m_addonsPath(addonsPath), m_configPath((fs::path(addonsPath) / "config.json").wstring()) {
     std::error_code ec;
     fs::create_directories(m_addonsPath, ec);
-    AddonSecurity::LoadTrustedHashes(m_addonsPath);
     ConfigManager::Instance().Load(m_configPath);
 }
 
@@ -80,7 +75,6 @@ bool AddonManager::Inspect(const fs::path& folder, AddonInfo& info) {
         }
     // a work in progress stays off; one never switched on or off yet follows its "enabled_by_default"
     info.enabled = !info.manifest.wip && ConfigManager::Instance().IsAddonEnabled(info.id, info.manifest.enabledByDefault);
-    info.security = AddonSecurity::VerifyDll(info.dllPath, info.id);
     return true;
 }
 
@@ -200,16 +194,6 @@ std::string AddonManager::WhyNotLoadable(const AddonInfo& addon) {
         return why;
     }
 
-    const int level = SecurityLevel();
-    if (level >= 1 && addon.security != SecurityVerdict::Trusted) {
-        const char* problem = addon.security == SecurityVerdict::Tampered ? "does not match its trusted hash" : "is not on the trusted list";
-        if (level >= 2) {
-            const std::string why = std::string("Blocked: the DLL ") + problem + " (Settings > Security Level)";
-            LOG_WARN("AddonManager", "Not loading '%s': %s", addon.id.c_str(), why.c_str());
-            return why;
-        }
-        LOG_WARN("AddonManager", "Loading '%s' although its DLL %s", addon.id.c_str(), problem);
-    }
     return {};
 }
 

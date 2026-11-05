@@ -69,7 +69,7 @@ static std::string BuildDiagnosticsSummary(AddonManager* manager) {
         o << "\n";
     }
     auto& cfg = ConfigManager::Instance();
-    o << "\nmanager settings: security_level=" << cfg.GlobalGetOr<int>(nullptr, "security_level", 0) << " log_level=" << cfg.GlobalGetOr<int>(nullptr, "log_level", 2)
+    o << "\nmanager settings: log_level=" << cfg.GlobalGetOr<int>(nullptr, "log_level", 2)
       << " auto_load=" << cfg.GlobalGetOr<bool>(nullptr, "auto_load", true) << " interface_size=" << cfg.GlobalGetOr<int>("ui", "scale_percent", 100) << "%\n";
     return o.str();
 }
@@ -184,16 +184,6 @@ void RenderTabSettings(AddonManager* manager) {
     ImGui::Dummy(ImVec2(0, S(16)));
     eam::ui::SectionLabel("Addons");
     ImGui::Dummy(ImVec2(0, S(2)));
-    {
-        int securityLevel = config.GlobalGetOr<int>(nullptr, "security_level", 0);
-        const char* securityItems[] = { "Allow all addons", "Warn about untrusted addons", "Block untrusted addons" };
-        ImGui::SetNextItemWidth(S(320));
-        if (ImGui::Combo("Security", &securityLevel, securityItems, 3)) {
-            config.GlobalSet(nullptr, "security_level", securityLevel); config.Save();
-            widgets::ToastShow("Applies the next time an addon is loaded", widgets::ToastType::Info);
-        }
-        widgets::Tip("What to do with an addon whose DLL is not on the trusted list (addons\\trusted_addons.json): allow it, log a warning, or refuse to load it. With no such file, blocking refuses every addon.");
-    }
     bool autoLoad = config.GlobalGetOr<bool>(nullptr, "auto_load", true);
     if (ImGui::Checkbox("Load enabled addons when Lossless Scaling starts", &autoLoad)) { config.GlobalSet(nullptr, "auto_load", autoLoad); config.Save(); }
     widgets::Tip("Off = start with nothing loaded, then press Load now on the addon you want.");

@@ -1,11 +1,11 @@
 // Offline test of the manager's addon handling: finding addons in a folder, reading their manifests, loading, initialising, switching on and
-// off, removing and installing them, the security levels, and a faulting addon. It runs against a throw-away folder in %TEMP% with copies of
+// off, removing and installing them, file identity, and a faulting addon. It runs against a throw-away folder in %TEMP% with copies of
 // a small test addon (test_addon.cpp), and touches no game and no Lossless Scaling install.
 //   eam_coretest.exe        (eam_testaddon.dll must sit beside it; the build puts it there)
 #include "src/addon/addon_dependency.h"
 #include "src/addon/addon_manager.h"
 #include "src/addon/addon_manifest.h"
-#include "src/addon/addon_security.h"
+#include "src/addon/file_hash.h"
 #include "src/config/config_manager.h"
 #include "src/config/settings_backup.h"
 #include "src/core/d3d11_hook.h"
@@ -385,50 +385,21 @@ static void TestDependencies() {
     }
 }
 
-// The SHA-256 of a DLL and what trusted_addons.json says about it.
-static void TestSecurity(const fs::path& T) {
-    printf("== addon safety checks\n");
+// Content identity used by the runtime library.
+static void TestFileIdentity(const fs::path& T) {
+    printf("== runtime file identity\n");
     const fs::path dir = T / "sec";
     fs::create_directories(dir);
     WriteFile(dir / "abc.bin", "abc");
     WriteFile(dir / "empty.bin", "");
     WriteFile(dir / "long.bin", std::string(20000, 'a'));   // more than one read buffer
 
-    Check("SHA-256 of 'abc' is the published value", AddonSecurity::ComputeSHA256((dir / "abc.bin").wstring()) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
-    Check("SHA-256 of an empty file is the published value", AddonSecurity::ComputeSHA256((dir / "empty.bin").wstring()) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-    Check("SHA-256 of a file longer than one read is right", AddonSecurity::ComputeSHA256((dir / "long.bin").wstring()) == "cc17faaad36649c4603dda4d8ff97cb149722af0bcac0746305a2134ad2d0b97");
-    Check("a file that cannot be read gives no hash", AddonSecurity::ComputeSHA256((dir / "nope.bin").wstring()).empty());
+    Check("SHA-256 of 'abc' is the published value", FileSHA256((dir / "abc.bin").wstring()) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    Check("SHA-256 of an empty file is the published value", FileSHA256((dir / "empty.bin").wstring()) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    Check("SHA-256 of a file longer than one read is right", FileSHA256((dir / "long.bin").wstring()) == "cc17faaad36649c4603dda4d8ff97cb149722af0bcac0746305a2134ad2d0b97");
+    Check("a file that cannot be read gives no hash", FileSHA256((dir / "nope.bin").wstring()).empty());
 
-    const std::string abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
-    const std::wstring dll = (dir / "abc.bin").wstring();
-    WriteFile(dir / "trusted_addons.json", R"({"sec_ok":[")" + abc + R"("],"sec_bad":["00"],"sec_multi":["11",")" + abc + R"("],"sec_junk":"not a list"})");
-    AddonSecurity::LoadTrustedHashes(dir.wstring());
-    Check("a DLL whose hash is listed is trusted", AddonSecurity::VerifyDll(dll, "sec_ok") == SecurityVerdict::Trusted);
-    Check("a listed addon whose DLL differs is tampered", AddonSecurity::VerifyDll(dll, "sec_bad") == SecurityVerdict::Tampered);
-    Check("any one of several listed hashes will do", AddonSecurity::VerifyDll(dll, "sec_multi") == SecurityVerdict::Trusted);
-    Check("an addon that is not listed is unknown", AddonSecurity::VerifyDll(dll, "sec_absent") == SecurityVerdict::Unknown);
-    Check("an entry that is not a list is ignored", AddonSecurity::VerifyDll(dll, "sec_junk") == SecurityVerdict::Unknown);
-    Check("a listed addon whose DLL cannot be read is unknown", AddonSecurity::VerifyDll((dir / "nope.bin").wstring(), "sec_ok") == SecurityVerdict::Unknown);
 
-    const fs::path dir2 = T / "sec2";
-    fs::create_directories(dir2);
-    WriteFile(dir2 / "trusted_addons.json", R"({"sec_other":["00"]})");
-    AddonSecurity::LoadTrustedHashes(dir2.wstring());
-    Check("loading the list again replaces it", AddonSecurity::VerifyDll(dll, "sec_ok") == SecurityVerdict::Unknown);
-
-    const fs::path dir4 = T / "sec4";
-    fs::create_directories(dir4);
-    std::string upper = abc;
-    for (char& c : upper) c = (char)toupper((unsigned char)c);
-    WriteFile(dir4 / "trusted_addons.json", R"({"sec_upper":[")" + upper + R"("]})");
-    AddonSecurity::LoadTrustedHashes(dir4.wstring());
-    Check("a listed hash may be written in capitals", AddonSecurity::VerifyDll(dll, "sec_upper") == SecurityVerdict::Trusted);
-
-    const fs::path dir3 = T / "sec3";
-    fs::create_directories(dir3);
-    WriteFile(dir3 / "trusted_addons.json", "{ broken");
-    AddonSecurity::LoadTrustedHashes(dir3.wstring());
-    Check("a broken list is survived", true);
 }
 
 static void CountA(uint32_t, const void*, uint32_t, void* user) { ((std::string*)user)->push_back('A'); }
@@ -712,10 +683,10 @@ int main(int argc, char** argv) {
     MakeAddon(A, "renamed_new", "renamed_new.dll", R"({"renamed_from":["renamed_old"]})");                // an addon that changed its folder name
     MakeAddon(A, "renamed_old", "renamed_old.dll");                                            // ...and the folder it used to have
     MakeAddon(A, "LSP-ReShade", "LSP_ReShade.dll");                                            // a retired standalone addon: built in now
-    WriteFile(A / "config.json", R"({"addons":{"beta":{"_enabled":false},"renamed_old":{"_enabled":false,"keep":"me"}},"global":{"security_level":0}})");
+    WriteFile(A / "config.json", R"({"addons":{"beta":{"_enabled":false},"renamed_old":{"_enabled":false,"keep":"me"}},"global":{}})");
 
     setvbuf(stdout, nullptr, _IONBF, 0);
-    try { TestInstanceGuard(T); TestConfig(T); TestHost(T); TestDependencies(); TestSecurity(T); TestEvents(); TestFrozenAbi(); TestImages(); TestResourceHook(); TestDispatchHook(); } catch (const std::exception& e) { Check("the settings tests ran to the end", false, e.what()); }
+    try { TestInstanceGuard(T); TestConfig(T); TestHost(T); TestDependencies(); TestFileIdentity(T); TestEvents(); TestFrozenAbi(); TestImages(); TestResourceHook(); TestDispatchHook(); } catch (const std::exception& e) { Check("the settings tests ran to the end", false, e.what()); }
 
     HostImpl host;
     int loadedEvents = 0, unloadedEvents = 0;
@@ -852,16 +823,12 @@ int main(int argc, char** argv) {
         Check("...and one that is switched on again is", mgr.InterceptResource(L"test.shader", L"TEXT", &data, &size));
         mgr.ToggleAddon(IndexOf(mgr, "gamma"), true);
 
-        // ---- security level
-        printf("== security level\n");
+        // Legacy settings and hash lists must have no influence on addon loading.
         ConfigManager::Instance().GlobalSet(nullptr, "security_level", 2);
+        WriteFile(A / "trusted_addons.json", R"({"gamma":["not-this-build"]})");
         mgr.ToggleAddon(IndexOf(mgr, "gamma"), false);
         mgr.ToggleAddon(IndexOf(mgr, "gamma"), true);
-        Check("level 2 blocks an addon that is not on the trusted list", !Find(mgr, "gamma")->IsLoaded() && Find(mgr, "gamma")->errorMessage.rfind("Blocked:", 0) == 0, Find(mgr, "gamma")->errorMessage);
-        ConfigManager::Instance().GlobalSet(nullptr, "security_level", 1);
-        mgr.LoadAddonNow(IndexOf(mgr, "gamma"));
-        Check("level 1 warns but still loads it", Find(mgr, "gamma")->IsLoaded());
-        ConfigManager::Instance().GlobalSet(nullptr, "security_level", 0);
+        Check("legacy block setting and stale hash list do not block loading", Find(mgr, "gamma")->IsLoaded() && Find(mgr, "gamma")->errorMessage.empty());
 
         // ---- removing
         printf("== removing\n");

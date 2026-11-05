@@ -66,7 +66,7 @@ int main() {
     fs::copy_file(manifest, A / "SampleAddon" / "addon.json");
     Logger::Instance().Init((T / "test.log").wstring());
     // settings from an earlier session: a changed greeting, a volume, and a counter
-    { std::ofstream f(A / "config.json", std::ios::binary); f << R"({"addons":{"SampleAddon":{"greeting":"Howdy","volume":"0.25","clicks":"7"}},"global":{"security_level":0}})"; }
+    { std::ofstream f(A / "config.json", std::ios::binary); f << R"({"addons":{"SampleAddon":{"greeting":"Howdy","volume":"0.25","clicks":"7"}},"global":{}})"; }
     ConfigManager::Instance().Load((A / "config.json").wstring());
     Metrics::Instance().Clear();
 
@@ -109,7 +109,7 @@ int main() {
 
     {   // a first run, with no settings at all: the defaults
         fs::remove(A / "config.json");
-        { std::ofstream f(A / "config.json", std::ios::binary); f << R"({"addons":{},"global":{"security_level":0}})"; }
+        { std::ofstream f(A / "config.json", std::ios::binary); f << R"({"addons":{},"global":{}})"; }
         ConfigManager::Instance().Load((A / "config.json").wstring());
         HostImpl host;
         AddonManager mgr(&host, A.wstring());

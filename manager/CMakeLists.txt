@@ -41,7 +41,7 @@ set(ADDON_SOURCES
     src/addon/runtime_files.cpp
     src/addon/addon_discovery.cpp
     src/addon/addon_runtime.cpp
-    src/addon/addon_security.cpp
+    src/addon/file_hash.cpp
     src/addon/addon_dependency.cpp
     src/addon/addon_install.cpp
 )
@@ -168,7 +168,7 @@ add_executable(eam_uipreview EXCLUDE_FROM_ALL
     src/addon/addon_discovery.cpp
     src/addon/addon_manifest.cpp
     src/addon/runtime_files.cpp
-    src/addon/addon_security.cpp
+    src/addon/file_hash.cpp
     src/gui/widgets/empty_state.cpp
     src/gui/window/status_text.cpp
     src/gui/tabs/tab_about.cpp
@@ -210,7 +210,7 @@ add_executable(eam_installtest EXCLUDE_FROM_ALL tools/install_test.cpp src/addon
 target_include_directories(eam_installtest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # SDK install target (copies headers for addon developers)
-# Offline test of the addon handling (scan, load, init, toggle, remove, install, security), run against a throw-away folder with a small
+# Offline test of the addon handling (scan, load, init, toggle, remove, install), run against a throw-away folder with a small
 # test addon: cmake --build . --config Release --target eam_coretest
 add_library(eam_testaddon SHARED EXCLUDE_FROM_ALL tools/test_addon.cpp)
 target_include_directories(eam_testaddon PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include ${imgui_SOURCE_DIR})
@@ -256,7 +256,7 @@ add_executable(eam_guitest EXCLUDE_FROM_ALL tools/gui_test.cpp
 target_include_directories(eam_guitest PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party ${minhook_SOURCE_DIR}/include)
 target_link_libraries(eam_guitest d3d11 dxgi d3dcompiler bcrypt minhook)
 
-add_executable(eam_runtimetest EXCLUDE_FROM_ALL tools/runtime_test.cpp src/addon/runtime_files.cpp src/addon/addon_security.cpp src/config/config_manager.cpp src/log/logger.cpp)
+add_executable(eam_runtimetest EXCLUDE_FROM_ALL tools/runtime_test.cpp src/addon/runtime_files.cpp src/addon/file_hash.cpp src/config/config_manager.cpp src/log/logger.cpp)
 target_include_directories(eam_runtimetest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 target_link_libraries(eam_runtimetest bcrypt)
 

@@ -8,14 +8,6 @@
 
 namespace eam {
 
-// What trusted_addons.json says about an addon's DLL.
-enum class SecurityVerdict : uint8_t {
-    Unknown,    // there is nothing to compare with
-    Trusted,    // the DLL's SHA-256 is on the list
-    Tampered,   // the addon is on the list but this DLL is not the listed one
-    Unsigned    // not used yet
-};
-
 // addon.json, or what the DLL itself reports when a field is missing.
 struct AddonManifest {
     std::string name;
@@ -32,7 +24,7 @@ struct AddonManifest {
     bool enabledByDefault = true;            // false: a newly installed addon stays off until the person switches it on
     std::vector<std::string> tags;
     // "runtimes": files the addon runs on that are not its own (NVIDIA's DLSS, AMD's FidelityFX, a model file), listed at the bottom of the
-    // addon list with their version and signature (runtime_files.h)
+    // addon list with their version (runtime_files.h)
     struct Runtime {
         std::string name;            // "FSR"
         std::string file;            // relative to the addon's folder, or "{ls}/..." for Lossless Scaling's folder
@@ -69,7 +61,6 @@ struct AddonInfo {
     bool enabled = true;                   // the user's switch
     HMODULE hModule = nullptr;             // non-null while the DLL is loaded
     uint32_t capabilities = 0;             // EAM_CAP_* bits, read from the DLL
-    SecurityVerdict security = SecurityVerdict::Unknown;
     std::string errorMessage;              // why it is not running, in words for the user
     bool faulted = false;                  // it crashed while starting
     bool settingsFaulted = false;          // its settings panel hit an invalid CRT parameter and is no longer drawn

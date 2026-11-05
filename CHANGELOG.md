@@ -2,6 +2,7 @@
 
 ## Local changes (2026-11-05)
 
+- Removed the manager's addon trust checks, hash allowlist, security level setting, tampered badges and runtime signature warnings. Local rebuilds load directly.
 - Neural Rendering maps enhancement and motion to the centered game rectangle, preserving letterbox/pillarbox borders, including in HDR.
 
 ## 0.9.15 (2026-09-28)

@@ -319,15 +319,6 @@ static void RenderDetail(AddonManager* manager, AddonInfo& addon, int index) {
     else if (addon.IsLoaded())    StatusText("Loaded", eam::ui::theme::V(eam::ui::theme::kAccent));
     else                          ImGui::TextDisabled("Unloaded");
 
-    ImGui::SameLine(0, S(24));
-    ImGui::TextDisabled("Security");
-    ImGui::SameLine();
-    switch (addon.security) {
-        case SecurityVerdict::Trusted:  StatusText("Trusted", eam::ui::theme::V(eam::ui::theme::kAccent)); break;
-        case SecurityVerdict::Tampered: StatusText("Tampered!", ImVec4(0.816f, 0.502f, 0.502f, 1)); break;
-        default:                        ImGui::TextDisabled("Unknown"); break;
-    }
-
     {   // remove, at the right end of the status line
         const float rw = ImGui::CalcTextSize("Remove").x + ImGui::GetFontSize() * 3.2f;
         ImGui::SameLine(ImGui::GetWindowWidth() - rw - ImGui::GetStyle().WindowPadding.x - S(4));
@@ -421,8 +412,7 @@ void RenderTabAddons(AddonManager* manager) {
         ImGui::TextWrapped("Install this addon?");
         ImGui::TextDisabled("%s", WideToUtf8(s_installSource).c_str());
         ImGui::Dummy(ImVec2(0, S(4)));
-        ImGui::TextWrapped("An addon is a program that runs inside Lossless Scaling with the same access as Lossless Scaling itself. "
-                           "Only install addons from people you trust. It is installed switched off; you turn it on with its switch.");
+        ImGui::TextWrapped("It is installed switched off; turn it on with its switch.");
         ImGui::PopTextWrapPos();
         ImGui::Dummy(ImVec2(0, S(6)));
         if (eam::ui::Button("Install", eam::ui::icons::kDownload, eam::ui::ButtonKind::Primary)) {

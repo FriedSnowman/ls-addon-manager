@@ -1,6 +1,6 @@
 // eam_runtimetest: the Runtimes list's facts about a file (runtime_files.h), with no window. A DLL loaded under another spelling of its path
-// (the mixed slashes NVIDIA's loader uses) must count as loaded; the version, signature and SHA-256 must be read; a file not loaded must not
-// count. The DLL is AMD's signed FidelityFX runtime the FSR Upscaler ships (argument 1).
+// (the mixed slashes NVIDIA's loader uses) must count as loaded; the version and file identity must be read; a file not loaded must not
+// count. The DLL is AMD's FidelityFX runtime the FSR Upscaler ships (argument 1).
 #include "src/addon/runtime_files.h"
 #include <windows.h>
 #include <cstdio>
@@ -35,7 +35,6 @@ int main(int argc, char** argv) {
     std::vector<RuntimeFile> before = rows();
     Check(before.size() == 1 && before[0].exists && before[0].read, "the file is found and read");
     if (before.empty()) return 1;
-    Check(before[0].signature == RuntimeFile::Signature::Signed && before[0].signer.find("Advanced Micro Devices") != std::string::npos, "signed by AMD", before[0].signer);
     Check(before[0].shipped && before[0].ShownVersion() == "3.1.4", "the shipped file, shown as 3.1.4", before[0].ShownVersion());
     Check(!before[0].loaded, "not loaded yet: a cross");
 

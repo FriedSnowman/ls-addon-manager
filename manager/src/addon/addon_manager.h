@@ -48,7 +48,7 @@ public:
     const std::wstring& GetAddonsPath() const { return m_addonsPath; }
 
 private:
-    bool Inspect(const std::filesystem::path& folder, AddonInfo& info);   // DiscoverAddon plus the switch and the security verdict
+    bool Inspect(const std::filesystem::path& folder, AddonInfo& info);   // DiscoverAddon plus the user's switch
     std::string WhyNotLoadable(const AddonInfo& addon);                   // empty when nothing stands in the way
     void LoadModule(AddonInfo& addon);                                    // put the DLL in memory and read what it exports
     void FillFromExports(AddonInfo& addon);                               // manifest fields the DLL can supply

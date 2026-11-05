@@ -1,10 +1,7 @@
 #include "runtime_files.h"
-#include "addon_security.h"
+#include "file_hash.h"
 #include "../config/config_manager.h"
 #include <windows.h>
-#include <softpub.h>
-#include <wincrypt.h>
-#include <wintrust.h>
 #include <psapi.h>
 #include <algorithm>
 #include <cwctype>
@@ -13,8 +10,6 @@
 #include <map>
 #include <mutex>
 #include <thread>
-#pragma comment(lib, "wintrust.lib")
-#pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "version.lib")
 
 namespace eam {
@@ -61,34 +56,8 @@ void ReadVersion(const std::wstring& path, RuntimeFile& f) {
     f.company = text(L"CompanyName");
 }
 
-// Authenticode, as Windows judges it, from what is on this computer only (no revocation check, no downloads): signed and intact, signed
-// but changed since, or not signed. The signer's name when signed.
-void ReadSignature(const std::wstring& path, RuntimeFile& f) {
-    WINTRUST_FILE_INFO file{}; file.cbStruct = sizeof file; file.pcwszFilePath = path.c_str();
-    WINTRUST_DATA data{}; data.cbStruct = sizeof data; data.dwUIChoice = WTD_UI_NONE; data.fdwRevocationChecks = WTD_REVOKE_NONE;
-    data.dwUnionChoice = WTD_CHOICE_FILE; data.pFile = &file; data.dwStateAction = WTD_STATEACTION_VERIFY;
-    data.dwProvFlags = WTD_CACHE_ONLY_URL_RETRIEVAL | WTD_REVOCATION_CHECK_NONE;
-    GUID action = WINTRUST_ACTION_GENERIC_VERIFY_V2;
-    const LONG result = WinVerifyTrust(static_cast<HWND>(INVALID_HANDLE_VALUE), &action, &data);
-    if (result == ERROR_SUCCESS) f.signature = RuntimeFile::Signature::Signed;
-    else if (result == TRUST_E_NOSIGNATURE || result == TRUST_E_SUBJECT_FORM_UNKNOWN || result == TRUST_E_PROVIDER_UNKNOWN) f.signature = RuntimeFile::Signature::Unsigned;
-    else if (result == TRUST_E_BAD_DIGEST || result == CRYPT_E_HASH_VALUE) f.signature = RuntimeFile::Signature::Broken;
-    else f.signature = RuntimeFile::Signature::Unsigned;   // expired, untrusted root, ...: not a signature to rely on
-    if (f.signature != RuntimeFile::Signature::Unsigned && data.hWVTStateData) {
-        if (CRYPT_PROVIDER_DATA* provider = WTHelperProvDataFromStateData(data.hWVTStateData))
-            if (CRYPT_PROVIDER_SGNR* signer = WTHelperGetProvSignerFromChain(provider, 0, FALSE, 0))
-                if (signer->csCertChain && signer->pasCertChain && signer->pasCertChain[0].pCert) {
-                    wchar_t name[256] = {};
-                    CertGetNameStringW(signer->pasCertChain[0].pCert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, nullptr, name, 256);
-                    f.signer = Utf8(name);
-                }
-    }
-    data.dwStateAction = WTD_STATEACTION_CLOSE;
-    WinVerifyTrust(static_cast<HWND>(INVALID_HANDLE_VALUE), &action, &data);
-}
-
 // What is known of each file, by path: read again when its size or time changes. The reading runs on a thread of its own (a 34 MB file's
-// SHA-256 and signature take a moment); the list holds what was read last. Never freed: nothing may be joined as the process ends.
+// SHA-256 takes a moment); the list holds what was read last. Never freed: nothing may be joined as the process ends.
 struct Cached { uint64_t size = 0; FILETIME written{}; bool exists = false; RuntimeFile file; bool reading = false; ULONGLONG checkedAt = 0;
                 bool loaded = false; ULONGLONG loadedAt = 0; };   // loaded: judged at most every two seconds (it opens files)
 struct Cache { std::mutex mutex; std::map<std::wstring, Cached> byPath; std::vector<std::wstring> modules; ULONGLONG modulesAt = 0; };
@@ -145,8 +114,7 @@ void InspectRuntimeFile(const std::wstring& path, RuntimeFile& f) {
     if (!f.exists) return;
     f.size = (uint64_t(a.nFileSizeHigh) << 32) | a.nFileSizeLow;
     ReadVersion(path, f);
-    ReadSignature(path, f);
-    f.sha256 = AddonSecurity::ComputeSHA256(path);
+    f.sha256 = FileSHA256(path);
 }
 
 bool ReadDllExports(const std::wstring& path, std::vector<std::string>& names) {
@@ -226,8 +194,8 @@ void FillFromCache(RuntimeFile& row, const std::string& shippedSha256, ULONGLONG
     }
     row.loaded = c.loaded;
     row.exists = c.exists; row.read = known.read;
-    row.signature = known.signature; row.version = known.version; row.description = known.description; row.company = known.company;
-    row.signer = known.signer; row.sha256 = known.sha256; row.size = known.size;
+    row.version = known.version; row.description = known.description; row.company = known.company;
+    row.sha256 = known.sha256; row.size = known.size;
     row.shipped = row.shippedKnown && !known.sha256.empty() && _stricmp(known.sha256.c_str(), shippedSha256.c_str()) == 0;
 }
 
@@ -310,12 +278,12 @@ bool AddRuntimeFile(const RuntimeFile& slot, const std::wstring& source, std::ws
             error = "That's not a " + slot.label + " file: it doesn't have the functions " + slot.addonName + " needs.";
             return false;
         }
-    const std::string sha = AddonSecurity::ComputeSHA256(source);
+    const std::string sha = FileSHA256(source);
     if (sha.size() < 8) { error = "The file could not be read."; return false; }
     const std::filesystem::path dir = std::filesystem::path(LibraryDir(slot)) / Wide(sha.substr(0, 8));
     const std::filesystem::path dest = dir / Wide(slot.FileName());
     std::error_code ec;
-    if (std::filesystem::exists(dest, ec) && AddonSecurity::ComputeSHA256(dest.wstring()) == sha) { added = dest.wstring(); return true; }   // added before
+    if (std::filesystem::exists(dest, ec) && FileSHA256(dest.wstring()) == sha) { added = dest.wstring(); return true; }   // added before
     std::filesystem::create_directories(dir, ec);
     if (!CopyFileW(source.c_str(), dest.c_str(), FALSE)) { error = "The file could not be copied (error " + std::to_string(GetLastError()) + ")."; return false; }
     added = dest.wstring();

@@ -116,14 +116,13 @@ int main(int argc, char** argv) {
     b.id = "DLSS4DLAA"; b.manifest.name = "DLSS Upscaler"; b.manifest.version = EAM_VERSION_STRING; b.manifest.author = "Echo-Storm"; b.enabled = false;
     c.id = "FSR3UPSC"; c.manifest.name = "FSR Upscaler"; c.manifest.version = EAM_VERSION_STRING; c.manifest.author = "Echo-Storm"; c.hModule = (HMODULE)1; c.enabled = true;
     d.id = "XESSUPSC"; d.manifest.name = "XeSS Upscaler"; d.manifest.version = EAM_VERSION_STRING; d.manifest.author = "Echo-Storm"; d.enabled = false;
-    a.security = b.security = c.security = d.security = SecurityVerdict::Trusted;   // as a real install of our own addons shows them
     if (!clean) { b.enabled = true; b.faulted = true; }   // the other scene shows the ERROR state
     ReadSvgIcon(plugins / "icon.svg", a.iconSvg, a.iconSvgView);
     ReadSvgIcon(plugins / "products" / "DLSS4DLAA" / "icon.svg", b.iconSvg, b.iconSvgView);
     ReadSvgIcon(plugins / "products" / "FSR3UPSC" / "icon.svg", c.iconSvg, c.iconSvgView);
     ReadSvgIcon(plugins / "products" / "XESSUPSC" / "icon.svg", d.iconSvg, d.iconSvgView);
     // the runtimes, as the repository's addon.json files list them, read from the install in C:\Games\Lossless Scaling (as the real
-    // list reads them: version, signature, SHA-256). EAM_PREVIEW_FSR=<file>: that file as the FSR runtime (only read, never loaded)
+    // list reads them: version and file identity). EAM_PREVIEW_FSR=<file>: that file as the FSR runtime (only read, never loaded)
     const std::wstring lsDir = L"C:\\Games\\Lossless Scaling";
     // (the model file is the person's own: the tidy scene for the README leaves its line out rather than show this machine's copy)
     { AddonManifest m; if (!clean && ReadManifest(plugins / "addon.json", m)) a.manifest.runtimes = m.runtimes; }
@@ -268,9 +267,7 @@ int main(int argc, char** argv) {
             bool on = chosen.enabled; widgets::ToggleSwitch("##detail_enable", &on);
             ImGui::Dummy(ImVec2(0, S(2)));
             ImGui::TextDisabled("Status"); ImGui::SameLine();
-            ImGui::TextColored(eam::ui::theme::V(eam::ui::theme::kAccent), "Loaded"); ImGui::SameLine(0, S(24));
-            ImGui::TextDisabled("Security"); ImGui::SameLine();
-            ImGui::TextColored(eam::ui::theme::V(eam::ui::theme::kAccent), "Trusted");
+            ImGui::TextColored(eam::ui::theme::V(eam::ui::theme::kAccent), "Loaded");
             {
                 const float rw = ImGui::CalcTextSize("Remove").x + ImGui::GetFontSize() * 3.2f;
                 ImGui::SameLine(ImGui::GetWindowWidth() - rw - ImGui::GetStyle().WindowPadding.x - S(4));

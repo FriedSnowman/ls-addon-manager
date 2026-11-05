@@ -57,8 +57,6 @@ RuntimeAction RuntimeListAtBottom(const std::vector<RuntimeFile>& rows, int open
         std::string note;
         if (!r.exists) note = "not found";
         else if (!r.read) note = "...";
-        else if (r.signature == RuntimeFile::Signature::Broken) note = "modified";
-        else if (r.signature != RuntimeFile::Signature::Signed) note = "unsigned";
         ui::svg::Draw(dl, glyph, ImVec2(p.x + 2.0f, p.y + (h - ico) * 0.5f), ico, tint, 2.0f);
         float x = p.x + ico + ImGui::GetFontSize() * 0.55f;
         const float ty = p.y + (h - ImGui::GetFontSize()) * 0.5f, right = p.x + w - buttons - 4.0f;
@@ -84,13 +82,8 @@ RuntimeAction RuntimeListAtBottom(const std::vector<RuntimeFile>& rows, int open
             else if (!r.read) ImGui::TextDisabled("Reading the file...");
             else {
                 if (!r.description.empty() || !r.version.empty()) ImGui::TextUnformatted((r.description + (r.description.empty() ? "" : "  ") + r.version).c_str());
-                if (r.signature == RuntimeFile::Signature::Signed) ImGui::Text("Signed by %s", r.signer.empty() ? "its maker" : r.signer.c_str());
-                else if (r.signature == RuntimeFile::Signature::Broken)
-                    ImGui::Text("Modified: signed by %s, then changed, so the signature no longer matches the file", r.signer.empty() ? "its maker" : r.signer.c_str());
-                else ImGui::Text("Not signed%s", r.company.empty() ? "" : (" (it says it is " + r.company + "'s)").c_str());
                 if (r.shippedKnown) ImGui::TextDisabled(r.shipped ? "The file the addon ships with." : "Not the file the addon ships with.");
                 ImGui::TextDisabled("%s", Utf8(r.path).c_str());
-                if (!r.sha256.empty()) ImGui::TextDisabled("SHA-256 %s", r.sha256.c_str());
             }
             ImGui::PopTextWrapPos();
             ImGui::EndTooltip();
@@ -111,8 +104,6 @@ RuntimeAction RuntimeListAtBottom(const std::vector<RuntimeFile>& rows, int open
                 const std::string v = f.exists && f.read ? f.ShownVersion() : std::string();
                 if (!v.empty()) text += "  " + v;
                 if (!f.exists) text += "  (missing)";
-                else if (f.read && f.signature == RuntimeFile::Signature::Broken) text += "  modified";
-                else if (f.read && f.signature != RuntimeFile::Signature::Signed) text += "  unsigned";
                 return text;
             };
             const bool usingDefault = r.usingDefault;
@@ -132,7 +123,7 @@ RuntimeAction RuntimeListAtBottom(const std::vector<RuntimeFile>& rows, int open
                 const bool current = !usingDefault && _wcsicmp(library[k].c_str(), r.path.c_str()) == 0;
                 const float trash = ImGui::GetFrameHeight();
                 const std::string title = RuntimeFileTitle(library[k]);
-                if (ImGui::Selectable((title.empty() ? line(f, r.label) : title + (f.read && f.signature == RuntimeFile::Signature::Signed ? "" : "  unsigned")).c_str(), current,
+                if (ImGui::Selectable((title.empty() ? line(f, r.label) : title).c_str(), current,
                                       ImGuiSelectableFlags_DontClosePopups, ImVec2(ImGui::GetFontSize() * 16.0f, 0)) && !current) {
                     UseRuntimeFile(r, library[k]);
                     ToastShow(r.label + ": switched to " + (f.ShownVersion().empty() ? std::string("the new file") : f.ShownVersion()), ToastType::Success, 4.0f);
@@ -141,8 +132,7 @@ RuntimeAction RuntimeListAtBottom(const std::vector<RuntimeFile>& rows, int open
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
                     ImGui::BeginTooltip();
                     if (!f.description.empty()) ImGui::TextUnformatted((f.description + "  " + f.version).c_str());
-                    if (f.signature == RuntimeFile::Signature::Signed) ImGui::Text("Signed by %s", f.signer.c_str()); else ImGui::TextUnformatted(f.signature == RuntimeFile::Signature::Broken ? "Modified after signing" : "Not signed");
-                    if (!f.sha256.empty()) ImGui::TextDisabled("SHA-256 %s", f.sha256.c_str());
+                    ImGui::TextDisabled("%s", Utf8(f.path).c_str());
                     ImGui::EndTooltip();
                 }
                 ImGui::SameLine();
