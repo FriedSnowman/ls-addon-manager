@@ -1,5 +1,5 @@
 # Fetches Intel's XeSS SDK the XeSS Upscaler is built against and runs on: its headers (inc\xess), its runtime libxess.dll and its licence,
-# from Intel's own public repository, https://github.com/intel/xess (release v3.0.2, XeSS_SDK_3.0.2.zip), into addons\DLSS5NR01\external\xess.
+# from Intel's own public repository, https://github.com/intel/xess (release v3.0.2, XeSS_SDK_3.0.2.zip), into addons\Upscalers\external\xess.
 # The build copies libxess.dll into the XeSS addon's xess folder, and the release ships it there with Intel's licence.
 #
 # It is Intel's, under the Intel Simplified Software License (external\xess\LICENSE.txt): the runtime may be redistributed unmodified with
@@ -11,7 +11,7 @@
 param([string]$Dest = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-if (-not $Dest) { $Dest = "$root\addons\DLSS5NR01\external\xess" }
+if (-not $Dest) { $Dest = "$root\addons\Upscalers\external\xess" }
 
 $zipUrl = 'https://github.com/intel/xess/releases/download/v3.0.2/XeSS_SDK_3.0.2.zip'
 $zipSha = '88b8a373f30e33f3558a77a93e634f11b8132fc3047ea1a8edeead32b8471990'

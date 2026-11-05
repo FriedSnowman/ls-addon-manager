@@ -6,6 +6,6 @@ param([string]$Out = "$env:TEMP\ui_preview", [double]$Scale = 1.25)
 New-Item -ItemType Directory -Force $Out | Out-Null
 $root = Split-Path $PSScriptRoot -Parent   # the repository folder
 $exe = "$root\manager\build\Release\eam_uipreview.exe"
-$dlls = @('DLSS5NR01', 'DLSS4DLAA', 'FSR3UPSC', 'XESSUPSC') | ForEach-Object { Join-Path $root "addons\DLSS5NR01\build\Release\$_.dll" }   # their panels, in the Addons shots
+$dlls = @('DLSS4DLAA', 'FSR3UPSC', 'XESSUPSC') | ForEach-Object { Join-Path $root "addons\Upscalers\build\Release\$_.dll" }   # their panels, in the Addons shots
 & $exe ($Out -replace '\\', '/') $Scale @($dlls | Where-Object { Test-Path $_ }) | Select-Object -Last 8
 python "$PSScriptRoot\bmp2png.py" $Out

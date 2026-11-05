@@ -1,11 +1,11 @@
 # Fetches Depth Anything V2 Small, a model that estimates depth from a single picture, as ONNX: onnx-community/depth-anything-v2-small on
-# Hugging Face (Apache 2.0), pinned to one revision and checked against a SHA-256 value, into addons\DLSS5NR01\external\depth (ignored by git).
+# Hugging Face (Apache 2.0), pinned to one revision and checked against a SHA-256 value, into addons\Upscalers\external\depth (ignored by git).
 # Used by the frame generation experiments (tools\depth_maps.py and nr_fgeval's depthdir=): depth for the frames, from the frames alone.
 #   powershell -File tools\fetch_depth_model.ps1 [-Dest <folder>]
 param([string]$Dest = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-if (-not $Dest) { $Dest = "$root\addons\DLSS5NR01\external\depth" }
+if (-not $Dest) { $Dest = "$root\addons\Upscalers\external\depth" }
 
 $revision = '4472b7362082ad9968fee890ca0f1e5aca36b93d'
 $url = "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/$revision/onnx/model.onnx"

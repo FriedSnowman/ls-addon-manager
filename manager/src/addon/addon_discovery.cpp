@@ -94,6 +94,9 @@ bool ReadSvgIcon(const fs::path& file, std::vector<std::string>& paths, float& v
 bool DiscoverAddon(const fs::path& folder, AddonInfo& info) {
     info.folderName = folder.filename().wstring();
     info.id = WideToUtf8(info.folderName);
+    // Never load retired NR binaries, even after a manual overlay install.
+    if (_wcsicmp(info.folderName.c_str(), L"DLSS5NR01") == 0 ||
+        _wcsicmp(info.folderName.c_str(), L"LSP-NeuralRender") == 0) return false;
 
     const fs::path manifestFile = folder / "addon.json";
     if (IsFile(manifestFile)) {

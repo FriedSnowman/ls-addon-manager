@@ -16,7 +16,7 @@ namespace eam {
 
 namespace {
 
-constexpr const char* kNr = "DLSS5NR01";
+constexpr const char* kNr = "DLSS4DLAA";
 constexpr double kGraphSeconds = 20.0;   // the length of the graphs
 constexpr double kStatSeconds = 10.0;    // what the tiles average over
 
@@ -100,7 +100,7 @@ void RenderTabPerformance() {
     Metrics& M = Metrics::Instance();
     const double now = M.Now();
     const Metrics::Series frame = M.Get(kNr, "frame_ms", kGraphSeconds + 1);
-    const Metrics::Series model = M.Get(kNr, "model_ms", kGraphSeconds + 1);
+    const Metrics::Series model = M.Get(kNr, "dlss_ms", kGraphSeconds + 1);
     const Metrics::Series keep = M.Get(kNr, "keepup_pct", kGraphSeconds + 1);
     const Metrics::Series util = M.Get("system", "gpu_util", kGraphSeconds + 1);
     const Metrics::Series power = M.Get("system", "gpu_power_w", kGraphSeconds + 1);
@@ -113,7 +113,7 @@ void RenderTabPerformance() {
 
     if (!haveFrames && !haveGpu) {
         widgets::EmptyState(ImGui::GetContentRegionAvail().x, "No live data yet",
-                            gpu.ok ? "Waiting for the GPU..." : "Start scaling a game with an addon that reports performance (DLSS 5 Neural Rendering does). GPU figures need an NVIDIA GPU.");
+                            gpu.ok ? "Waiting for the GPU..." : "Start scaling a game with an addon that reports performance (DLSS Upscaler does). GPU figures need an NVIDIA GPU.");
         if (!gpu.ok && !gpu.why.empty()) { ImGui::Dummy(ImVec2(0, S(6))); ImGui::TextDisabled("GPU: %s", gpu.why.c_str()); }
         ImGui::EndChild();
         return;

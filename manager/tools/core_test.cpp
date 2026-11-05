@@ -683,6 +683,8 @@ int main(int argc, char** argv) {
     MakeAddon(A, "renamed_new", "renamed_new.dll", R"({"renamed_from":["renamed_old"]})");                // an addon that changed its folder name
     MakeAddon(A, "renamed_old", "renamed_old.dll");                                            // ...and the folder it used to have
     MakeAddon(A, "LSP-ReShade", "LSP_ReShade.dll");                                            // a retired standalone addon: built in now
+    MakeAddon(A, "DLSS5NR01", "DLSS5NR01.dll");
+    MakeAddon(A, "LSP-NeuralRender", "LSP_NeuralRender.dll");
     WriteFile(A / "config.json", R"({"addons":{"beta":{"_enabled":false},"renamed_old":{"_enabled":false,"keep":"me"}},"global":{}})");
 
     setvbuf(stdout, nullptr, _IONBF, 0);
@@ -704,6 +706,7 @@ int main(int argc, char** argv) {
         Check("finds the twelve usable addons (the renamed one counts once)", mgr.GetAddons().size() == 12, "found " + std::to_string(mgr.GetAddons().size()));
         Check("a folder with no DLL is not an addon", IndexOf(mgr, "nodll") < 0);
         Check("a dot folder is not an addon", IndexOf(mgr, ".hidden") < 0);
+        Check("retired NR plugins cannot load after an overlay upgrade", IndexOf(mgr, "DLSS5NR01") < 0 && IndexOf(mgr, "LSP-NeuralRender") < 0);
         Check("the folder of a retired standalone addon is ignored, since that feature is built in", IndexOf(mgr, "LSP-ReShade") < 0);
         Check("an addon that was renamed hides its old folder", IndexOf(mgr, "renamed_new") >= 0 && IndexOf(mgr, "renamed_old") < 0);
         Check("...and keeps the settings it had under the old name, including being switched off", ConfigManager::Instance().Get("renamed_new", "keep") == "me" && !Find(mgr, "renamed_new")->enabled);

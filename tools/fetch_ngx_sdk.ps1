@@ -1,5 +1,5 @@
 # Fetches the NVIDIA DLSS SDK files the Neural Rendering addon needs from NVIDIA's own public repository, https://github.com/NVIDIA/DLSS, into
-# addons\DLSS5NR01\external\ngx: the headers and static library to build it, NVIDIA's DLSS runtime (nvngx_dlss.dll, for the DLAA model), and
+# addons\Upscalers\external\ngx: the headers and static library to build it, NVIDIA's DLSS runtime (nvngx_dlss.dll, for the DLAA model), and
 # NVIDIA's licence, which goes into the release next to them. Nothing is taken from anywhere else, and nothing is committed: that folder is
 # ignored by git. NVIDIA's licence allows the runtime and the library's object code to ship inside an application such as this one, under
 # its own terms (not this project's MIT licence); see NOTICE.md.
@@ -23,7 +23,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-if (-not $Dest) { $Dest = "$root\addons\DLSS5NR01\external\ngx" }
+if (-not $Dest) { $Dest = "$root\addons\Upscalers\external\ngx" }
 
 $pinnedCommit = '374959484e79a640feaba44c93ac8cfb0a03f5b5'   # NVIDIA/DLSS main when these files were taken
 $files = @(

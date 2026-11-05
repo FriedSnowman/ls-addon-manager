@@ -19,7 +19,7 @@
 param([string[]]$Only = @(), [switch]$All, [switch]$List)
 $root = Split-Path $PSScriptRoot -Parent   # the repository folder
 $mgr = "$root\manager\build\Release"
-$nrBuild = "$root\addons\DLSS5NR01\build"
+$nrBuild = "$root\addons\Upscalers\build"
 
 # name, the changed paths that start it (regular expressions on forward-slash paths), and what it builds and runs
 $suites = [ordered]@{
@@ -48,19 +48,14 @@ $suites = [ordered]@{
     setupexe  = @{ When = '^installer/src/|^installer/tests/setup_exe_test|^installer/CMakeLists|^tools/package';
                    Build = @('installer', 'setup_core', 'setup_cli', 'pack_payload', 'LSAddonManagerSetup');
                    Script = "$root\installer\tests\setup_exe_test.ps1" }
-    nr        = @{ When = '^addons/DLSS5NR01/(src|tools|CMakeLists)|^manager/sdk/|^tools/run_hosttest_matrix';
-                   Build = @('nr', 'nr_reqtest', 'nr_taptest', 'nr_composetest', 'nr_settingstest', 'nr_autotest', 'nr_rectest', 'nr_lsrec', 'DLSS5NR01', 'DLSS4DLAA', 'FSR3UPSC', 'nr_hosttest', 'nr_selftest');
-                   Runs = @(@('Neural Rendering requirements check', "$nrBuild\Release\nr_reqtest.exe", @()),
-                            @('Neural Rendering settings and looks', "$nrBuild\Release\nr_settingstest.exe", @()),
-                            @('Neural Rendering auto quality', "$nrBuild\Release\nr_autotest.exe", @()),
-                            @('The recorder (codec and file)', "$nrBuild\Release\nr_rectest.exe", @()),
-                            @('Neural Rendering frame tap', "$nrBuild\Release\nr_taptest.exe", @()),
-                            @('Neural Rendering compositor', "$nrBuild\Release\nr_composetest.exe", @()));
-                   Matrix = $true }
+    scalers   = @{ When = '^addons/Upscalers/|^manager/sdk/';
+                   Build = @('scalers', 'nr_taptest', 'nr_rectest', 'nr_lsrec', 'DLSS4DLAA', 'FSR3UPSC');
+                   Runs = @(@('Recorder codec and file', "$nrBuild\Release\nr_rectest.exe", @()),
+                            @('Scaler frame observer', "$nrBuild\Release\nr_taptest.exe", @())) }
 }
 # the XeSS Upscaler is built only when Intel's SDK is in external\xess (tools\fetch_xess_sdk.ps1)
-if (Test-Path "$root\addons\DLSS5NR01\external\xess\inc\xess\xess_d3d12.h") { $suites.nr.Build += 'XESSUPSC' }
-$buildDirs = @{ manager = "$root\manager\build"; installer = "$root\installer\build"; nr = $nrBuild }
+if (Test-Path "$root\addons\Upscalers\external\xess\inc\xess\xess_d3d12.h") { $suites.scalers.Build += 'XESSUPSC' }
+$buildDirs = @{ manager = "$root\manager\build"; installer = "$root\installer\build"; scalers = $nrBuild }
 
 if ($List) { foreach ($n in $suites.Keys) { Write-Host ("{0,-10} when {1}" -f $n, $suites[$n].When) }; exit 0 }
 
@@ -88,7 +83,7 @@ foreach ($n in $chosen) {
 $skipped = @{}
 foreach ($which in $targetsByDir.Keys) {
     $dir = $buildDirs[$which]
-    if ($which -eq 'nr' -and -not (Test-Path "$dir\CMakeCache.txt")) { Write-Host '(Neural Rendering is not configured here: it needs the NVIDIA SDK; its suite is skipped)'; $skipped[$which] = $true; continue }
+    if ($which -eq 'scalers' -and -not (Test-Path "$dir\CMakeCache.txt")) { Write-Host '(Neural Rendering is not configured here: it needs the NVIDIA SDK; its suite is skipped)'; $skipped[$which] = $true; continue }
     if ($which -eq 'installer' -and -not (Test-Path "$dir\CMakeCache.txt")) { & cmake -S "$root\installer" -B $dir -G 'Visual Studio 17 2022' -A x64 2>&1 | Select-String -Pattern 'error' | ForEach-Object { Write-Host $_.Line } }
     [string[]]$targets = @($targetsByDir[$which] | Select-Object -Unique)
     & cmake --build $dir --config Release --parallel --target @targets 2>&1 | Select-String -Pattern ' error ' | ForEach-Object { Write-Host $_.Line }
@@ -105,13 +100,7 @@ foreach ($n in $chosen) {
     $serial = $serialSuites -contains $n
     foreach ($r in @($s.Runs)) { if ($r) { $runs += [pscustomobject]@{ Name = $r[0]; Exe = $r[1]; Args = @($r[2]); Serial = $serial; Filter = '^\s*FAIL\b|FAILED' } } }
     if ($s.Script) { $runs += [pscustomobject]@{ Name = 'Setup exe end to end'; Exe = 'powershell'; Args = @('-NoProfile', '-File', $s.Script, '-Root', $root); Serial = $true; Filter = '^\s*FAIL\b|FAILED' } }
-    if ($s.Matrix) {
-        if (-not $env:LS_DIR) { Write-Host '(model scenarios skipped: set LS_DIR to a Lossless Scaling folder with nvngx_dlssnr.dll)' }
-        else {
-            $matrixArgs = @("$root\tools\run_hosttest_matrix.py") + $(if ($All) { @() } else { @('--changed') })
-            $runs += [pscustomobject]@{ Name = ('Neural Rendering model scenarios ({0})' -f $(if ($All) { 'all' } else { 'for what changed' })); Exe = 'python'; Args = $matrixArgs; Serial = $false; Filter = '^\s*FAIL\b|SCENARIOS? FAILED|rror' }
-        }
-    }
+
 }
 
 $outDir = Join-Path $env:TEMP ("eam_tests_{0}" -f $PID)

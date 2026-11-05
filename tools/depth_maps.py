@@ -20,7 +20,7 @@ import numpy as np
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_MODEL = os.path.join(ROOT, 'addons', 'DLSS5NR01', 'external', 'depth', 'depth_anything_v2_small.onnx')
+DEFAULT_MODEL = os.path.join(ROOT, 'addons', 'Upscalers', 'external', 'depth', 'depth_anything_v2_small.onnx')
 MEAN = np.array([0.485, 0.456, 0.406], np.float32)
 STD = np.array([0.229, 0.224, 0.225], np.float32)
 
