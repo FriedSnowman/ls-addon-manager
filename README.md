@@ -350,6 +350,4 @@ The upscalers run NVIDIA DLSS, AMD FidelityFX Super Resolution (FSR 4 as built b
 stability and edge smoothing are this project's own. The full list, with licences, is in [NOTICE.md](NOTICE.md). NVIDIA, DLSS, AMD, FidelityFX, FSR, Intel and
 XeSS are trademarks of their owners; this project is not affiliated with or endorsed by them. Lossless Scaling belongs to its author; this project is unofficial.
 
-If it is useful to you, you can [support it on Ko-fi](https://ko-fi.com/xechostormx).
-
 [MIT licence](LICENSE) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md) · [Questions and answers](docs/faq.md)
