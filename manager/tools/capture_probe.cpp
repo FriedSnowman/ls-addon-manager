@@ -28,7 +28,7 @@ struct ProbeHost:eam::HostImpl {
     bool SetRealFrameCallback(EamRealFrameCallback cb,void* data=nullptr) override {
         if(!neural)return HostImpl::SetRealFrameCallback(cb,data);
         if(!cb){const bool result=HostImpl::SetRealFrameCallback(nullptr);callback=nullptr;user=nullptr;return result;}
-        callback=cb;user=data;return HostImpl::SetRealFrameCallback(NeuralFrame);
+        callback=cb;user=data;volatile bool installed=HostImpl::SetRealFrameCallback(NeuralFrame);return installed;
     }
 } host;
 bool verifyNeural=true;
@@ -77,7 +77,7 @@ bool Pre(uint32_t x,uint32_t y,uint32_t z,void*) {
     auto* ctx=static_cast<ID3D11DeviceContext*>(host.GetDispatchingContext());
     auto* cs=static_cast<ID3D11ComputeShader*>(host.GetCurrentComputeShader());
     eam::ShaderSha256 sha{};const bool known=eam::ReadShaderSha256(cs,sha);const unsigned id=known?shaderIds[sha]:0;
-    if(host.neural&&verifyNeural&&(id==255||id==256||id==249||id==245)) {
+    if(host.neural&&host.callback&&verifyNeural&&(id==255||id==256||id==249||id==245)) {
         for(unsigned i=0;i<(id==256?2u:1u);i++){ComPtr<ID3D11ShaderResourceView> view;ctx->CSGetShaderResources(i,1,&view);if(!view)continue;ComPtr<ID3D11Resource> r;view->GetResource(&r);
             const auto found=neuralImages.find(r.Get());
             if(found!=neuralImages.end()){ComPtr<ID3D11Texture2D> t;r.As(&t);const auto got=Pixels(ctx,t.Get());if(got!=found->second){++failures;printf("NR consumer mismatch shader=%u slot=%u\n",id,i);}else ++checked;}
@@ -129,7 +129,7 @@ int wmain(int argc,wchar_t** argv) {
         ComPtr<ID3D11Device> device;ComPtr<ID3D11DeviceContext> context;ComPtr<IDXGISwapChain> swap;
         if(FAILED(D3D11CreateDeviceAndSwapChain(nullptr,D3D_DRIVER_TYPE_HARDWARE,nullptr,0,nullptr,0,D3D11_SDK_VERSION,&sd,&swap,&device,nullptr,&context)))return 1;
         ComPtr<ID3D11Texture2D> back;swap->GetBuffer(0,IID_PPV_ARGS(&back));ComPtr<ID3D11RenderTargetView> rt;device->CreateRenderTargetView(back.Get(),nullptr,&rt);ComPtr<ID3D11DeviceContext1> c1;context.As(&c1);
-        const ULONGLONG until=GetTickCount64()+18000;
+        const ULONGLONG until=GetTickCount64()+60000;
         while(IsWindow(w)&&GetTickCount64()<until){MSG msg;while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){TranslateMessage(&msg);DispatchMessageW(&msg);}++frame;
             const float black[4]={0.02f,0.02f,0.02f,1};context->ClearRenderTargetView(rt.Get(),black);
             for(int y=0;y<480;y+=40)for(int x=0;x<640;x+=40){D3D11_RECT tile{x+(int)(frame%40),y,x+20+(int)(frame%40),y+20};const float color[4]={(x%255)/255.f,(y%255)/255.f,0.7f,1};c1->ClearView(rt.Get(),color,&tile,1);}swap->Present(0,0);Sleep(16);}return 0;
@@ -165,13 +165,25 @@ int wmain(int argc,wchar_t** argv) {
         auto panel=reinterpret_cast<AddonRenderSettings_t>(GetProcAddress(addon,"AddonRenderSettings"));
         if(panel){auto& io=ImGui::GetIO();io.DisplaySize=ImVec2(1280,900);io.DeltaTime=1.f/60;unsigned char* pixels;int fw,fh;io.Fonts->GetTexDataAsRGBA32(&pixels,&fw,&fh);ImGui::NewFrame();ImGui::Begin("NR test panel");panel();ImGui::End();ImGui::EndFrame();}
     } else host.SetRealFrameCallback(Identity);
+    HMODULE scalerAddon=nullptr;AddonShutdown_t scalerShutdown=nullptr;std::string scalerId;
+    if(argc>13&&host.neural) {
+        scalerId=std::filesystem::path(argv[13]).stem().u8string();host.SetConfig(scalerId.c_str(),"scalerPerGame","0");host.SetConfig(scalerId.c_str(),"hotkeys","0");
+        scalerAddon=LoadLibraryExW(argv[13],nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32);
+        if(!scalerAddon){printf("Scaler load failed %lu\n",GetLastError());return 1;}
+        auto initialize=reinterpret_cast<AddonInit_t>(GetProcAddress(scalerAddon,"AddonInitialize"));scalerShutdown=reinterpret_cast<AddonShutdown_t>(GetProcAddress(scalerAddon,"AddonShutdown"));if(!initialize||!scalerShutdown)return 1;
+        ImGuiMemAllocFunc alloc;ImGuiMemFreeFunc freeFn;void* user;ImGui::GetAllocatorFunctions(&alloc,&freeFn,&user);
+        initialize(&host,ImGui::GetCurrentContext(),reinterpret_cast<void*>(alloc),reinterpret_cast<void*>(freeFn),user);
+    }
+    double nrStoppedAt=-1,scalerStoppedAt=-1;
     RealFrameHook::SetSettings(fg,capture,scaling,hdr);
     apply(0,0,scaling,0,1.0f,0,0,0,fg,0,0,2.0f,120.0f,100,0,0,0,0,0,2,0,hdr,capture,1,0,0,0,0,0,0,0,0,0);
     SetForegroundWindow(window);printf("Activate %d\n",activate(window));
-    const ULONGLONG start=GetTickCount64(),until=start+8000;bool changed=false;const int lifecycle=argc>6?_wtoi(argv[6]):0;
+    const ULONGLONG start=GetTickCount64(),until=start+(scalerAddon?24000:8000);bool changed=false;const int lifecycle=argc>6?_wtoi(argv[6]):0;
     while(GetTickCount64()<until){MSG msg;while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){TranslateMessage(&msg);DispatchMessageW(&msg);}
-        if(lifecycle&&!changed&&GetTickCount64()>start+4000){changed=true;
+        if(lifecycle&&!changed&&GetTickCount64()>start+(scalerAddon?15000:4000)){changed=true;
             if(lifecycle==1)SetWindowPos(window,nullptr,0,0,820,660,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+            else if(lifecycle==3&&shutdown){shutdown();shutdown=nullptr;nrStoppedAt=eam::Metrics::Instance().Now();puts("NR stopped while upscaler remains active");}
+            else if(lifecycle==4&&scalerShutdown){scalerShutdown();scalerShutdown=nullptr;scalerStoppedAt=eam::Metrics::Instance().Now();puts("Upscaler stopped while NR remains active");}
             else{printf("Toggle stop %d\n",activate(window));
                 const auto pause=GetTickCount64()+500;while(GetTickCount64()<pause){MSG m;while(PeekMessageW(&m,nullptr,0,0,PM_REMOVE)){TranslateMessage(&m);DispatchMessageW(&m);}Sleep(10);}
                 SetForegroundWindow(window);RealFrameHook::SetSettings(fg,capture,scaling,hdr);printf("Toggle start %d\n",activate(window));}
@@ -179,8 +191,10 @@ int wmain(int argc,wchar_t** argv) {
     printf("Frame support %u\n",(unsigned)host.GetRealFrameSupport());
     stop();
     if(host.neural){const auto status=eam::Metrics::Instance().GetStatus("DLSSNR02",60);printf("NR status: %s\n",status.text.c_str());for(const auto& series:eam::Metrics::Instance().Snapshot(60))if(series.addon=="DLSSNR02")printf("NR metric %s %.4f %s\n",series.key.c_str(),series.last(),series.unit.c_str());printf("NR accepted %u edited %u\n",neuralAccepted,neuralEdited);}
-    if(shutdown)shutdown();if(addon)FreeLibrary(addon);if(host.neural)ImGui::DestroyContext();
+    if(scalerAddon){auto metric=eam::Metrics::Instance().Get(scalerId,"dlss_ms",60);printf("Upscaler %s samples=%zu last=%.4f status=%s\n",scalerId.c_str(),metric.samples.size(),metric.last(),eam::Metrics::Instance().GetStatus(scalerId,60).text.c_str());if(metric.samples.empty()||(nrStoppedAt>=0&&metric.samples.back().t<nrStoppedAt+1))++failures;}
+    if(scalerStoppedAt>=0){auto metric=eam::Metrics::Instance().Get("DLSSNR02","model_ms",60);if(metric.samples.empty()||metric.samples.back().t<scalerStoppedAt+1){++failures;puts("NR did not publish completed work after upscaler shutdown");}}
+    if(shutdown)shutdown();if(scalerShutdown)scalerShutdown();if(scalerAddon)FreeLibrary(scalerAddon);if(addon)FreeLibrary(addon);if(host.neural)ImGui::DestroyContext();
     host.SetPreDispatchCallback(nullptr,nullptr);host.SetRealFrameCallback(nullptr);D3D11Hook::Shutdown();PostMessageW(window,WM_CLOSE,0,0);CloseHandle(child.hProcess);CloseHandle(child.hThread);printf("Total passes %u real frames %u verified %u failures %u epochs %u cleared histories %u\n",passes,realFrames,checked,failures,epochCount,clearedHistories);
     for(const auto& entry:eam::Logger::Instance().GetEntries())printf("[%s] %s\n",entry.source.c_str(),entry.message.c_str());
-    return passes&&realFrames&&(checked||(host.neural&&!verifyNeural))&&!failures&&(!lifecycle||epochCount>=2)&&(!host.neural||neuralAccepted>30)?0:1;
+    return passes&&realFrames&&(checked||(host.neural&&!verifyNeural))&&!failures&&((lifecycle!=1&&lifecycle!=2)||epochCount>=2)&&(!host.neural||neuralAccepted>30)?0:1;
 }

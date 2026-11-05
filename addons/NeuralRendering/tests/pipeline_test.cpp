@@ -54,8 +54,8 @@ int wmain(int argc, wchar_t **argv) {
         wchar_t exe[32768]{};
         GetModuleFileNameW(nullptr, exe, 32768);
         auto folder = std::filesystem::path(exe).parent_path();
-        for (unsigned scenario = 0; scenario < 4; scenario++) {
-            unsigned w = scenario == 3 ? 804 : 644, h = scenario == 3 ? 621 : 481;
+        for (unsigned scenario = 0; scenario < 6; scenario++) {
+            unsigned w = scenario >= 4 ? 1920 : scenario == 3 ? 804 : 644, h = scenario >= 4 ? 1080 : scenario == 3 ? 621 : 481;
             bool hdr = scenario == 2;
             unsigned bpp = hdr ? 8 : 4;
             D3D11_TEXTURE2D_DESC d{};
@@ -73,7 +73,7 @@ int wmain(int argc, wchar_t **argv) {
             settings.modelPath = std::filesystem::absolute(argv[1]).wstring();
             settings.forwarderPath = (folder / L"NeuralRendering_nvngx.dll").wstring();
             settings.cachePath = (folder / L"pipeline-test-cache").wstring();
-            settings.scalePercent = scenario == 1 ? 50 : 100;
+            settings.scalePercent = (scenario == 1 || scenario == 5) ? 50 : 100;
             settings.model.intensity = scenario == 0 ? 0 : 1;
             pipeline = std::make_unique<Pipeline>();
             pipeline->Initialize(device.Get(), w, h, hdr ? Encoding::ScRgb : Encoding::Sdr709, settings);
@@ -83,6 +83,7 @@ int wmain(int argc, wchar_t **argv) {
             for (unsigned frame = 0; frame < 18; frame++) {
                 // Translation, repetition, deliberate scene cut and explicit long gap reset.
                 unsigned shift = frame < 6 ? frame * 3 : 18;
+                settings.composition.apply = !(hdr && frame == 17);
                 for (unsigned y = 0; y < h; y++)
                     for (unsigned x = 0; x < w; x++) {
                         unsigned i = (y * w + x) * bpp;
@@ -99,7 +100,7 @@ int wmain(int argc, wchar_t **argv) {
                         if (hdr)
                             for (unsigned ch = 0; ch < 4; ch++)
                                 reinterpret_cast<uint16_t *>(&bytes[i])[ch] =
-                                    DirectX::PackedVector::XMConvertFloatToHalf(colour[ch] * (ch == 3 ? 1 : 3));
+                                    DirectX::PackedVector::XMConvertFloatToHalf((frame == 17 && ch == 0 ? -.05f : colour[ch]) * (ch == 3 ? 1 : 3));
                         else
                             for (unsigned ch = 0; ch < 4; ch++)
                                 bytes[i + ch] = static_cast<unsigned char>(colour[ch] * 255 + .5f);
@@ -124,7 +125,7 @@ int wmain(int argc, wchar_t **argv) {
                 const auto unchanged = Read(device.Get(), context.Get(), original.Get());
                 if (unchanged != bytes)
                     throw std::runtime_error("Original capture was modified");
-                if ((!ok || scenario == 0) && out != bytes)
+                if ((!ok || scenario == 0 || !settings.composition.apply) && out != bytes)
                     throw std::runtime_error("Bypass/intensity-zero identity failed");
                 if (hdr)
                     for (size_t p = 0; p < out.size(); p += 2)

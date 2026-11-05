@@ -300,7 +300,10 @@ bool Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
     slot.hasTimings = true;
     // Only publish the D3D11 wait after the exact current output and its signal exist.
     Check(context->Wait(complete11_.Get(), done), "Wait for enhanced current image");
-    Copy(ctx, slot.output.srv.Get(), target.Get());
+    // Comparison keeps the manager's exact original copy, including negative scRGB
+    // components that upstream composition deliberately clamps at its output.
+    if (settings.apply)
+        Copy(ctx, slot.output.srv.Get(), target.Get());
     Check(context->Signal(consumed11_.Get(), transfer), "Signal enhanced image consumed");
     slot.consumed = transfer;
     lastConsumed_ = transfer;

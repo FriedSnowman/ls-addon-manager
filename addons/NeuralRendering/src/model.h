@@ -33,7 +33,6 @@ class Model {
     ModelSettings settings_{};
     uint32_t width_ = 0, height_ = 0;
     int floatSlot_ = -1;
-    bool coreInitialized_ = false;
     Create create_ = nullptr;
     EvaluateFn evaluate_ = nullptr;
     Extras extras_ = nullptr;
@@ -41,6 +40,5 @@ class Model {
     int (*shutdownSnippet_)(ID3D12Device *) = nullptr;
     int (*unloadSnippet_)() = nullptr;
     int (*destroyParams_)(void *) = nullptr;
-    int (*shutdownCore_)(ID3D12Device *, unsigned *) = nullptr;
 };
 } // namespace neural

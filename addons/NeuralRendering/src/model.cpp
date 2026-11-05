@@ -70,17 +70,14 @@ void Model::Initialize(Gpu &gpu, Recording &rec, const std::wstring &forwarder, 
     core_ = sharedCore;
     if (!core_)
         throw std::runtime_error("Cannot load the NVIDIA NGX driver core");
-    using Init = int (*)(unsigned long long, const wchar_t *, ID3D12Device *, int, const void *);
-    const auto init = Export<Init>(core_, "NVSDK_NGX_D3D12_Init_Ext");
-    shutdownCore_ = Export<decltype(shutdownCore_)>(core_, "NVSDK_NGX_D3D12_Shutdown1");
+    // Allocate a parameter map without initializing the process-wide NGX core.
+    // NR calls its own snippet directly. Core Init/GetCapability would establish
+    // global feature search paths and can hide an independently loaded DLSS scaler.
     destroyParams_ = Export<decltype(destroyParams_)>(core_, "NVSDK_NGX_D3D12_DestroyParameters");
-    NgxCheck(init(0x24480451ull, cache.c_str(), gpu.device.Get(), 0x15, nullptr), "Initialize NGX core");
-    coreInitialized_ = true;
     using Allocate = int (*)(void **);
-    NgxCheck(Export<Allocate>(core_, "NVSDK_NGX_D3D12_GetCapabilityParameters")(&params_),
-             "Get NGX capability parameters");
+    NgxCheck(Export<Allocate>(core_, "NVSDK_NGX_D3D12_AllocateParameters")(&params_), "Allocate NR parameters");
     if (!params_)
-        throw std::runtime_error("NGX capability parameters are empty");
+        throw std::runtime_error("NR parameter allocation returned no map");
     forwarder_ =
         LoadLibraryExW(forwarder.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (!forwarder_)
@@ -161,14 +158,6 @@ bool Model::Shutdown() {
         destroyParams_(params_);
         params_ = nullptr;
     }
-    if (coreInitialized_ && shutdownCore_ && gpu_) {
-        // The driver export (unlike the public SDK wrapper) writes a remaining-device
-        // count through its second argument on test driver. Supply valid storage.
-        unsigned remaining = 0;
-        if (shutdownCore_(gpu_->device.Get(), &remaining) != 1)
-            return false;
-        coreInitialized_ = false;
-    }
     if (unloadSnippet_ && unloadSnippet_() != 1)
         return false;
     if (forwarder_) {
@@ -180,7 +169,6 @@ bool Model::Shutdown() {
     gpu_ = nullptr;
     shutdownSnippet_ = nullptr;
     unloadSnippet_ = nullptr;
-    shutdownCore_ = nullptr;
     destroyParams_ = nullptr;
     release_ = nullptr;
     return true;
