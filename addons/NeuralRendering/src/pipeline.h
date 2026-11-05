@@ -18,6 +18,7 @@ struct PipelineSettings {
 struct PipelineMetrics {
     uint64_t accepted = 0, bypassed = 0, cuts = 0, resets = 0, deadlineMisses = 0;
     unsigned width = 0, height = 0, workingWidth = 0, workingHeight = 0;
+    int captureGpuPriority = 0, nrQueuePriority = 0;
     double summaryWaitMs = 0, prepareMs = 0, flowMs = 0, modelMs = 0, compositionMs = 0;
     float sceneDistance = 0;
 };

@@ -143,7 +143,7 @@ void Kernel::Dispatch(ID3D12Device *device, Recording &rec, const void *constant
     rec.list->SetComputeRootDescriptorTable(1, rec.Gpu(base));
     rec.list->Dispatch(gx, gy, 1);
 }
-void Gpu::Initialize(const LUID *luid) {
+void Gpu::Initialize(const LUID *luid, bool elevatedPriority) {
     ComPtr<IDXGIFactory6> factory;
     Check(CreateDXGIFactory1(IID_PPV_ARGS(&factory)), "Create DXGI factory");
     if (luid)
@@ -171,7 +171,20 @@ void Gpu::Initialize(const LUID *luid) {
           "Create NVIDIA D3D12 device");
     D3D12_COMMAND_QUEUE_DESC q{};
     q.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-    Check(device->CreateCommandQueue(&q, IID_PPV_ARGS(&queue)), "Create NR queue");
+    // LS raises its D3D11 GPU priority. Its frame generation now depends on this
+    // queue, so do not leave NR at normal priority under competing game work.
+    // DXGI's -7..7 values do not map numerically to D3D12 priority classes.
+    D3D12_FEATURE_DATA_COMMAND_QUEUE_PRIORITY support{q.Type, D3D12_COMMAND_QUEUE_PRIORITY_HIGH, FALSE};
+    if (elevatedPriority &&
+        SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_COMMAND_QUEUE_PRIORITY, &support, sizeof(support))) &&
+        support.PriorityForTypeIsSupported)
+        q.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
+    HRESULT created = device->CreateCommandQueue(&q, IID_PPV_ARGS(&queue));
+    if (FAILED(created) && q.Priority != D3D12_COMMAND_QUEUE_PRIORITY_NORMAL) {
+        q.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+        created = device->CreateCommandQueue(&q, IID_PPV_ARGS(&queue));
+    }
+    Check(created, "Create NR queue");
     Check(device->CreateFence(0, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&fence)), "Create queue fence");
 }
 Resource Gpu::Texture(uint32_t w, uint32_t h, DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags) {

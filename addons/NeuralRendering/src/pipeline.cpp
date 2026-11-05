@@ -112,7 +112,9 @@ void Pipeline::Initialize(ID3D11Device *device, unsigned w, unsigned h, Encoding
     Check(dxgi->GetAdapter(&adapter), "Get capture adapter");
     DXGI_ADAPTER_DESC description{};
     Check(adapter->GetDesc(&description), "Read capture adapter");
-    gpu_.Initialize(&description.AdapterLuid);
+    dxgi->GetGPUThreadPriority(&metrics_.captureGpuPriority);
+    gpu_.Initialize(&description.AdapterLuid, metrics_.captureGpuPriority > 0);
+    metrics_.nrQueuePriority = gpu_.queue->GetDesc().Priority;
     SharedFence(capture11_, capture12_);
     SharedFence(consumed11_, consumed12_);
     HANDLE handle = nullptr;

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "service.h"
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <commdlg.h>
@@ -15,6 +17,52 @@ neural::PipelineSettings settings;
 bool enabled = true, rebuildPending = false;
 char modelPath[32768]{};
 std::atomic<ULONGLONG> lastStatus{0};
+std::atomic<double> lastCallbackMs{0};
+// Render-thread-only samples. Report periodically so a gameplay session can be
+// diagnosed without a screenshot or a Present hook changing the render path.
+struct FrameDiagnostics {
+    std::array<double, 512> intervals{}, cpu{};
+    size_t count = 0;
+    uint64_t epoch = 0;
+    std::chrono::steady_clock::time_point report{};
+    void Record(uint64_t currentEpoch, double interval, double elapsed) {
+        const auto now = std::chrono::steady_clock::now();
+        if (epoch != currentEpoch || report.time_since_epoch().count() == 0) {
+            epoch = currentEpoch;
+            count = 0;
+            report = now;
+        }
+        if (interval <= 0)
+            return;
+        intervals[count % intervals.size()] = interval;
+        cpu[count++ % cpu.size()] = elapsed;
+        if (now - report < std::chrono::seconds(5))
+            return;
+        const size_t n = std::min(count, cpu.size());
+        auto stats = [n](std::array<double, 512> values) {
+            std::sort(values.begin(), values.begin() + n);
+            double mean = 0;
+            for (size_t i = 0; i < n; ++i)
+                mean += values[i];
+            return std::array<double, 3>{mean / n, values[size_t((n - 1) * .95)], values[size_t((n - 1) * .99)]};
+        };
+        const auto c = stats(intervals), t = stats(cpu);
+        const auto snapshot = service->Snapshot();
+        const auto &m = snapshot.metrics;
+        char text[768];
+        snprintf(text, sizeof(text),
+                 "NR timing: capture %ux%u, model %ux%u, observed %.1f fps; capture mean/p95/p99 %.2f/%.2f/%.2f ms; "
+                 "callback CPU mean/p95/p99 %.2f/%.2f/%.2f ms; last GPU prepare/flow/model/compose "
+                 "%.2f/%.2f/%.2f/%.2f ms; epoch accepted/bypassed %llu/%llu, cuts/resets %llu/%llu, "
+                 "summary deadlines %llu; GPU priority capture/NR %d/%d; %s",
+                 m.width, m.height, m.workingWidth, m.workingHeight, c[0] > 0 ? 1000 / c[0] : 0, c[0], c[1], c[2], t[0],
+                 t[1], t[2], m.prepareMs, m.flowMs, m.modelMs, m.compositionMs, m.accepted, m.bypassed, m.cuts,
+                 m.resets, m.deadlineMisses, m.captureGpuPriority, m.nrQueuePriority, snapshot.status.c_str());
+        host->Log(EAM_LOG_INFO, text);
+        count = 0;
+        report = now;
+    }
+};
 void ModuleAnchor() {}
 std::wstring Wide(const char *p) {
     int n = MultiByteToWideChar(CP_UTF8, 0, p, -1, nullptr, 0);
@@ -114,6 +162,9 @@ void Status(bool force = false) {
     host->PublishMetric(Id, "model_ms", m.modelMs, "ms");
     host->PublishMetric(Id, "composition_ms", m.compositionMs, "ms");
     host->PublishMetric(Id, "summary_wait_ms", m.summaryWaitMs, "ms");
+    host->PublishMetric(Id, "nr_total_ms", m.prepareMs + m.flowMs + m.modelMs + m.compositionMs, "ms");
+    host->PublishMetric(Id, "callback_cpu_ms", lastCallbackMs.load(), "ms");
+    host->PublishMetric(Id, "summary_deadlines", double(m.deadlineMisses), "frames");
     host->PublishMetric(Id, "accepted", double(m.accepted), "frames");
     host->PublishMetric(Id, "bypassed", double(m.bypassed), "frames");
     if (m.accepted + m.bypassed)
@@ -122,12 +173,20 @@ void Status(bool force = false) {
 bool Frame(const EamRealFrame &frame, void *) {
     static std::chrono::steady_clock::time_point last;
     static uint64_t epoch = 0;
+    static FrameDiagnostics diagnostics;
     const auto now = std::chrono::steady_clock::now();
-    if (host && epoch == frame.epoch && last.time_since_epoch().count())
-        host->PublishMetric(Id, "frame_ms", std::chrono::duration<double, std::milli>(now - last).count(), "ms");
+    const double interval = epoch == frame.epoch && last.time_since_epoch().count()
+                                ? std::chrono::duration<double, std::milli>(now - last).count()
+                                : 0;
+    if (host && interval > 0)
+        host->PublishMetric(Id, "frame_ms", interval, "ms");
     last = now;
     epoch = frame.epoch;
     const bool result = service && service->Process(frame);
+    const double cpuMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - now).count();
+    lastCallbackMs = cpuMs;
+    if (host && service)
+        diagnostics.Record(frame.epoch, interval, cpuMs);
     Status();
     return result;
 }
@@ -334,9 +393,12 @@ EAM_EXPORT void AddonRenderSettings() {
     if (support && snapshot.failed)
         ImGui::TextWrapped("%s", snapshot.status.c_str());
     ImGui::Text("Capture %u x %u; model %u x %u", m.width, m.height, m.workingWidth, m.workingHeight);
-    ImGui::Text("GPU: prepare %.2f / flow wait+convert %.2f / model %.2f / compose %.2f ms", m.prepareMs, m.flowMs,
-                m.modelMs, m.compositionMs);
-    ImGui::Text("Scene summary CPU wait %.2f ms (4 ms deadline)", m.summaryWaitMs);
+    ImGui::Text("NR GPU time %.2f ms; callback CPU %.2f ms", m.prepareMs + m.flowMs + m.modelMs + m.compositionMs,
+                lastCallbackMs.load());
+    ImGui::TextWrapped("GPU: prepare %.2f / flow wait+convert %.2f / model %.2f / compose %.2f ms", m.prepareMs,
+                       m.flowMs, m.modelMs, m.compositionMs);
+    ImGui::TextWrapped("Scene summary CPU wait %.2f ms (4 ms deadline); %llu missed deadlines this epoch",
+                       m.summaryWaitMs, m.deadlineMisses);
     ImGui::Text("Epoch: %llu accepted / %llu bypassed / %llu cuts / %llu resets", m.accepted, m.bypassed, m.cuts,
                 m.resets);
 }

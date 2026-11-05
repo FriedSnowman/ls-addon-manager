@@ -41,9 +41,14 @@ int wmain(int argc, wchar_t **argv) {
     std::unique_ptr<Pipeline> pipeline;
     try {
         Gpu audit;
+        audit.Initialize();
+        D3D12_FEATURE_DATA_COMMAND_QUEUE_PRIORITY prioritySupport{D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                                                 D3D12_COMMAND_QUEUE_PRIORITY_HIGH, FALSE};
+        Check(audit.device->CheckFeatureSupport(D3D12_FEATURE_COMMAND_QUEUE_PRIORITY, &prioritySupport,
+                                               sizeof(prioritySupport)),
+              "Query test queue priorities");
         ComPtr<ID3D12InfoQueue> messages;
         if (debug) {
-            audit.Initialize();
             audit.device.As(&messages);
         }
         ComPtr<ID3D11Device> device;
@@ -51,10 +56,14 @@ int wmain(int argc, wchar_t **argv) {
         Check(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, &device,
                                 nullptr, &context),
               "Create test capture device");
+        ComPtr<IDXGIDevice> captureDxgi;
+        Check(device.As(&captureDxgi), "Query test capture priority");
         wchar_t exe[32768]{};
         GetModuleFileNameW(nullptr, exe, 32768);
         auto folder = std::filesystem::path(exe).parent_path();
         for (unsigned scenario = 0; scenario < 6; scenario++) {
+            const int capturePriority = scenario % 2 ? 7 : 0;
+            Check(captureDxgi->SetGPUThreadPriority(capturePriority), "Set test capture priority");
             unsigned w = scenario >= 4 ? 1920 : scenario == 3 ? 804 : 644, h = scenario >= 4 ? 1080 : scenario == 3 ? 621 : 481;
             bool hdr = scenario == 2;
             unsigned bpp = hdr ? 8 : 4;
@@ -77,6 +86,13 @@ int wmain(int argc, wchar_t **argv) {
             settings.model.intensity = scenario == 0 ? 0 : 1;
             pipeline = std::make_unique<Pipeline>();
             pipeline->Initialize(device.Get(), w, h, hdr ? Encoding::ScRgb : Encoding::Sdr709, settings);
+            const auto priorities = pipeline->Metrics();
+            const int expectedPriority = capturePriority > 0 && prioritySupport.PriorityForTypeIsSupported
+                                             ? D3D12_COMMAND_QUEUE_PRIORITY_HIGH
+                                             : D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+            if (priorities.captureGpuPriority != capturePriority || priorities.nrQueuePriority != expectedPriority)
+                throw std::runtime_error("NR queue did not follow capture GPU priority");
+            printf("PASS GPU priority: capture=%d NR=%d\n", priorities.captureGpuPriority, priorities.nrQueuePriority);
             std::vector<unsigned char> bytes(size_t(w) * h * bpp);
             unsigned accepted = 0, bypassed = 0;
             double edits = 0;

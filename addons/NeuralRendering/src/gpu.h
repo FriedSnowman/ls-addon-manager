@@ -56,7 +56,7 @@ class Gpu {
     ComPtr<ID3D12CommandQueue> queue;
     ComPtr<ID3D12Fence> fence;
     std::wstring adapterName;
-    void Initialize(const LUID *requiredAdapter = nullptr);
+    void Initialize(const LUID *requiredAdapter = nullptr, bool elevatedPriority = false);
     Resource Texture(uint32_t width, uint32_t height, DXGI_FORMAT,
                      D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
     Resource Buffer(uint64_t bytes, D3D12_HEAP_TYPE, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
