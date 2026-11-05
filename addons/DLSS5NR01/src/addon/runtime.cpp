@@ -640,7 +640,10 @@ void Compose(IDXGISwapChain* sc) {
     a.shadows = p.shadows; a.highlights = p.highlights; a.grain = p.grain; a.grainSize = p.grainSize; a.grainSeed = static_cast<uint32_t>(g_presents);
     a.hudCount = p.hudCount; memcpy(a.hud, p.hud, sizeof a.hud); a.hudFeather = p.hudFeather; a.hudShow = g_showHud;
     a.compare = static_cast<uint32_t>(compare); a.splitPos = g_splitPos; a.marker = marker;
-    { D3D11_TEXTURE2D_DESC desc; buffer->GetDesc(&desc); a.encoding = static_cast<uint32_t>(FrameEncodingOf(desc.Format, sc, &a.whiteNits)); }
+    { D3D11_TEXTURE2D_DESC desc; buffer->GetDesc(&desc);
+      a.encoding = static_cast<uint32_t>(FrameEncodingOf(desc.Format, sc, &a.whiteNits));
+      // Captures contain only the game. At Present, the model input already includes the display's borders and must keep full-buffer UVs.
+      if (!g_presentMode) a.content = Compose11::FitContent(g_bridge.Width(), g_bridge.Height(), desc.Width, desc.Height); }
     g_bridge.BeginDeltaUse(deltaFrame);
     g_composedNow = true;
     t_ownWork = true;

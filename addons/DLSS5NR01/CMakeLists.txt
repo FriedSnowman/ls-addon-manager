@@ -140,6 +140,11 @@ add_executable(nr_taptest tools/tap_test.cpp src/addon/frame_tap.cpp)
 target_include_directories(nr_taptest PRIVATE src)
 target_link_libraries(nr_taptest PRIVATE d3d11)
 
+# ---- compositor regression tests: real shader dispatch/readback on WARP, no model or game ----
+add_executable(nr_composetest tools/compose_test.cpp src/addon/compose11.cpp)
+target_include_directories(nr_composetest PRIVATE src)
+target_link_libraries(nr_composetest PRIVATE d3d11 d3dcompiler)
+
 # ---- offline test of the settings and looks (the table, looks as text and back, the settings file through a stand-in host)
 add_executable(nr_rectest tools/record_test.cpp src/addon/lsrec.cpp)
 target_include_directories(nr_rectest PRIVATE src)

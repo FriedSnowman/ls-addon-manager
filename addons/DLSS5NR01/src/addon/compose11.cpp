@@ -49,6 +49,9 @@ cbuffer Constants : register(b0) {
     float4 hud[6];        // left, top, right, bottom, 0..1
     uint   encoding;      // the frame's: 0 SDR, 1 scRGB, 2 HDR10 (hdr_hlsl.h)
     float  white;         // the SDR white, in nits (HDR only)
+    uint2  padding;
+    uint2  contentOrigin;
+    uint2  contentSize;
 };
 static const float3 kLuma = float3(0.299, 0.587, 0.114);
 static const float3 kHudGreen = float3(0.49, 0.70, 0.26);
@@ -128,12 +131,15 @@ float3 MarkerColour() {
 void CSCompose(uint3 id : SV_DispatchThreadID) {
     if (id.x >= size.x || id.y >= size.y) return;
     const float4 frame = tFrame[id.xy];
+    // Preserve the borders exactly, including in HDR and diagnostic views. The scratch-output path must write these pixels too.
+    if (any(id.xy < contentOrigin) || any(id.xy >= contentOrigin + contentSize)) { uOut[id.xy] = frame; return; }
     const float3 fs = Sdr(frame.rgb);
     bool replaced = false;   // a debug view or an overlay: written as it is, not as a change to the frame
-    const float2 uv = (float2(id.xy) + 0.5) / float2(size);
-    const float hudInside = HudInside(uv);
+    const float2 screenUv = (float2(id.xy) + 0.5) / float2(size);
+    const float2 uv = (float2(id.xy - contentOrigin) + 0.5) / float2(contentSize);
+    const float hudInside = HudInside(screenUv);
     const bool plain = debugView == 0 || debugView == 3;   // the views that show the picture as it will be seen
-    const bool original = compare == 2 || (compare == 1 && uv.x < splitPos) || (hudInside > 0.999 && plain);
+    const bool original = compare == 2 || (compare == 1 && screenUv.x < splitPos) || (hudInside > 0.999 && plain);
     float3 c = fs;
     if (!original) {
         const float4 flow = (flags & 1u) ? tFlow.SampleLevel(sLinear, uv, 0) : float4(0, 0, 0, 0);
@@ -149,9 +155,9 @@ void CSCompose(uint3 id : SV_DispatchThreadID) {
         c = saturate(fs + d);
         if (plain) {
             if (sharpen > 0.001) {   // the delta is smooth, so the neighbours take the centre's delta rather than more flow and delta reads
-                const int2 p = int2(id.xy), last = int2(size) - 1;
-                c = Sharpen(saturate(Sdr(tFrame[clamp(p + int2(0, -1), 0, last)].rgb) + d), saturate(Sdr(tFrame[clamp(p + int2(-1, 0), 0, last)].rgb) + d), c,
-                            saturate(Sdr(tFrame[clamp(p + int2(1, 0), 0, last)].rgb) + d), saturate(Sdr(tFrame[clamp(p + int2(0, 1), 0, last)].rgb) + d), saturate(sharpen));
+                const int2 p = int2(id.xy), first = int2(contentOrigin), last = int2(contentOrigin + contentSize) - 1;
+                c = Sharpen(saturate(Sdr(tFrame[clamp(p + int2(0, -1), first, last)].rgb) + d), saturate(Sdr(tFrame[clamp(p + int2(-1, 0), first, last)].rgb) + d), c,
+                            saturate(Sdr(tFrame[clamp(p + int2(1, 0), first, last)].rgb) + d), saturate(Sdr(tFrame[clamp(p + int2(0, 1), first, last)].rgb) + d), saturate(sharpen));
             }
             if (abs(brightness) > 0.0005 || abs(contrast - 1.0) > 0.002 || abs(gamma - 1.0) > 0.002) c = Tone(c);
             if (abs(shadows) > 0.005 || abs(highlights) > 0.005) c = TonalRanges(c);
@@ -170,7 +176,7 @@ void CSCompose(uint3 id : SV_DispatchThreadID) {
         float inside = 0.0, edge = 0.0;
         const float edgeWidth = 1.5 / (float)size.x;
         for (uint i = 0u; i < hudCount && i < 6u; ++i) {
-            const float2 fromEdge = min(uv - hud[i].xy, hud[i].zw - uv);
+            const float2 fromEdge = min(screenUv - hud[i].xy, hud[i].zw - screenUv);
             const float nearest = min(fromEdge.x, fromEdge.y);
             if (nearest > 0.0) inside = 1.0;
             if (abs(nearest) < edgeWidth) edge = 1.0;
@@ -214,8 +220,10 @@ struct Constants {
     uint32_t grainSeed; float grainSize; uint32_t hudCount; float hudFeather;
     float hud[6][4];
     uint32_t encoding; float white; uint32_t pad[2];
+    uint32_t contentX, contentY, contentW, contentH;
 };
-static_assert(offsetof(Constants, gamma) == 80 && offsetof(Constants, hud) == 112 && offsetof(Constants, encoding) == 208 && sizeof(Constants) == 224,
+static_assert(offsetof(Constants, gamma) == 80 && offsetof(Constants, hud) == 112 && offsetof(Constants, encoding) == 208 &&
+              offsetof(Constants, contentX) == 224 && sizeof(Constants) == 240,
               "Constants must match the shader's cbuffer");
 
 template <class T> void SafeRelease(T*& p) { if (p) { p->Release(); p = nullptr; } }
@@ -237,6 +245,16 @@ struct SavedComputeState {
 };
 
 } // namespace
+
+Compose11::Rect Compose11::FitContent(uint32_t frameW, uint32_t frameH, uint32_t targetW, uint32_t targetH) {
+    if (!frameW || !frameH || !targetW || !targetH) return {};
+    uint32_t w = targetW, h = targetH;
+    if (uint64_t(frameW) * targetH > uint64_t(targetW) * frameH)
+        h = std::max(1u, static_cast<uint32_t>((uint64_t(targetW) * frameH + frameW / 2) / frameW));
+    else
+        w = std::max(1u, static_cast<uint32_t>((uint64_t(targetH) * frameW + frameH / 2) / frameH));
+    return { (targetW - w) / 2, (targetH - h) / 2, w, h };
+}
 
 void Compose11::Log(const char* fmt, ...) {
     if (!m_log) return;
@@ -267,6 +285,7 @@ bool Compose11::Init(ID3D11Device* dev, LogFn log) {
 void Compose11::DropCopy() {
     SafeRelease(m_copyView); SafeRelease(m_copy); SafeRelease(m_outView); SafeRelease(m_out);
     m_w = m_h = 0; m_fmt = DXGI_FORMAT_UNKNOWN;
+    m_content = {};
 }
 
 void Compose11::Shutdown() {
@@ -325,6 +344,10 @@ bool Compose11::Run(ID3D11DeviceContext* ctx, const Args& a) {
     if (!m_shader || !ctx || !a.target || !a.delta) return false;
     LARGE_INTEGER freq, start; QueryPerformanceFrequency(&freq); QueryPerformanceCounter(&start);
     D3D11_TEXTURE2D_DESC desc; a.target->GetDesc(&desc);
+    Rect content = a.content;
+    if (!content.x && !content.y && !content.w && !content.h) content = { 0, 0, desc.Width, desc.Height };
+    if (!content.w || !content.h || content.x >= desc.Width || content.y >= desc.Height ||
+        content.w > desc.Width - content.x || content.h > desc.Height - content.y) return false;
     const DXGI_FORMAT view = Bridge::ViewFormat(desc.Format);
     if (view == DXGI_FORMAT_UNKNOWN || desc.SampleDesc.Count != 1) {   // 8-bit, 10-bit and half-float buffers work: the pass changes their SDR view
         const uint64_t key = 0xC000000000000000ull | (uint32_t)desc.Format;
@@ -332,6 +355,10 @@ bool Compose11::Run(ID3D11DeviceContext* ctx, const Args& a) {
         return false;
     }
     if (!FitCopy(desc, view)) return false;
+    if (content.x != m_content.x || content.y != m_content.y || content.w != m_content.w || content.h != m_content.h) {
+        Log("Compose11: content %u,%u %ux%u in %ux%u", content.x, content.y, content.w, content.h, desc.Width, desc.Height);
+        m_content = content;
+    }
     ID3D11UnorderedAccessView* out = TargetView(a.target, view);
     if (!out) return false;
     const bool inPlace = out != m_outView;   // then `out` is ours to release
@@ -350,6 +377,7 @@ bool Compose11::Run(ID3D11DeviceContext* ctx, const Args& a) {
     c.shadows = a.shadows; c.highlights = a.highlights; c.grain = a.grain; c.grainSeed = a.grainSeed; c.grainSize = std::clamp(a.grainSize, 1.0f, 4.0f);
     c.hudCount = std::min(a.hudCount, 6u); c.hudFeather = a.hudFeather; memcpy(c.hud, a.hud, sizeof c.hud);
     c.encoding = a.encoding; c.white = a.whiteNits > 1.0f ? a.whiteNits : 200.0f;
+    c.contentX = content.x; c.contentY = content.y; c.contentW = content.w; c.contentH = content.h;
     D3D11_MAPPED_SUBRESOURCE mapped{};
     if (SUCCEEDED(ctx->Map(m_constants, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) { memcpy(mapped.pData, &c, sizeof c); ctx->Unmap(m_constants, 0); }
 

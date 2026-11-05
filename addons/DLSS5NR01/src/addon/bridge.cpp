@@ -29,20 +29,6 @@ void Bridge::LogOnce(uint64_t key, const char* fmt, ...) {
     m_log(text);
 }
 
-DXGI_FORMAT Bridge::ViewFormat(DXGI_FORMAT f) {
-    switch (f) {
-    case DXGI_FORMAT_B8G8R8A8_TYPELESS: case DXGI_FORMAT_B8G8R8A8_UNORM: case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
-        return DXGI_FORMAT_B8G8R8A8_UNORM;
-    case DXGI_FORMAT_R8G8B8A8_TYPELESS: case DXGI_FORMAT_R8G8B8A8_UNORM: case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
-        return DXGI_FORMAT_R8G8B8A8_UNORM;
-    case DXGI_FORMAT_R10G10B10A2_TYPELESS: case DXGI_FORMAT_R10G10B10A2_UNORM:
-        return DXGI_FORMAT_R10G10B10A2_UNORM;
-    case DXGI_FORMAT_R16G16B16A16_TYPELESS: case DXGI_FORMAT_R16G16B16A16_FLOAT:
-        return DXGI_FORMAT_R16G16B16A16_FLOAT;
-    default:
-        return DXGI_FORMAT_UNKNOWN;
-    }
-}
 // 8-bit frames, and 10-bit and half-float ones (HDR, or 10-bit SDR): the engine's shrink pass gives the model their SDR view (hdr_hlsl.h).
 bool Bridge::FormatSupported(DXGI_FORMAT f) {
     const DXGI_FORMAT view = ViewFormat(f);

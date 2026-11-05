@@ -68,7 +68,21 @@ public:
     GpuTimer11& SubmitTimes() { return m_submitTimes; }
     GpuTimer11& ComposeTimes() { return m_composeTimes; }
     static bool FormatSupported(DXGI_FORMAT f);
-    static DXGI_FORMAT ViewFormat(DXGI_FORMAT f);   // the UNORM / FLOAT format to view a frame of format f with (sRGB and typeless map to it)
+    // The UNORM / FLOAT view, shared with the compositor without linking the model engine into its standalone tests.
+    static DXGI_FORMAT ViewFormat(DXGI_FORMAT f) {
+        switch (f) {
+        case DXGI_FORMAT_B8G8R8A8_TYPELESS: case DXGI_FORMAT_B8G8R8A8_UNORM: case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+            return DXGI_FORMAT_B8G8R8A8_UNORM;
+        case DXGI_FORMAT_R8G8B8A8_TYPELESS: case DXGI_FORMAT_R8G8B8A8_UNORM: case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+            return DXGI_FORMAT_R8G8B8A8_UNORM;
+        case DXGI_FORMAT_R10G10B10A2_TYPELESS: case DXGI_FORMAT_R10G10B10A2_UNORM:
+            return DXGI_FORMAT_R10G10B10A2_UNORM;
+        case DXGI_FORMAT_R16G16B16A16_TYPELESS: case DXGI_FORMAT_R16G16B16A16_FLOAT:
+            return DXGI_FORMAT_R16G16B16A16_FLOAT;
+        default:
+            return DXGI_FORMAT_UNKNOWN;
+        }
+    }
 
 private:
     // A texture made on Lossless Scaling's device and opened on the model's.

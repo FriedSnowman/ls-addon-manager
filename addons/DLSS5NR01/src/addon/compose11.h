@@ -15,8 +15,12 @@
 class Compose11 {
 public:
     using LogFn = std::function<void(const char*)>;
+    struct Rect { uint32_t x = 0, y = 0, w = 0, h = 0; };
+    // Lossless Scaling's centered, aspect-preserving layout. Use capture dimensions, not the model's rounded working size.
+    static Rect FitContent(uint32_t frameW, uint32_t frameH, uint32_t targetW, uint32_t targetH);
     struct Args {
         ID3D11Texture2D* target = nullptr;             // the swap chain buffer about to be presented (read and written)
+        Rect content;                                // game rectangle in target pixels; all zeros = the whole presented frame
         ID3D11ShaderResourceView* delta = nullptr;     // the delta at the working size, RGBA16F
         ID3D11Resource* flow = nullptr; uint32_t flowW = 0, flowH = 0; float flowUnit = 2.0f;   // LSFG's flow (RGBA16F), or null
         ID3D11ShaderResourceView* motion = nullptr;    // or the model's motion for frame d (RG16F, working-size pixels, d -> the frame before):
@@ -58,6 +62,7 @@ private:
     ID3D11Texture2D* m_copy = nullptr; ID3D11ShaderResourceView* m_copyView = nullptr;
     ID3D11Texture2D* m_out = nullptr; ID3D11UnorderedAccessView* m_outView = nullptr;
     uint32_t m_w = 0, m_h = 0; DXGI_FORMAT m_fmt = DXGI_FORMAT_UNKNOWN;
+    Rect m_content;
     ID3D11Resource* m_flow = nullptr; ID3D11ShaderResourceView* m_flowView = nullptr;
     double m_cpuMs = 0; uint64_t m_runs = 0; char m_targetInfo[96] = "none yet"; uint64_t m_lastFailure = 0;
 };
