@@ -11,7 +11,6 @@
 #              backups, diagnostics); also the exit with the GPU sampler running
 #   features   eam_featurestest: ReShade passthrough and Windowed mode (switched on and off at start-up), and the exit with its watcher running
 #   sample     eam_sampletest: examples\SampleAddon loaded, started and drawn by the real manager
-#   update     eam_updatetest: the update check against a small local server
 #   gui        eam_guitest: the manager window, three times (defaults, a saved placement, interface size 150 %)
 #   installer  the Setup program's core and its file bundle, on fake Lossless Scaling folders
 #   setupexe   the Setup exe end to end (silent install, repair, uninstall, the wizard window)
@@ -35,9 +34,6 @@ $suites = [ordered]@{
     sample    = @{ When = '^manager/sdk/|^manager/src/(addon|host|config)/|^examples/|^manager/tools/sample_test';
                    Build = @('manager', 'eam_sampletest');
                    Runs = @(, @('sample addon (examples\SampleAddon)', "$mgr\eam_sampletest.exe", @())) }
-    update    = @{ When = '^manager/src/update/|^manager/sdk/include/eam/version\.h|^manager/tools/update_test';
-                   Build = @('manager', 'eam_updatetest');
-                   Runs = @(, @('update check (local server)', "$mgr\eam_updatetest.exe", @())) }
     gui       = @{ When = '^manager/src/gui/|^manager/sdk/include/eam/(widgets|icons)\.h|^manager/tools/gui_test';
                    Build = @('manager', 'Lossless', 'eam_guitest');
                    Runs = @(@('window (defaults)', "$mgr\eam_guitest.exe", @()), @('window (saved placement)', "$mgr\eam_guitest.exe", @('place')),

@@ -1,4 +1,3 @@
-#include "../widgets/update_offer.h"
 #include "main_frame.h"
 #include "status_text.h"
 #include "../tabs/tab_about.h"
@@ -11,7 +10,6 @@
 #include "../widgets/header_bar.h"
 #include "../../addon/addon_manager.h"
 #include "../../host/metrics.h"
-#include "../../update/update_check.h"
 #include "imgui.h"
 
 namespace eam {
@@ -23,8 +21,6 @@ std::string BuildStatusLine(AddonManager* manager) {
     int total = 0, on = 0;
     if (manager) for (const auto& addon : manager->GetAddons()) { ++total; if (addon.enabled) ++on; }
     std::string line = StatusCounts(total, on);
-    const update::Status newer = update::Current();
-    line = WithUpdate(line, newer.state == update::State::Available ? newer.latest : std::string());
 
     const Metrics::Status live = Metrics::Instance().BestStatus();   // the most relevant live status of any addon
     if (live.text.empty()) return line;
@@ -71,7 +67,6 @@ void RenderMainFrame(AddonManager* manager, bool& bringAddonsForward) {
     ImGui::EndChild();
 
     widgets::StatusBar(BuildStatusLine(manager));
-    widgets::UpdateOffer();   // over everything: the offer to update, when the check finds a newer release
     ImGui::End();
 }
 

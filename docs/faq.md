@@ -22,7 +22,7 @@ It is free and MIT-licensed, and the source is in this repository. The files are
 distrust them. You can build everything yourself from the source (see the README).
 
 **Does it send anything over the internet?**
-Once a day it asks github.com for the latest release number: GitHub sees your IP address and the program's name and version. It downloads a release only when you choose **Download and install** (checked against GitHub's SHA-256 before it is used), and never downloads anything else. You can turn it off in *Settings > Updates*. Setup itself uses no network at all.
+The manager's network updater has been removed in this local fork. It does not poll releases or download replacements. Explicit browser links remain. Build-time dependency retrieval and the behavior of external NVIDIA binaries are separate trust boundaries; see [LOCAL_BUILD.md](LOCAL_BUILD.md).
 
 ## Setup
 

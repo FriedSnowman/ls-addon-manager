@@ -1,9 +1,7 @@
-#include "../widgets/update_offer.h"
 #include "tab_about.h"
 #include "../gui_scale.h"
 #include "../gui_style.h"
 #include "../widgets/status_bar.h"
-#include "../../update/update_check.h"
 #include "../../../sdk/include/eam/version.h"
 #include "imgui.h"
 #include "eam/widgets.h"
@@ -46,29 +44,6 @@ void RenderTabAbout() {
     char versionStr[64];
     snprintf(versionStr, sizeof(versionStr), "v%s", EAM_VERSION_STRING);
     CenteredText(versionStr, true);
-    {   // is there a newer one? (the daily check, or the button)
-        const update::Status st = update::Current();
-        const std::string line = update::DescribeStatus(st);
-        if (st.state == update::State::Available) {
-            ImGui::PushStyleColor(ImGuiCol_Text, eam::ui::theme::V(eam::ui::theme::kAccent));
-            CenteredText(line.c_str());
-            ImGui::PopStyleColor();
-            const float bw1 = ImGui::CalcTextSize("Download and install").x + ImGui::GetFontSize() * 4.0f;
-            const float bw2 = ImGui::CalcTextSize("Open the download page").x + ImGui::GetFontSize() * 4.0f;
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (ImGui::GetContentRegionAvail().x - bw1 - bw2 - ImGui::GetStyle().ItemSpacing.x) * 0.5f);
-            if (eam::ui::Button("Download and install", eam::ui::icons::kDownload, eam::ui::ButtonKind::Primary, ImVec2(bw1, 0))) widgets::OpenUpdateOffer();
-            ImGui::SameLine();
-            if (eam::ui::Button("Open the download page", eam::ui::icons::kExternal, eam::ui::ButtonKind::Flat, ImVec2(bw2, 0))) OpenUrl(st.url.c_str());
-        } else {
-            if (st.state != update::State::Idle) CenteredText(line.c_str(), true);
-            const bool checking = st.state == update::State::Checking;
-            const float bw2 = ImGui::CalcTextSize("Check for updates").x + ImGui::GetFontSize() * 3.0f;
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (ImGui::GetContentRegionAvail().x - bw2) * 0.5f);
-            if (checking) ImGui::BeginDisabled();
-            if (eam::ui::Button("Check for updates", eam::ui::icons::kCheck, eam::ui::ButtonKind::Flat, ImVec2(bw2, 0))) update::StartCheckAsync();
-            if (checking) ImGui::EndDisabled();
-        }
-    }
     ImGui::Dummy(ImVec2(0, S(6)));
     CenteredText("Lossless Scaling, extended: neural rendering, DLSS and FSR upscaling, and anything else an addon adds.", true);
 
@@ -97,7 +72,7 @@ void RenderTabAbout() {
               "have Stability and Edge smoothing for older games without anti-aliasing." },
             { eam::ui::icons::kSliders, "Built into the manager",
               "ReShade input passthrough, windowed games and a second monitor, a Performance tab that says what limits the frame rate, a tray "
-              "icon and hotkey, a one-file installer that repairs itself after a Lossless Scaling update, and an update check." },
+              "icon and hotkey, and a local installer for installation, repair and removal." },
         };
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const float icon = S(30.0f);

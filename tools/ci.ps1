@@ -24,10 +24,9 @@ function Run($name, $exe, $testArgs = @()) {
 
 Section 'the manager and its tests'
 Configure "$root\manager" "$root\manager\build"
-Build "$root\manager\build" @('Lossless', 'eam_installtest', 'eam_coretest', 'eam_updatetest', 'eam_sampletest')
+Build "$root\manager\build" @('Lossless', 'eam_installtest', 'eam_coretest', 'eam_sampletest')
 Run 'addon install' "$root\manager\build\Release\eam_installtest.exe"
 Run 'addon handling' "$root\manager\build\Release\eam_coretest.exe"
-Run 'update check (a local server, no internet)' "$root\manager\build\Release\eam_updatetest.exe"
 Run 'sample addon' "$root\manager\build\Release\eam_sampletest.exe"
 
 Section 'the installer'

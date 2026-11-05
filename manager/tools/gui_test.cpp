@@ -105,7 +105,6 @@ static void PureChecks() {
     Check("status: none is plural", StatusCounts(0, 0).find("   |   0 addons, 0 on") != std::string::npos);
     Check("status: a live status is added after the counts", WithLiveStatus("A", "Neural Rendering", "12 ms") == "A   |   Neural Rendering: 12 ms" && WithLiveStatus("A", "x", "") == "A");
 
-    Check("status: an update is added when there is one", WithUpdate("A", "0.5.0") == "A   |   Update available: 0.5.0" && WithUpdate("A", "") == "A");
     const std::wstring tip = tray::TipText(L"");
     Check("tray tip: the product name and what a click does", tip == std::wstring(EAM_PRODUCT_SHORT_W) + L": click to open or close");
     Check("tray tip: the hotkey in brackets when there is one", tray::TipText(L"Ctrl+Shift+F12") == tip + L" (Ctrl+Shift+F12)");

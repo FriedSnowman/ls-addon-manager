@@ -21,8 +21,6 @@
 #include "src/gui/widgets/runtime_list.h"
 #include "src/addon/addon_manifest.h"
 #include "src/gui/widgets/toast.h"
-#include "src/gui/widgets/update_offer.h"
-#include "src/update/update_check.h"
 #include "src/gui/widgets/status_bar.h"
 #include "src/gui/widgets/header_bar.h"
 #include "src/host/system_stats.h"
@@ -412,27 +410,6 @@ int main(int argc, char** argv) {
     // 3b. About tab (the real one)
     shot.Frame([&] { Shell("About", status, [&] { RenderTabAbout(); }); }, 12);
     shot.Save((out + "/preview_about.bmp").c_str());
-
-    // 3c. The update offer, over the About tab: a newer release as if the check had found it (nothing is downloaded)
-    {
-        update::Status st;
-        st.state = update::State::Available;
-        st.current = EAM_VERSION_STRING;
-        st.latest = "0.9.9";
-        st.url = std::string(update::kReleasesPage) + "/tag/v0.9.9";
-        st.checkedAt = 1;   // the window opens once per check
-        st.zipUrl = st.url;
-        st.notes = update::PlainNotes("HDR games in the DLSS and FSR Upscalers, before / after pictures, and addons that can no longer freeze Lossless Scaling.\n\n"
-                                      "- **HDR games in the DLSS and FSR Upscalers.** 10-bit and 16-bit frames are upscaled in their SDR view and go back as HDR.\n"
-                                      "- **A stuck runtime can no longer freeze Lossless Scaling.** NVIDIA's and AMD's code runs on threads of its own.\n"
-                                      "- **Before / after pictures** (Ctrl+Shift+F4): the upscaled picture and NIS's, side by side.\n"
-                                      "- **Saying why nothing happens**: a card that is not NVIDIA's, a window layout, a frame format.\n"
-                                      "- The [changelog](https://example.invalid) has the rest.");
-        update::SetStatusForTest(st);
-        shot.Frame([&] { Shell("About", status, [&] { RenderTabAbout(); widgets::UpdateOffer(); }); }, 12);
-        shot.Save((out + "/preview_update.bmp").c_str());
-        update::SetStatusForTest(update::Status());
-    }
 
     // 4. Logs tab, with a few typical lines (sample data, like the rest of the preview)
     {
