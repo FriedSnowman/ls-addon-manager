@@ -289,7 +289,7 @@ static void RenderConfigPane(const AddonInfo& addon) {
 }
 
 static void RenderDetail(AddonManager* manager, AddonInfo& addon, int index) {
-    // Header: icon, name (larger), version and author, then the addon's own description; the switch on the right.
+    // Header: icon, name (larger) and author, then the addon's own description; the switch on the right.
     const float iconSize = S(44.0f);
     widgets::DrawAddonIcon(ImGui::GetWindowDrawList(), ImGui::GetCursorScreenPos(), iconSize, addon, addon.enabled);
     ImGui::Dummy(ImVec2(iconSize, iconSize));
@@ -298,7 +298,7 @@ static void RenderDetail(AddonManager* manager, AddonInfo& addon, int index) {
     if (ImFont* title = TitleFont()) ImGui::PushFont(title, ImGui::GetStyle().FontSizeBase * 1.2f);
     ImGui::TextUnformatted(addon.GetDisplayName().c_str());
     if (TitleFont()) ImGui::PopFont();
-    ImGui::TextDisabled("v%s  \xc2\xb7  %s", addon.GetDisplayVersion().c_str(), addon.GetDisplayAuthor().c_str());
+    ImGui::TextDisabled("%s", addon.GetDisplayAuthor().c_str());
     ImGui::EndGroup();
 
     const float switchWidth = ImGui::GetFrameHeight() * 0.8f * 1.8f;

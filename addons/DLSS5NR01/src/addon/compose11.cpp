@@ -54,7 +54,7 @@ cbuffer Constants : register(b0) {
     uint2  contentSize;
 };
 static const float3 kLuma = float3(0.299, 0.587, 0.114);
-static const float3 kHudGreen = float3(0.49, 0.70, 0.26);
+static const float3 kHudAccent = float3(0.416, 0.682, 0.902); // shared UI blue
 
 // How far inside the protected areas uv is: 1 well inside, 0 outside, a soft ramp across the edge.
 float HudInside(float2 uv) {
@@ -172,7 +172,7 @@ void CSCompose(uint3 id : SV_DispatchThreadID) {
         else if (debugView == 4) c = saturate(float3(0.5 + flow.xy / 16.0, 0.5));
         else if (debugView == 5) c = ghost.xxx;   // white: the delta lands in full; dark: faded out
     }
-    if (flags & 4u) {   // the protected areas shown while editing them: a green tint and outline
+    if (flags & 4u) {   // the protected areas shown while editing them: a blue tint and outline
         float inside = 0.0, edge = 0.0;
         const float edgeWidth = 1.5 / (float)size.x;
         for (uint i = 0u; i < hudCount && i < 6u; ++i) {
@@ -181,7 +181,7 @@ void CSCompose(uint3 id : SV_DispatchThreadID) {
             if (nearest > 0.0) inside = 1.0;
             if (abs(nearest) < edgeWidth) edge = 1.0;
         }
-        c = edge > 0.5 ? kHudGreen : lerp(c, kHudGreen, inside * 0.22);
+        c = edge > 0.5 ? kHudAccent : lerp(c, kHudAccent, inside * 0.22);
         replaced = replaced || edge > 0.5 || inside > 0.0;
     }
     if (compare == 1 && abs((float)id.x + 0.5 - splitPos * (float)size.x) < max(1.0, (float)size.x / 2000.0)) { c = float3(0.9, 0.9, 0.9); replaced = true; }   // the split

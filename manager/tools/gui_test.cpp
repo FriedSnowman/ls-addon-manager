@@ -100,7 +100,7 @@ static void PureChecks() {
 
 
     const std::string base = StatusCounts(3, 1);
-    Check("status: counts", base.find("   |   3 addons, 1 on") != std::string::npos && base.rfind(EAM_PRODUCT_SHORT " " EAM_VERSION_STRING, 0) == 0, base);
+    Check("status: product and counts without a version", base == EAM_PRODUCT_SHORT "   |   3 addons, 1 on", base);
     Check("status: one addon is singular", StatusCounts(1, 0).find("   |   1 addon, 0 on") != std::string::npos);
     Check("status: none is plural", StatusCounts(0, 0).find("   |   0 addons, 0 on") != std::string::npos);
     Check("status: a live status is added after the counts", WithLiveStatus("A", "Neural Rendering", "12 ms") == "A   |   Neural Rendering: 12 ms" && WithLiveStatus("A", "x", "") == "A");
@@ -146,9 +146,7 @@ int wmain(int argc, wchar_t** argv) {
 
     wchar_t title[128] = {};
     GetWindowTextW(hwnd, title, 128);
-    std::wstring want = std::wstring(EAM_PRODUCT_NAME_W) + L" v";
-    for (const char* c = EAM_VERSION_STRING; *c; ++c) want += (wchar_t)*c;
-    Check("the title is the product name and version", want == title);
+    Check("the title is the product name without a version", std::wstring(EAM_PRODUCT_NAME_W) == title);
 
     // the window exists early; the thread marks it hidden (open on start off) a little later, once its D3D device and the tray are set up
     Check("it starts hidden when 'open on start' is off", WaitFor(Hidden, 20000) && WinHiddenNow());

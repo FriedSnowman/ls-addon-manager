@@ -1,6 +1,6 @@
 #pragma once
-// Shared look for LS Addon Manager and its addons: the dark neutral + green scheme used by TorBox Manager and Echo Audio
-// Converter (bg #181818, panel #1f1f1f, accent #7cb342), plus a slider and a section label that match it.
+// Shared look for LS Addon Manager and its addons: dark neutral surfaces with soft blue accents,
+// plus sliders, section labels and buttons that use the same palette.
 //
 // Header only and ABI-free: it just calls ImGui, so an addon can include it and get the same widgets as the manager
 // without a new host interface. Include it after imgui.h. The manager applies the colours through the ImGui style
@@ -35,20 +35,20 @@ namespace theme {
 constexpr float kBg[3]         = { 0.094f, 0.094f, 0.094f };   // #181818 window
 constexpr float kPanel[3]      = { 0.122f, 0.122f, 0.122f };   // #1f1f1f panels / child windows
 constexpr float kPanelAlt[3]   = { 0.137f, 0.137f, 0.137f };   // #232323 popups, alternate rows
-constexpr float kAccent[3]     = { 0.486f, 0.702f, 0.259f };   // #7cb342 primary accent
-constexpr float kAccentDim[3]  = { 0.290f, 0.420f, 0.157f };   // #4a6b28 dimmed accent
-constexpr float kAccentHot[3]  = { 0.612f, 0.800f, 0.396f };   // #9ccc65 hover / active accent
-constexpr float kSelection[3]  = { 0.243f, 0.353f, 0.180f };   // #3e5a2e selection (Echo Audio Converter)
-constexpr float kRowHover[3]   = { 0.145f, 0.184f, 0.102f };   // #252f1a very subtle green tint
+constexpr float kAccent[3]     = { 0.416f, 0.682f, 0.902f };   // #6aaee6 primary accent
+constexpr float kAccentDim[3]  = { 0.247f, 0.431f, 0.592f };   // #3f6e97 dimmed accent
+constexpr float kAccentHot[3]  = { 0.608f, 0.796f, 0.949f };   // #9bcbf2 hover / active accent
+constexpr float kSelection[3]  = { 0.157f, 0.278f, 0.384f };   // #284762 selection
+constexpr float kRowHover[3]   = { 0.122f, 0.169f, 0.212f };   // #1f2b36 subtle blue tint
+constexpr float kPrimary[3]   = { 0.122f, 0.220f, 0.306f };   // #1f384e primary button fill
 constexpr float kText[3]       = { 0.910f, 0.910f, 0.910f };   // #e8e8e8
-constexpr float kMuted[3]      = { 0.400f, 0.400f, 0.400f };   // #666666
+constexpr float kMuted[3]      = { 0.545f, 0.573f, 0.608f };   // #8b929b secondary text
 constexpr float kButton[3]     = { 0.157f, 0.157f, 0.157f };   // #282828
 constexpr float kButtonHover[3]= { 0.196f, 0.196f, 0.196f };   // #323232
 constexpr float kBorder[3]     = { 0.165f, 0.165f, 0.165f };   // #2a2a2a
 constexpr float kBorderBright[3]={ 0.227f, 0.227f, 0.227f };   // #3a3a3a
 constexpr float kDanger[3]     = { 0.816f, 0.502f, 0.502f };   // #d08080 text on the red buttons
 constexpr float kWarn[3]       = { 0.941f, 0.741f, 0.259f };   // amber for cautions
-constexpr float kKofi[3]       = { 1.000f, 0.369f, 0.357f };   // #ff5e5b Ko-fi red (the heart on the donate button)
 
 inline ImVec4 V(const float c[3], float a = 1.0f) { return ImVec4(c[0], c[1], c[2], a); }
 inline ImU32 U(const float c[3], float a = 1.0f) { return ImGui::ColorConvertFloat4ToU32(V(c, a)); }
@@ -101,7 +101,7 @@ inline void ApplyStyle(ImGuiStyle& style) {
     colors[ImGuiCol_HeaderHovered]   = V(kRowHover);
     colors[ImGuiCol_HeaderActive]    = V(kSelection);
 
-    // Button (neutral, green on hover like the reference apps)
+    // Buttons use neutral surfaces with blue pressed states.
     colors[ImGuiCol_Button]          = V(kButton);
     colors[ImGuiCol_ButtonHovered]   = V(kButtonHover);
     colors[ImGuiCol_ButtonActive]    = V(kSelection);
@@ -111,7 +111,7 @@ inline void ApplyStyle(ImGuiStyle& style) {
     colors[ImGuiCol_FrameBgHovered]  = ImVec4(0.170f, 0.170f, 0.170f, 1.0f);
     colors[ImGuiCol_FrameBgActive]   = ImVec4(0.190f, 0.190f, 0.190f, 1.0f);
 
-    // Tabs: dim text-on-dark with a green selected state (the reference apps underline the selected tab in green)
+    // Tabs: dim text-on-dark with a blue line marking the selected tab.
     // Unselected tabs have no fill and the selected one a light one with the accent line on top, so it reads the same on the window's
     // background and on a panel's (the selected tab used to take the panel colour, and vanished on a panel)
     colors[ImGuiCol_Tab]                = V(kBg, 0.0f);
@@ -161,7 +161,7 @@ inline void ApplyStyle(ImGuiStyle& style) {
 } // namespace theme
 
 // A small uppercase label, letter-spaced, in the accent: the "ADD" / "QUEUE" / "LOG" headings of the other apps. It is the heading of a block
-// that cannot be closed, in the same green as the title of an open SectionHeader, so an open section and a plain heading read alike.
+// that cannot be closed, in the same accent as the title of an open SectionHeader, so an open section and a plain heading read alike.
 inline void SectionLabel(const char* text) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 p = ImGui::GetCursorScreenPos();
@@ -311,7 +311,7 @@ inline bool SectionHeader(const char* label, bool defaultOpen = false) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float a = ImGui::GetStyle().Alpha;
     if (hovered) dl->AddRectFilled(p, ImVec2(p.x + w, p.y + h), theme::U(theme::kRowHover, a), 3.0f);
-    // The open / close control: a small box with a plus (closed) or a minus (open), so it reads as a button. White when closed, green when open or hovered.
+    // The open / close control: a small box with a plus (closed) or a minus (open), so it reads as a button. White when closed, blue when open or hovered.
     const float box = ImGui::GetFontSize() * 0.95f;
     const float bx = p.x + h * 0.15f, by = p.y + (h - box) * 0.5f;
     const ImU32 sign = theme::U(open ? theme::kAccent : (hovered ? theme::kAccentHot : theme::kText), a);
@@ -337,8 +337,8 @@ inline bool SectionHeader(const char* label, bool defaultOpen = false) {
 
 enum class ButtonKind { Normal, Primary, Danger, Flat };
 
-// A button with an optional SVG icon in front of the label (icon may be nullptr). Primary is the green button of the other apps
-// (#2e4a1e, green border and text), Danger the red one, Flat has no frame (a link-like control).
+// A button with an optional SVG icon in front of the label (icon may be nullptr). Primary uses a blue fill, border and text;
+// Danger uses red, and Flat has no frame (a link-like control).
 inline bool Button(const char* label, const char* icon = nullptr, ButtonKind kind = ButtonKind::Normal, ImVec2 size = ImVec2(0, 0)) {
     ImGuiWindow* win = ImGui::GetCurrentWindow();
     if (win->SkipItems) return false;
@@ -356,8 +356,7 @@ inline bool Button(const char* label, const char* icon = nullptr, ButtonKind kin
     ImU32 bg, border, fg;
     using namespace theme;
     if (kind == ButtonKind::Primary) {
-        const float pb[3] = { 0.180f, 0.290f, 0.118f };   // #2e4a1e
-        bg = U(hovered || held ? kSelection : pb, a); border = U(kAccent, a); fg = U(kAccentHot, a);
+        bg = U(hovered || held ? kSelection : kPrimary, a); border = U(kAccent, a); fg = U(kAccentHot, a);
     } else if (kind == ButtonKind::Danger) {
         const float db[3] = { 0.290f, 0.125f, 0.125f };   // #4a2020
         const float dh[3] = { 0.36f, 0.16f, 0.16f };

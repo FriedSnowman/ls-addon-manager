@@ -17,7 +17,7 @@ const ImU32 kRed = IM_COL32(208, 80, 80, 255);
 const ImU32 kGrey = IM_COL32(102, 102, 102, 255);
 const ImU32 kChipRed = IM_COL32(208, 128, 128, 255);
 
-// The dot on the icon's corner: red for a fault, green when it is running, grey otherwise.
+// The dot on the icon's corner: red for a fault, blue when it is running, grey otherwise.
 ImU32 DotColour(const AddonInfo& a) {
     using namespace eam::ui::theme;
     if (a.faulted) return kRed;
@@ -92,7 +92,7 @@ std::string SwitchTooltip(const AddonInfo& a) {
 } // namespace
 
 // One row of the sidebar: the icon (with its state dot), the name, and under it what needs saying (a problem, the addon's live status, or
-// its version and author), with the switch at the right. The selected row is tinted and marked with a bar of the accent colour.
+// its author), with the switch at the right. The selected row is tinted and marked with a bar of the accent colour.
 bool AddonCard(AddonInfo& addon, int index, bool isSelected, bool* toggled) {
     using namespace eam::ui::theme;
     bool clicked = false;
@@ -132,7 +132,7 @@ bool AddonCard(AddonInfo& addon, int index, bool isSelected, bool* toggled) {
     const Metrics::Status live = Metrics::Instance().GetStatus(addon.id);   // the addon's own one-line status, if it reports one
     if (const Chip chip = ChipFor(addon); chip.text) { second = chip.text; secondColour = chip.colour; }
     else if (!live.text.empty() && addon.enabled) { second = live.text; secondColour = U(LiveColour(live.level)); }
-    else second = "v" + addon.GetDisplayVersion() + "  \xc2\xb7  " + addon.GetDisplayAuthor();
+    else second = addon.GetDisplayAuthor();
     std::string shown = second;   // cut to fit, with an ellipsis
     const float room = textRight - textLeft;
     while (shown.size() > 4 && ImGui::GetFont()->CalcTextSizeA(smallSize, FLT_MAX, 0.0f, shown.c_str()).x > room) shown = shown.substr(0, shown.size() - 5) + "...";

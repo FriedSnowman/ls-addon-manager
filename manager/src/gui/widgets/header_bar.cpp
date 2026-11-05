@@ -5,7 +5,6 @@
 #include "../../host/gpu_stats.h"
 #include "../../host/system_stats.h"
 #include "eam/icons.h"
-#include "eam/version.h"
 #include "eam/widgets.h"
 #include "imgui.h"
 #include <cstdio>
@@ -19,7 +18,7 @@ namespace {
 
 using namespace eam::ui::theme;
 
-// A memory figure's colour by how full it is: green, amber past 80%, red past 93%.
+// A memory figure's colour by how full it is: blue, amber past 80%, red past 93%.
 const float* FullnessColour(double used, double total) {
     const double f = total > 0 ? used / total : 0;
     return f < 0.80 ? kAccent : f < 0.93 ? kWarn : kDanger;
@@ -53,7 +52,7 @@ void HeaderBar() {
     ImFont* title = TitleFont();
     const float base = ImGui::GetStyle().FontSizeBase;
 
-    // left: logo, name, version
+    // left: logo and name
     const float logo = S(28.0f);
     Logo(dl, ImVec2(origin.x, origin.y + (height - logo) * 0.5f - S(2)), logo);
     float x = origin.x + logo + S(12);
@@ -64,13 +63,7 @@ void HeaderBar() {
     const float smallSize = ImGui::GetFontSize() * 0.92f;
     const float smallY = titleY + titleSize - smallSize - S(1);
     dl->AddText(ImGui::GetFont(), smallSize, ImVec2(x, smallY), U(kMuted), "for Lossless Scaling");
-    x += ImGui::GetFont()->CalcTextSizeA(smallSize, FLT_MAX, 0.0f, "for Lossless Scaling").x + S(10);
-    const std::string version = std::string("v") + EAM_VERSION_STRING;
-    const ImVec2 vs = ImGui::GetFont()->CalcTextSizeA(smallSize * 0.92f, FLT_MAX, 0.0f, version.c_str());
-    const ImVec2 chip(x, smallY - S(1));
-    dl->AddRect(chip, ImVec2(chip.x + vs.x + S(10), chip.y + vs.y + S(3)), U(kAccentDim), S(3.0f));
-    dl->AddText(ImGui::GetFont(), smallSize * 0.92f, ImVec2(chip.x + S(5), chip.y + S(1.5f)), U(kAccent), version.c_str());
-    const float leftEnd = chip.x + vs.x + S(10);
+    const float leftEnd = x + ImGui::GetFont()->CalcTextSizeA(smallSize, FLT_MAX, 0.0f, "for Lossless Scaling").x;
 
     // right: the machine, right to left
     GpuStats::Instance().Wanted();   // keeps the card's sampler running while the window is drawn

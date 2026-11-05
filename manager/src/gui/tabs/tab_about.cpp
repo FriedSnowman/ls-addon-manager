@@ -1,11 +1,9 @@
 #include "tab_about.h"
 #include "../gui_scale.h"
 #include "../gui_style.h"
-#include "../widgets/status_bar.h"
 #include "../../../sdk/include/eam/version.h"
 #include "imgui.h"
 #include "eam/widgets.h"
-#include <cstdio>
 #include <windows.h>
 #include <shellapi.h>
 
@@ -41,19 +39,8 @@ void RenderTabAbout() {
 
     // title block
     CenteredText(EAM_PRODUCT_NAME);
-    char versionStr[64];
-    snprintf(versionStr, sizeof(versionStr), "v%s", EAM_VERSION_STRING);
-    CenteredText(versionStr, true);
     ImGui::Dummy(ImVec2(0, S(6)));
     CenteredText("Lossless Scaling, extended: neural rendering, DLSS and FSR upscaling, and anything else an addon adds.", true);
-
-    // support
-    ImGui::Dummy(ImVec2(0, S(16)));
-    const float bw = ImGui::CalcTextSize("Support on Ko-fi").x + ImGui::GetFontSize() * 4.0f;
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (ImGui::GetContentRegionAvail().x - bw) * 0.5f);
-    if (eam::ui::Button("Support on Ko-fi", eam::ui::icons::kHeart, eam::ui::ButtonKind::Primary, ImVec2(bw, ImGui::GetFrameHeight() * 1.25f)))
-        widgets::OpenKofi();
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("If this is useful, a Ko-fi helps a lot. Opens your browser.");
 
     // what comes with it: the three plugins and what is built into the manager
     ImGui::Dummy(ImVec2(0, S(18)));
@@ -94,12 +81,6 @@ void RenderTabAbout() {
             ImGui::Dummy(ImVec2(0, S(6)));
         }
     }
-
-    ImGui::Dummy(ImVec2(0, S(14)));
-    eam::ui::SectionLabel("Build");
-    ImGui::TextDisabled("Addon API");   ImGui::SameLine(S(120)); ImGui::Text("v%s", EAM_API_VERSION_STRING);
-    ImGui::TextDisabled("ImGui");        ImGui::SameLine(S(120)); ImGui::Text("%s", ImGui::GetVersion());
-    ImGui::TextDisabled("Built");        ImGui::SameLine(S(120)); ImGui::Text("%s %s", __DATE__, __TIME__);
 
     ImGui::Dummy(ImVec2(0, S(14)));
     eam::ui::SectionLabel("Good to know");

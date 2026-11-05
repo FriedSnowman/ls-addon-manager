@@ -260,7 +260,7 @@ int main(int argc, char** argv) {
             if (ImFont* t = TitleFont()) ImGui::PushFont(t, ImGui::GetStyle().FontSizeBase * 1.2f);
             ImGui::TextUnformatted(chosen.manifest.name.c_str());
             if (TitleFont()) ImGui::PopFont();
-            ImGui::TextDisabled("v%s  \xc2\xb7  %s", chosen.manifest.version.c_str(), chosen.manifest.author.c_str());
+            ImGui::TextDisabled("%s", chosen.manifest.author.c_str());
             ImGui::EndGroup();
             const float switchWidth = ImGui::GetFrameHeight() * 0.8f * 1.8f;
             ImGui::SameLine(ImGui::GetWindowWidth() - switchWidth - ImGui::GetStyle().WindowPadding.x - S(4));
@@ -365,7 +365,7 @@ int main(int argc, char** argv) {
                 ImGui::PushID(ic); eam::ui::IconButton("##i", ic, ImGui::GetFrameHeight() * 1.2f); ImGui::PopID(); ImGui::SameLine();
             }
             ImGui::NewLine();
-            {   // filled hearts at three sizes (the Ko-fi heart is a filled path)
+            {   // filled hearts at three sizes
                 const ImVec2 hp = ImGui::GetCursorScreenPos();
                 for (int i = 0; i < 3; ++i) {
                     const float sz = i == 0 ? 15.0f : (i == 1 ? 32.0f : 64.0f) ;

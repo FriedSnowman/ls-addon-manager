@@ -92,11 +92,12 @@ void Drag(float u, float v) {
 
 void DrawArea(ImDrawList* dl, const ImVec2& p0, const ImVec2& size, const float* r, int number, bool active) {
     const ImVec2 a(p0.x + r[0] * size.x, p0.y + r[1] * size.y), b(p0.x + r[2] * size.x, p0.y + r[3] * size.y);
-    const ImU32 green = IM_COL32(125, 179, 66, 255), fill = IM_COL32(125, 179, 66, active ? 90 : 55);
+    const ImU32 accent = eam::ui::theme::U(eam::ui::theme::kAccent);
+    const ImU32 fill = eam::ui::theme::U(eam::ui::theme::kAccent, active ? 0.35f : 0.22f);
     dl->AddRectFilled(a, b, fill);
-    dl->AddRect(a, b, green, 0.0f, 0, active ? 2.5f : 1.5f);
+    dl->AddRect(a, b, accent, 0.0f, 0, active ? 2.5f : 1.5f);
     const float handle = ImGui::GetFontSize() * 0.3f;
-    for (const ImVec2& c : { a, ImVec2(b.x, a.y), ImVec2(a.x, b.y), b }) dl->AddRectFilled(ImVec2(c.x - handle, c.y - handle), ImVec2(c.x + handle, c.y + handle), green);
+    for (const ImVec2& c : { a, ImVec2(b.x, a.y), ImVec2(a.x, b.y), b }) dl->AddRectFilled(ImVec2(c.x - handle, c.y - handle), ImVec2(c.x + handle, c.y + handle), accent);
     char label[8]; snprintf(label, sizeof label, "%d", number);
     dl->AddText(ImVec2(a.x + handle * 1.5f, a.y + handle * 1.2f), IM_COL32(255, 255, 255, 230), label);
 }

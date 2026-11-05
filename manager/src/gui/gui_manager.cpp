@@ -83,9 +83,7 @@ void PersistPlacement() {
 float TotalScale() { return g.displayScale * window::UserScale(); }
 
 std::wstring WindowTitle() {
-    std::wstring title = EAM_PRODUCT_NAME_W L" v";
-    for (const char* c = EAM_VERSION_STRING; *c; ++c) title += static_cast<wchar_t>(*c);
-    return title;
+    return EAM_PRODUCT_NAME_W;
 }
 
 // Closing hides the window instead of ending the GUI thread: the addons keep their ImGui context, and the manager can be reopened from

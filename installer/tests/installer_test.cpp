@@ -165,7 +165,7 @@ int wmain(int argc, wchar_t** argv) {
         Check("not installed: Install", a.action == Action::Install && a.actionLabel == "Install" && !a.blocked && !a.canUninstall && Has(a.headline, "not installed"));
         s.situation = Situation::Installed; s.installedVersion = "0.4.1";
         a = Advise(s, "0.5.0");
-        Check("installed and older: Update to the new version, with Uninstall offered", a.action == Action::Update && a.actionLabel == "Update to 0.5.0" && a.canUninstall);
+        Check("installed and older: Update, with Uninstall offered", a.action == Action::Update && a.actionLabel == "Update" && a.canUninstall);
         a = Advise(s, "0.4.1");
         Check("installed and the same: Reinstall", a.action == Action::Reinstall && Has(a.headline, "up to date"));
         a = Advise(s, "0.3.0");

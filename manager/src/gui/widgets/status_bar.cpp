@@ -1,14 +1,9 @@
 #include "status_bar.h"
-#include "../gui_scale.h"
 #include "imgui.h"
 #include "eam/widgets.h"
-#include <windows.h>
-#include <shellapi.h>
 
 namespace eam {
 namespace widgets {
-
-void OpenKofi() { ShellExecuteA(nullptr, "open", kKofiUrl, nullptr, nullptr, SW_SHOWNORMAL); }
 
 float StatusBarHeight() { return ImGui::GetFrameHeight() * 1.05f; }
 
@@ -19,32 +14,12 @@ void StatusBar(const std::string& left) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     dl->AddLine(ImVec2(origin.x, origin.y), ImVec2(origin.x + w, origin.y), eam::ui::theme::U(eam::ui::theme::kBorder), 1.0f);
 
-    // right: donate <heart> ko-fi
-    const char* a = "donate";
-    const char* b = "ko-fi";
-    const float ico = ImGui::GetFontSize() * 0.95f, gap = ImGui::GetFontSize() * 0.4f;
-    const float cw = ImGui::CalcTextSize(a).x + gap + ico + gap + ImGui::CalcTextSize(b).x;
-    const float padX = ImGui::GetStyle().FramePadding.x;
-    const ImVec2 bp(origin.x + w - cw - padX * 2.0f, origin.y + 1.0f);
-    ImGui::SetCursorScreenPos(bp);
-    const bool clicked = ImGui::InvisibleButton("##kofi", ImVec2(cw + padX * 2.0f, h - 1.0f));
-    const bool hovered = ImGui::IsItemHovered();
-    if (clicked) OpenKofi();
-    if (hovered) ImGui::SetTooltip("Support development on Ko-fi (opens your browser)");
-    const ImU32 txt = eam::ui::theme::U(hovered ? eam::ui::theme::kText : eam::ui::theme::kMuted);
-    float x = bp.x + padX;
-    const float ty = bp.y + (h - 1.0f - ImGui::GetTextLineHeight()) * 0.5f;
-    dl->AddText(ImVec2(x, ty), txt, a);
-    x += ImGui::CalcTextSize(a).x + gap;
-    const float* heart = hovered ? eam::ui::theme::kAccentHot : eam::ui::theme::kAccent;   // the theme's green, like the other apps' accents
-    eam::ui::svg::Draw(dl, eam::ui::icons::kHeart, ImVec2(x, bp.y + (h - 1.0f - ico) * 0.5f), ico, eam::ui::theme::U(heart), 0.0f, eam::ui::theme::U(heart));
-    x += ico + gap;
-    dl->AddText(ImVec2(x, ty), txt, b);
-
-    // left: status text
+    // Status text uses the full bar; clip long live messages to the available width.
+    const float ty = origin.y + (h - ImGui::GetTextLineHeight()) * 0.5f;
+    dl->PushClipRect(origin, ImVec2(origin.x + w, origin.y + h), true);
     dl->AddText(ImVec2(origin.x + 2.0f, ty), eam::ui::theme::U(eam::ui::theme::kMuted), left.c_str());
-    ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y));
-    ImGui::Dummy(ImVec2(w, h));   // an item after the cursor moves, so the window boundary is extended properly
+    dl->PopClipRect();
+    ImGui::Dummy(ImVec2(w, h));
 }
 
 } // namespace widgets

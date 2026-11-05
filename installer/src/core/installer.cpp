@@ -207,8 +207,8 @@ Result Install(const std::wstring& lsDir, const std::wstring& payloadDir) {
     fs::remove(fs::path(backupDir), ec);       // empty when nothing had to be saved
     if (Exists(backupDir)) r.backupDir = backupDir; else r.backupDir.clear();
     r.ok = true;
-    r.message = std::string(before.situation == Situation::Installed ? "Updated to " : (before.situation == Situation::AfterLsUpdate ? "Repaired: LS Addon Manager " : "Installed LS Addon Manager ")) + payload.version + ".";
-    if (r.message.rfind("Updated to ", 0) == 0) r.message = "Updated LS Addon Manager to " + payload.version + ".";
+    r.message = before.situation == Situation::Installed ? "Updated LS Addon Manager." :
+                before.situation == Situation::AfterLsUpdate ? "Repaired LS Addon Manager." : "Installed LS Addon Manager.";
     return r;
 }
 

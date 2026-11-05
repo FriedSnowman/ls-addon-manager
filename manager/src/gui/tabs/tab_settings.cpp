@@ -204,7 +204,7 @@ void RenderTabSettings(AddonManager* manager) {
         widgets::ToastShow(d.message, d.ok ? widgets::ToastType::Success : widgets::ToastType::Error, 9.0f);
         if (d.ok) ShellExecuteW(nullptr, L"open", L"explorer.exe", (L"/select,\"" + d.zip.wstring() + L"\"").c_str(), nullptr, SW_SHOWNORMAL);
     }
-    widgets::Tip("Puts the logs, the settings and a short summary (versions, GPU, which addons are on) into one zip on your Desktop, for a bug report. Nothing is uploaded: you decide who gets the file.");
+    widgets::Tip("Puts the logs, the settings and a short system summary into one zip on your Desktop, for a bug report. Nothing is uploaded: you decide who gets the file.");
     ImGui::SameLine();
     if (eam::ui::Button("Logs folder", eam::ui::icons::kFolder)) OpenPath(ExeDir() + L"\\logs");
     ImGui::SameLine();

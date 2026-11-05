@@ -53,7 +53,7 @@ Documentation: [User guide](docs/user-guide.md) · [Architecture](docs/architect
    *Browse for the model file...* to copy it there. Then press *Test compatibility*.
 3. Start Lossless Scaling, open LS Addon Manager, enable *DLSS 5 Neural Rendering*
    and open its settings.
-4. Start scaling a game. The status line goes from *waiting for LSFG dispatches* to *engine:
+4. Start scaling a game. The status line goes from *waiting for game frames* to *engine:
    loading model...* to *running*. The first model load takes a few seconds.
 
 The addon logs to `<Lossless Scaling>\logs\DLSS5NR01.log`. The [user guide](docs/user-guide.md)

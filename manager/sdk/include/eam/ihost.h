@@ -61,7 +61,7 @@ struct IHost {
     // ---- API 1.0 (GetHostVersion() >= 0x010000)
 
     // A one-line live status, shown on the addon's card and in the status bar ("Running, model 6.6 ms"). level: 0 info (grey), 1 ok
-    // (green), 2 warning (amber), 3 error (red). Refresh it at most a few times a second; one not refreshed for a few seconds is hidden as
+    // (accent colour), 2 warning (amber), 3 error (red). Refresh it at most a few times a second; one not refreshed for a few seconds is hidden as
     // stale. An empty text clears it.
     virtual void SetStatus(const char* addonId, const char* text, int level) = 0;
 

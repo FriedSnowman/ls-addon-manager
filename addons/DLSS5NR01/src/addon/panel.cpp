@@ -112,7 +112,7 @@ void DrawPanel() {
             if (GetFileAttributesW(reportFile.c_str()) != INVALID_FILE_ATTRIBUTES) {
                 ImGui::SameLine();
                 if (ImGui::SmallButton("Open the compatibility report")) ShellExecuteW(nullptr, L"open", reportFile.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-                Tip("A short text file about the last compatibility test: your graphics card, driver, Windows, the model file's name, version and size, and the result. Paste it into an issue or the compatibility table. It holds no folders, user name or file hash.");
+                Tip("A short text file about the last compatibility test: your graphics card, driver, Windows, model file details and the result. Paste it into an issue or the compatibility table. It holds no folders, user name or file hash.");
             }
             { bool ok; const std::string msg = BrowseResult(ok);
               if (!msg.empty()) { ImGui::PushStyleColor(ImGuiCol_Text, ok ? eam::ui::theme::V(eam::ui::theme::kAccent) : eam::ui::theme::V(eam::ui::theme::kWarn)); ImGui::TextWrapped("%s", msg.c_str()); ImGui::PopStyleColor(); } }
@@ -260,7 +260,7 @@ void DrawPanel() {
         int current = 0;
         for (size_t i = 1; i < choices.size(); ++i) if (_wcsicmp(choices[i].path.c_str(), chosen.c_str()) == 0) current = (int)i;
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 18.0f);
-        if (!choices.empty() && ImGui::BeginCombo(kXessScaler ? "XeSS version" : kFsrScaler ? "FSR version" : "DLSS version", choices[current].name.c_str())) {
+        if (!choices.empty() && ImGui::BeginCombo(kXessScaler ? "XeSS runtime" : kFsrScaler ? "FSR runtime" : "DLSS runtime", choices[current].name.c_str())) {
             for (size_t i = 0; i < choices.size(); ++i)
                 if (ImGui::Selectable(choices[i].name.c_str(), (int)i == current) && (int)i != current) ChooseRuntimeFile(choices[i].path);
             ImGui::EndCombo();
@@ -612,7 +612,7 @@ void DrawPanel() {
         Tip("A picture of the game as it is shown now, to draw the areas on. The game must be running and scaled. Take another one any time.");
         ImGui::SameLine();
         { bool show = g_showHud; if (ImGui::Checkbox("Show the areas in the game", &show)) g_showHud = show; }
-        Tip("Tints and outlines the areas in green in the game itself, to check them against your HUD. Not saved: turn it off when you are done.");
+        Tip("Tints and outlines the areas in blue in the game itself, to check them against your HUD. Not saved: turn it off when you are done.");
         ImGui::Dummy(ImVec2(0, ImGui::GetFontSize() * 0.3f));
         changed |= DrawHudEditor(c.p);
         Note("Drag on the picture to add an area (six at most). Drag an area to move it, an edge or corner to resize it. Right-click an area to remove it.");

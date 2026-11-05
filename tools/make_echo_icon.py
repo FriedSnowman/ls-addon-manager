@@ -1,5 +1,5 @@
-"""Draws the Echo icon for LS Addon Manager (window, taskbar, tray): a dark rounded tile in the palette of the author's other
-apps with a stack of frames (a bright one in front, two fainter echoes behind it). Writes a multi-size .ico (16..256, each size drawn on its
+"""Draws the Echo icon for LS Addon Manager (window, taskbar, tray): a dark rounded tile with the shared blue accents
+and a stack of frames (a bright one in front, two fainter echoes behind it). Writes a multi-size .ico (16..256, each size drawn on its
 own with weights tuned for that size, not just scaled down) and a 256 px .png.
 
     python make_echo_icon.py [outdir]        default: the manager folder, next to manager-icon.png
@@ -13,10 +13,10 @@ from PIL import Image, ImageDraw
 
 BG_TOP = (36, 36, 36)
 BG_BOT = (24, 24, 24)
-BORDER = (74, 107, 40)         # #4a6b28
-GREEN = (124, 179, 66)         # #7cb342
-GREEN_HOT = (156, 204, 101)    # #9ccc65
-GREEN_DIM = (74, 107, 40)      # #4a6b28
+BORDER = (63, 110, 151)        # #3f6e97
+ACCENT = (106, 174, 230)       # #6aaee6
+ACCENT_HOT = (155, 203, 242)   # #9bcbf2
+ACCENT_DIM = (63, 110, 151)    # #3f6e97
 SS = 8                         # supersampling
 
 
@@ -25,7 +25,7 @@ def draw_icon(size):
     img = Image.new('RGBA', (n, n), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
-    # tile: vertical gradient inside a rounded square, thin green border
+    # tile: vertical gradient inside a rounded square, thin blue border
     tile = Image.new('RGBA', (n, n), (0, 0, 0, 0))
     grad = Image.new('RGBA', (n, n))
     gd = ImageDraw.Draw(grad)
@@ -49,9 +49,9 @@ def draw_icon(size):
     y0 = n * 0.87 - side
     rad = side * 0.20
     lw = max(SS * 1.2, n * (0.045 if size >= 48 else (0.06 if size >= 32 else 0.085)))
-    layers = [(2, GREEN_DIM, None), (1, GREEN, None), (0, GREEN_HOT, GREEN)]   # (index behind the front, outline, fill)
+    layers = [(2, ACCENT_DIM, None), (1, ACCENT, None), (0, ACCENT_HOT, ACCENT)]   # (index behind the front, outline, fill)
     if small:
-        layers = [(1, GREEN, None), (0, GREEN_HOT, GREEN)]   # two frames are enough at 16-24 px
+        layers = [(1, ACCENT, None), (0, ACCENT_HOT, ACCENT)]   # two frames are enough at 16-24 px
     for k, outline, fill in layers:
         x, y = x0 + step * k, y0 - step * k
         box = [x, y, x + side, y + side]

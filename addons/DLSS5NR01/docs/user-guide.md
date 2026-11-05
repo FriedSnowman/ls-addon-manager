@@ -86,8 +86,7 @@ tells you where the addon is:
 
 | Status | Meaning |
 |---|---|
-| waiting for device | Lossless Scaling has not created its D3D11 device yet. Start scaling. |
-| waiting for LSFG dispatches | Device seen, no LSFG passes yet. Scaling must be active. |
+| waiting for game frames: start scaling with LSFG enabled in Lossless Scaling | The addon is loaded and idle. Start scaling the game with frame generation on; opening the manager alone does not start the model. |
 | engine: loading model... | The model is being created on the GPU that issued the LSFG pass. A few seconds. |
 | running | The model runs and the compose lands on presented frames. |
 | unsupported frame format: ... | The captured frame is in a format the model cannot take (the status names it). 8-bit, 10-bit and half-float (HDR) frames are all taken; please report the format. |
@@ -266,7 +265,7 @@ You should not need this unless a future Lossless Scaling version changes its pi
 
 ## Troubleshooting
 
-**The status stays at "waiting for LSFG dispatches".** Frame generation must be on in Lossless
+**The status stays at "waiting for game frames".** Frame generation must be on in Lossless
 Scaling and the game must be scaling. The addon only sees compute dispatches; with LSFG off there
 is nothing to tap.
 

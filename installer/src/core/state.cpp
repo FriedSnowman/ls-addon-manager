@@ -108,7 +108,6 @@ int CompareVersions(const std::string& a, const std::string& b) {
 
 Advice Advise(const State& s, const std::string& payloadVersion) {
     Advice a;
-    const std::string ls = s.lsVersion.empty() ? std::string("Lossless Scaling") : "Lossless Scaling " + s.lsVersion;
     switch (s.situation) {
     case Situation::NotLosslessScaling:
         a.headline = "Lossless Scaling was not found in this folder.";
@@ -117,7 +116,7 @@ Advice Advise(const State& s, const std::string& payloadVersion) {
         a.blockedReason = a.headline + " " + a.detail;   // what is wrong, then what to do
         return a;
     case Situation::NotInstalled:
-        a.headline = "LS Addon Manager is not installed here (" + ls + " found).";
+        a.headline = "LS Addon Manager is not installed here (Lossless Scaling found).";
         a.action = Action::Install;
         a.actionLabel = "Install";
         break;
@@ -125,16 +124,16 @@ Advice Advise(const State& s, const std::string& payloadVersion) {
         const int cmp = payloadVersion.empty() ? 0 : CompareVersions(s.installedVersion, payloadVersion);
         a.canUninstall = true;
         if (cmp < 0) {
-            a.headline = (s.installedVersion.empty() ? std::string("An earlier LS Addon Manager is installed.") : "LS Addon Manager " + s.installedVersion + " is installed.") + " " + payloadVersion + " is available.";
+            a.headline = "An earlier LS Addon Manager is installed. The bundled files are ready to install.";
             a.action = Action::Update;
-            a.actionLabel = "Update to " + payloadVersion;
+            a.actionLabel = "Update";
         } else if (cmp == 0) {
-            a.headline = (s.installedVersion.empty() ? std::string("An earlier LS Addon Manager") : "LS Addon Manager " + s.installedVersion) + " is installed" + (s.installedVersion.empty() ? "." : " and up to date.");
+            a.headline = s.installedVersion.empty() ? "An earlier LS Addon Manager is installed." : "LS Addon Manager is installed and up to date.";
             a.detail = "You can reinstall it to put its files back as they came.";
             a.action = Action::Reinstall;
             a.actionLabel = "Reinstall";
         } else {
-            a.headline = "LS Addon Manager " + s.installedVersion + " is installed, which is newer than this installer (" + payloadVersion + ").";
+            a.headline = "The installed LS Addon Manager is newer than the bundled files.";
             a.detail = "Nothing needs doing.";
             a.action = Action::None;
         }

@@ -812,7 +812,7 @@ void OnDeviceEvent(uint32_t id, const void*, uint32_t, void*) {
     // (the upscalers judge the card on the NIS pass itself, which names the card really in use: Lossless Scaling makes devices on others too)
     // (nor does Neural Rendering: the card frame generation really runs on is named from its passes, in Tappable)
     if (kScalerAddon) SetStatus("waiting for Lossless Scaling's NIS pass (Scaling Type: NIS, the game in a window smaller than the screen)");   // once it runs, the upscaler's own line
-    else if (!g_engine.IsReady()) SetStatus("waiting for LSFG dispatches");
+    else if (!g_engine.IsReady()) SetStatus("waiting for game frames: start scaling with LSFG enabled in Lossless Scaling");
     // The engine starts from the tap, on the card whose device actually runs LSFG (one card, a hybrid laptop, or either card of a two-card
     // machine), not from these events, which come for every device Lossless Scaling makes.
 }
@@ -1328,14 +1328,6 @@ std::string Narrow(const std::wstring& w) {
     if (n > 0) WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), s.data(), n, nullptr, nullptr);
     return s;
 }
-std::string FileVersion(const std::wstring& path) {
-    DWORD handle = 0; const DWORD size = GetFileVersionInfoSizeW(path.c_str(), &handle);
-    if (!size) return {};
-    std::vector<unsigned char> data(size); VS_FIXEDFILEINFO* fixed = nullptr; UINT len = 0;
-    if (!GetFileVersionInfoW(path.c_str(), 0, size, data.data()) || !VerQueryValueW(data.data(), L"\\", reinterpret_cast<void**>(&fixed), &len) || !fixed) return {};
-    char text[32]; snprintf(text, sizeof text, "%u.%u.%u", HIWORD(fixed->dwFileVersionMS), LOWORD(fixed->dwFileVersionMS), HIWORD(fixed->dwFileVersionLS));
-    return text;
-}
 const wchar_t* RuntimeFileName() { return kRuntimeFileW; }
 const char* RuntimeKey() { return kRuntimeKey; }
 } // namespace
@@ -1343,9 +1335,7 @@ const char* RuntimeKey() { return kRuntimeKey; }
 std::vector<RuntimeChoice> RuntimeChoices() {
     std::vector<RuntimeChoice> list;
     if (!kScalerAddon) return list;
-    const std::wstring shipped = g_addonDir + L"\\" + kRuntimeFolderW + L"\\" + RuntimeFileName();
-    const std::string shippedVersion = kFsrScaler ? std::string("3.1.4") : FileVersion(shipped);
-    list.push_back({ L"", std::string(kUpscalerName) + " " + shippedVersion + " (" + kRuntimeVendor + ", shipped)" });
+    list.push_back({ L"", std::string(kUpscalerName) + " (" + kRuntimeVendor + ", shipped)" });
     WIN32_FIND_DATAW found{};
     const std::wstring folder = g_addonDir + L"\\runtimes\\" + kRuntimeListW;
     const HANDLE h = FindFirstFileW((folder + L"\\*").c_str(), &found);
@@ -1361,7 +1351,7 @@ std::vector<RuntimeChoice> RuntimeChoices() {
             fclose(about);
             if (name.size() >= 3 && (unsigned char)name[0] == 0xEF) name.erase(0, 3);
         }
-        if (name.empty()) name = std::string(kUpscalerName) + " " + FileVersion(file) + " (" + Narrow(found.cFileName) + ")";
+        if (name.empty()) name = std::string(kUpscalerName) + " (" + Narrow(found.cFileName) + ")";
         list.push_back({ file, name });
     } while (FindNextFileW(h, &found));
     FindClose(h);

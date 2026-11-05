@@ -28,7 +28,7 @@ struct Colours { ImVec4 fill, edge; };
 Colours ColoursFor(ToastType type, float alpha) {
     using namespace eam::ui::theme;
     switch (type) {
-        case ToastType::Success: return { ImVec4(0.243f, 0.353f, 0.180f, 0.95f * alpha), V(kAccent, alpha) };
+        case ToastType::Success: return { V(kSelection, 0.95f * alpha), V(kAccent, alpha) };
         case ToastType::Warning: return { ImVec4(0.42f, 0.32f, 0.10f, 0.95f * alpha), V(kWarn, alpha) };
         case ToastType::Error:   return { ImVec4(0.290f, 0.125f, 0.125f, 0.95f * alpha), ImVec4(0.627f, 0.251f, 0.251f, alpha) };
         default:                 return { ImVec4(0.157f, 0.157f, 0.157f, 0.95f * alpha), V(kBorderBright, alpha) };

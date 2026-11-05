@@ -147,7 +147,7 @@ HRESULT CALLBACK DialogProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, LONG_PTR 
 Page& NewPage(App& a, const std::wstring& instruction, const std::wstring& content, bool closeButton = true) {
     a.pages.push_back(std::make_unique<Page>());
     Page& p = *a.pages.back();
-    p.title = L"LS Addon Manager " + (a.payload.ok ? W(a.payload.version) + L" " : std::wstring()) + L"Setup";
+    p.title = L"LS Addon Manager Setup";
     p.instruction = instruction;
     p.content = content;
     p.footer = kNoModelNotice;
@@ -195,7 +195,6 @@ Page& MainPage(App& a) {
     std::wstring content = W(a.advice.detail);
     if (!content.empty()) content += L"\n\n";
     content += L"Lossless Scaling folder:\n" + a.folder;
-    if (!a.state.lsVersion.empty()) content += L"\nLossless Scaling " + W(a.state.lsVersion);
     if (!a.note.empty()) { content += L"\n\n" + a.note; a.note.clear(); }
     if (a.advice.blocked) content += L"\n\n" + W(a.advice.blockedReason);
     const bool canChange = a.writable || a.elevated;
@@ -206,7 +205,7 @@ Page& MainPage(App& a) {
     if (haveAction && canChange) {
         std::wstring label = W(a.advice.actionLabel);
         if (a.advice.action == Action::Install) label += L"\nKeeps Lossless Scaling's own file, adds the manager and its addons";
-        else if (a.advice.action == Action::Update) label += L"\nReplaces the earlier version";
+        else if (a.advice.action == Action::Update) label += L"\nReplaces the installed manager files";
         else if (a.advice.action == Action::Repair) label += L"\nPuts the manager back after the Lossless Scaling update";
         else if (a.advice.action == Action::Reinstall) label += L"\nPuts its files back as they came";
         p.links.push_back({kAction, label});
@@ -235,8 +234,7 @@ Page& ChooserPage(App& a, const std::wstring& why) {
         if (i >= 8) break;
         const State s = Inspect(c.dir);
         std::wstring line = c.dir + L"\n";
-        line += s.installedVersion.empty() ? L"LS Addon Manager is not installed here" : L"LS Addon Manager " + W(s.installedVersion) + L" is installed here";
-        if (!s.lsVersion.empty()) line += L"  |  Lossless Scaling " + W(s.lsVersion);
+        line += s.installedVersion.empty() ? L"LS Addon Manager is not installed here" : L"LS Addon Manager is installed here";
         line += L"  |  found: " + W(c.how);
         p.links.push_back({kCandidate0 + i, line});
         ++i;

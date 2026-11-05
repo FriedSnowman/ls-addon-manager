@@ -63,11 +63,6 @@ RuntimeAction RuntimeListAtBottom(const std::vector<RuntimeFile>& rows, int open
         const ImVec4 clip(p.x, p.y, right, p.y + h);
         dl->AddText(nullptr, 0.0f, ImVec2(x, ty), th::U(th::kText, a), r.label.c_str(), nullptr, 0.0f, &clip);
         x += ImGui::CalcTextSize(r.label.c_str()).x + ImGui::GetFontSize() * 0.4f;
-        const std::string version = r.exists && r.read ? r.ShownVersion() : std::string();
-        if (!version.empty()) {
-            dl->AddText(nullptr, 0.0f, ImVec2(x, ty), th::U(th::kMuted, a), version.c_str(), nullptr, 0.0f, &clip);
-            x += ImGui::CalcTextSize(version.c_str()).x + ImGui::GetFontSize() * 0.4f;
-        }
         if (!note.empty()) dl->AddText(nullptr, 0.0f, ImVec2(x, ty), th::U(th::kText, a * 0.75f), note.c_str(), nullptr, 0.0f, &clip);
 
         if (hovered) {
@@ -81,7 +76,7 @@ RuntimeAction RuntimeListAtBottom(const std::vector<RuntimeFile>& rows, int open
             if (!r.exists) ImGui::Text("Not found: %s", Utf8(r.path).c_str());
             else if (!r.read) ImGui::TextDisabled("Reading the file...");
             else {
-                if (!r.description.empty() || !r.version.empty()) ImGui::TextUnformatted((r.description + (r.description.empty() ? "" : "  ") + r.version).c_str());
+                if (!r.description.empty()) ImGui::TextUnformatted(r.description.c_str());
                 if (r.shippedKnown) ImGui::TextDisabled(r.shipped ? "The file the addon ships with." : "Not the file the addon ships with.");
                 ImGui::TextDisabled("%s", Utf8(r.path).c_str());
             }
@@ -101,8 +96,6 @@ RuntimeAction RuntimeListAtBottom(const std::vector<RuntimeFile>& rows, int open
             ImGui::Dummy(ImVec2(0, ImGui::GetFontSize() * 0.2f));
             auto line = [&](const RuntimeFile& f, const std::string& name) {
                 std::string text = name;
-                const std::string v = f.exists && f.read ? f.ShownVersion() : std::string();
-                if (!v.empty()) text += "  " + v;
                 if (!f.exists) text += "  (missing)";
                 return text;
             };
@@ -123,15 +116,15 @@ RuntimeAction RuntimeListAtBottom(const std::vector<RuntimeFile>& rows, int open
                 const bool current = !usingDefault && _wcsicmp(library[k].c_str(), r.path.c_str()) == 0;
                 const float trash = ImGui::GetFrameHeight();
                 const std::string title = RuntimeFileTitle(library[k]);
-                if (ImGui::Selectable((title.empty() ? line(f, r.label) : title).c_str(), current,
+                if (ImGui::Selectable(line(f, title.empty() ? "Custom file " + std::to_string(k + 1) : title).c_str(), current,
                                       ImGuiSelectableFlags_DontClosePopups, ImVec2(ImGui::GetFontSize() * 16.0f, 0)) && !current) {
                     UseRuntimeFile(r, library[k]);
-                    ToastShow(r.label + ": switched to " + (f.ShownVersion().empty() ? std::string("the new file") : f.ShownVersion()), ToastType::Success, 4.0f);
+                    ToastShow(r.label + ": runtime file switched", ToastType::Success, 4.0f);
                     ImGui::CloseCurrentPopup();
                 }
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
                     ImGui::BeginTooltip();
-                    if (!f.description.empty()) ImGui::TextUnformatted((f.description + "  " + f.version).c_str());
+                    if (!f.description.empty()) ImGui::TextUnformatted(f.description.c_str());
                     ImGui::TextDisabled("%s", Utf8(f.path).c_str());
                     ImGui::EndTooltip();
                 }
@@ -152,8 +145,7 @@ RuntimeAction RuntimeListAtBottom(const std::vector<RuntimeFile>& rows, int open
                     std::wstring added; std::string error;
                     if (AddRuntimeFile(r, picked, added, error)) {
                         UseRuntimeFile(r, added);
-                        const RuntimeFile f = DescribeRuntimeFile(added, r);
-                        ToastShow(r.label + ": added and switched" + (f.ShownVersion().empty() ? std::string() : " to " + f.ShownVersion()), ToastType::Success, 4.0f);
+                        ToastShow(r.label + ": runtime file added and selected", ToastType::Success, 4.0f);
                     } else ToastShow(error, ToastType::Warning, 6.0f);
                 }
             }
