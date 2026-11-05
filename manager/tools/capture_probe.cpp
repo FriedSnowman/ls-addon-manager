@@ -19,6 +19,7 @@
 #include <wrl/client.h>
 #include <vector>
 #include <algorithm>
+#include "pacing_probe.h"
 using Microsoft::WRL::ComPtr;
 namespace {
 bool NeuralFrame(const EamRealFrame&,void*);
@@ -52,6 +53,7 @@ std::vector<unsigned char> Pixels(ID3D11DeviceContext* ctx,ID3D11Texture2D* text
     ctx->Unmap(staging.Get(),0);return result;
 }
 bool Identity(const EamRealFrame& f,void*) {
+    if(pacing::enabled&&pacing::start)pacing::captures.push_back(pacing::Now()-pacing::start);
     if(lastEpoch!=f.epoch){lastEpoch=f.epoch;++epochCount;epochFrames=0;firstInterpolation=true;printf("Frame epoch %llu size %ux%u\n",f.epoch,f.width,f.height);}++epochFrames;
     auto* ctx=static_cast<ID3D11DeviceContext*>(f.context);auto* original=static_cast<ID3D11Texture2D*>(f.original);auto* out=static_cast<ID3D11Texture2D*>(f.output);
     if(realFrames++==0){const auto a=Pixels(ctx,original),b=Pixels(ctx,out);if(a.empty()||a!=b)++failures;else ++checked;}
@@ -65,7 +67,10 @@ bool NeuralFrame(const EamRealFrame& f,void*) {
     if(lastEpoch!=f.epoch){lastEpoch=f.epoch;++epochCount;epochFrames=0;firstInterpolation=true;neuralImages.clear();printf("NR epoch %llu %ux%u\n",f.epoch,f.width,f.height);}++epochFrames;++realFrames;
     auto* ctx=static_cast<ID3D11DeviceContext*>(f.context);auto* original=static_cast<ID3D11Texture2D*>(f.original);auto* output=static_cast<ID3D11Texture2D*>(f.output);
     const auto before=verifyNeural?Pixels(ctx,original):std::vector<unsigned char>{};
+    const double begin=pacing::Now();
+    if(pacing::enabled&&pacing::start)pacing::captures.push_back(begin-pacing::start);
     bool result=host.callback&&host.callback(f,host.user);if(result)++neuralAccepted;
+    if(pacing::enabled && begin-pacing::start>3)pacing::callbacks.push_back(1000*(pacing::Now()-begin));
     if(verifyNeural){const auto after=Pixels(ctx,original),enhanced=Pixels(ctx,output);
         if(before.empty()||before!=after||(!result&&enhanced!=before)){++failures;puts("NR original/bypass provenance failure");}else ++checked;
         if(result&&enhanced!=before)++neuralEdited;
@@ -96,7 +101,7 @@ bool Pre(uint32_t x,uint32_t y,uint32_t z,void*) {
         }
         if(id==256)firstInterpolation=false;
     }
-    if(passes++<(host.neural?25u:900u)) {
+    if(passes++<(pacing::enabled?0u:host.neural?25u:900u)) {
         printf("pass %u shader %u groups %u %u %u",passes,id,x,y,z);
         for(unsigned i=0;i<8;++i){ComPtr<ID3D11ShaderResourceView> v;ctx->CSGetShaderResources(i,1,&v);if(!v)continue;ComPtr<ID3D11Resource> r;v->GetResource(&r);ComPtr<ID3D11Texture2D> t;r.As(&t);if(t){D3D11_TEXTURE2D_DESC d{};t->GetDesc(&d);printf(" t%u=%p/%ux%u/f%u/m%u",i,t.Get(),d.Width,d.Height,d.Format,d.MiscFlags);if(passes==1)printf("/mips%u/array%u/samples%u/bind%u",d.MipLevels,d.ArraySize,d.SampleDesc.Count,d.BindFlags);}}
         for(unsigned i=0;i<8;++i){ComPtr<ID3D11UnorderedAccessView> v;ctx->CSGetUnorderedAccessViews(i,1,&v);if(!v)continue;ComPtr<ID3D11Resource> r;v->GetResource(&r);ComPtr<ID3D11Texture2D> t;r.As(&t);if(t){D3D11_TEXTURE2D_DESC d{};t->GetDesc(&d);printf(" u%u=%p/%ux%u/f%u/m%u",i,t.Get(),d.Width,d.Height,d.Format,d.MiscFlags);if(passes==1)printf("/mips%u/array%u/samples%u/bind%u",d.MipLevels,d.ArraySize,d.SampleDesc.Count,d.BindFlags);}}
@@ -124,15 +129,25 @@ int wmain(int argc,wchar_t** argv) {
     setvbuf(stdout,nullptr,_IONBF,0);SetProcessDPIAware();CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
     if(!wcscmp(argv[1],L"--source")) {
         WNDCLASSW wc{};wc.lpfnWndProc=Window;wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"EamCaptureProbeSource";RegisterClassW(&wc);
-        HWND w=CreateWindowW(wc.lpszClassName,L"LS capture pipeline source",WS_OVERLAPPEDWINDOW|WS_VISIBLE,100,100,660,520,nullptr,nullptr,wc.hInstance,nullptr);
+        const bool paced=pacing::Env("EAM_PROBE_PACING",0)!=0;
+        const int sw=pacing::Env("EAM_PROBE_WIDTH",660),sh=pacing::Env("EAM_PROBE_HEIGHT",520);
+        HWND w=CreateWindowW(wc.lpszClassName,L"LS capture pipeline source",(paced?WS_POPUP:WS_OVERLAPPEDWINDOW)|WS_VISIBLE,0,0,sw,sh,nullptr,nullptr,wc.hInstance,nullptr);
         DXGI_SWAP_CHAIN_DESC sd{};sd.BufferDesc.Format=DXGI_FORMAT_R8G8B8A8_UNORM;sd.BufferCount=2;sd.BufferUsage=DXGI_USAGE_RENDER_TARGET_OUTPUT;sd.OutputWindow=w;sd.SampleDesc.Count=1;sd.Windowed=TRUE;sd.SwapEffect=DXGI_SWAP_EFFECT_FLIP_DISCARD;
         ComPtr<ID3D11Device> device;ComPtr<ID3D11DeviceContext> context;ComPtr<IDXGISwapChain> swap;
         if(FAILED(D3D11CreateDeviceAndSwapChain(nullptr,D3D_DRIVER_TYPE_HARDWARE,nullptr,0,nullptr,0,D3D11_SDK_VERSION,&sd,&swap,&device,nullptr,&context)))return 1;
         ComPtr<ID3D11Texture2D> back;swap->GetBuffer(0,IID_PPV_ARGS(&back));ComPtr<ID3D11RenderTargetView> rt;device->CreateRenderTargetView(back.Get(),nullptr,&rt);ComPtr<ID3D11DeviceContext1> c1;context.As(&c1);
+        pacing::Workload load;load.Init(device.Get());
+        HANDLE timer=CreateWaitableTimerExW(nullptr,nullptr,2,TIMER_ALL_ACCESS);
+        double next=pacing::Now();const double period=1.0/pacing::Env("EAM_PROBE_HZ",60);
         const ULONGLONG until=GetTickCount64()+60000;
         while(IsWindow(w)&&GetTickCount64()<until){MSG msg;while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){TranslateMessage(&msg);DispatchMessageW(&msg);}++frame;
+            load.Run(context.Get());
             const float black[4]={0.02f,0.02f,0.02f,1};context->ClearRenderTargetView(rt.Get(),black);
-            for(int y=0;y<480;y+=40)for(int x=0;x<640;x+=40){D3D11_RECT tile{x+(int)(frame%40),y,x+20+(int)(frame%40),y+20};const float color[4]={(x%255)/255.f,(y%255)/255.f,0.7f,1};c1->ClearView(rt.Get(),color,&tile,1);}swap->Present(0,0);Sleep(16);}return 0;
+            if(paced){const float white[4]={.95f,.95f,.95f,1};const int x=128+(frame*16)%unsigned(sw-384);D3D11_RECT bar{x,sh/4,x+96,sh*3/4};c1->ClearView(rt.Get(),white,&bar,1);}
+            else for(int y=0;y<480;y+=40)for(int x=0;x<640;x+=40){D3D11_RECT tile{x+(int)(frame%40),y,x+20+(int)(frame%40),y+20};const float color[4]={(x%255)/255.f,(y%255)/255.f,0.7f,1};c1->ClearView(rt.Get(),color,&tile,1);}swap->Present(0,0);
+            if(paced&&timer){next+=period;const double wait=next-pacing::Now();if(wait>0){LARGE_INTEGER due;due.QuadPart=-LONGLONG(wait*10000000);SetWaitableTimer(timer,&due,0,nullptr,nullptr,FALSE);WaitForSingleObject(timer,1000);}else next=pacing::Now();}
+            else Sleep(16);}
+        if(timer)CloseHandle(timer);return 0;
     }
     HMODULE ls=LoadLibraryExW(argv[1],nullptr,LOAD_WITH_ALTERED_SEARCH_PATH);if(!ls){printf("load failed %lu\n",GetLastError());return 1;}
     EnumResourceNamesW(ls,RT_RCDATA,Resource,0);
@@ -144,7 +159,8 @@ int wmain(int argc,wchar_t** argv) {
     wchar_t exe[32768]{};GetModuleFileNameW(nullptr,exe,32768);std::wstring command=L"\""+std::wstring(exe)+L"\" --source";
     STARTUPINFOW startup{sizeof(startup)};PROCESS_INFORMATION child{};
     if(!CreateProcessW(exe,command.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW,nullptr,nullptr,&startup,&child))return 1;
-    HWND window=nullptr;for(int i=0;i<100&&!window;++i){Sleep(20);window=FindWindowW(L"EamCaptureProbeSource",nullptr);}if(!window)return 1;
+    HWND window=nullptr;for(int i=0;i<100&&!window;++i){Sleep(20);window=FindWindowW(L"EamCaptureProbeSource",nullptr);if(window){DWORD owner=0;GetWindowThreadProcessId(window,&owner);if(owner!=child.dwProcessId)window=nullptr;}}if(!window)return 1;
+    pacing::Install();
     printf("Init %d\n",init(Status));
     const int fg=argc>2?_wtoi(argv[2]):1,capture=argc>3?_wtoi(argv[3]):0;
     const int scaling=argc>4?_wtoi(argv[4]):0;
@@ -176,9 +192,9 @@ int wmain(int argc,wchar_t** argv) {
     }
     double nrStoppedAt=-1,scalerStoppedAt=-1,nrAcceptedAtScalerStop=0;
     RealFrameHook::SetSettings(fg,capture,scaling,hdr);
-    apply(0,0,scaling,0,1.0f,0,0,0,fg,0,0,2.0f,120.0f,100,0,0,0,0,0,2,0,hdr,capture,1,0,0,0,0,0,0,0,0,0);
+    apply(0,0,scaling,0,1.0f,0,0,0,fg,0,0,2.0f,120.0f,pacing::Env("EAM_PROBE_FLOW",100),0,0,0,0,0,pacing::Env("EAM_PROBE_LATENCY",2),0,hdr,capture,pacing::Env("EAM_PROBE_QUEUE",1),0,0,0,0,0,0,0,0,0);
     SetForegroundWindow(window);printf("Activate %d\n",activate(window));
-    const ULONGLONG start=GetTickCount64(),until=start+(scalerAddon?24000:8000);bool changed=false;const int lifecycle=argc>6?_wtoi(argv[6]):0;
+    const ULONGLONG start=GetTickCount64(),until=start+pacing::Env("EAM_PROBE_SECONDS",scalerAddon?24:8)*1000;bool changed=false;const int lifecycle=argc>6?_wtoi(argv[6]):0;
     while(GetTickCount64()<until){MSG msg;while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){TranslateMessage(&msg);DispatchMessageW(&msg);}
         if(lifecycle&&!changed&&GetTickCount64()>start+(scalerAddon?15000:4000)){changed=true;
             if(lifecycle==1)SetWindowPos(window,nullptr,0,0,820,660,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
@@ -190,6 +206,7 @@ int wmain(int argc,wchar_t** argv) {
         }Sleep(16);}
     printf("Frame support %u\n",(unsigned)host.GetRealFrameSupport());
     stop();
+    pacing::Report();
     if(host.neural){const auto status=eam::Metrics::Instance().GetStatus("DLSSNR02",60);printf("NR status: %s\n",status.text.c_str());for(const auto& series:eam::Metrics::Instance().Snapshot(60))if(series.addon=="DLSSNR02")printf("NR metric %s %.4f %s\n",series.key.c_str(),series.last(),series.unit.c_str());printf("NR accepted %u edited %u\n",neuralAccepted,neuralEdited);}
     if(scalerAddon){auto metric=eam::Metrics::Instance().Get(scalerId,"dlss_ms",60);printf("Upscaler %s samples=%zu last=%.4f status=%s\n",scalerId.c_str(),metric.samples.size(),metric.last(),eam::Metrics::Instance().GetStatus(scalerId,60).text.c_str());if(metric.samples.empty()||(nrStoppedAt>=0&&metric.samples.back().t<nrStoppedAt+1))++failures;}
     if(scalerStoppedAt>=0){auto metric=eam::Metrics::Instance().Get("DLSSNR02","accepted",60);printf("NR accepted after upscaler shutdown %.0f\n",metric.last()-nrAcceptedAtScalerStop);if(metric.samples.empty()||metric.samples.back().t<scalerStoppedAt+1||metric.last()<nrAcceptedAtScalerStop+30){++failures;puts("NR did not complete new work after upscaler shutdown");}}
