@@ -11,23 +11,50 @@
 
 The old addon had some serious architectural problems and didn't match the visuals of other established projects. The DLSS5 addon has been replaced with a new NVIDIA-only implementation in [addons/NeuralRendering](addons/NeuralRendering).
 
-### New Architecture
+```mermaid
+---
+config:
+  theme: neutral
+  look: classic
+  themeVariables:
+    primaryColor: transparent
+    clusterBkg: transparent
+    edgeLabelBackground: transparent
+  flowchart:
+    curve: linear
+    wrappingWidth: 320
+---
+flowchart LR
+    subgraph old[Old]
+        direction TB
+        O[Captured game frame] --> OG["LSFG frame generation<br/>Uses unenhanced frames"]
+        O --> ON[Asynchronous neural rendering]
+        ON --> OE["Latest completed enhancement<br/>May be from an older frame"]
+        OG --> OC[Warp and apply saved enhancement]
+        OE -.-> OC
+        OC --> OD[Display]
+    end
 
-```text
-Game output
-    -> NVIDIA Optical Flow between original captures
-    -> one DLSS Neural Rendering evaluation
-    -> OptiScaler compositor
-    -> completed enhanced real frame
-    -> LSFG motion analysis and frame generation
-    -> presentation
+    subgraph new[New]
+        direction TB
+        N[Captured game frame] --> NF[NVIDIA Optical Flow]
+        NF --> NN[Neural rendering]
+        NN --> NC["OptiScaler composition<br/>Complete this frame's enhancement"]
+        NC --> NG["LSFG frame generation<br/>Uses enhanced frames"]
+        NG --> ND[Display]
+    end
+
+    old ~~~ new
+    classDef default fill:none,rx:0,ry:0
+    style old fill:none,rx:0,ry:0
+    style new fill:none,rx:0,ry:0
 ```
 
 **Neural rendering now finishes before LSFG analyzes the frame.** The manager exposes a real-frame processing hook, and LSFG receives the completed enhancement as its input. Generated frames are interpolated from those enhanced real frames; the addon never runs the model on a generated frame or carries an older neural edit onto a newer image. With frame generation off, the same processing happens before the copy/NIS stage. The standalone upscalers still run later at NIS.
 
 Motion comes from **NVIDIA Optical Flow**, comparing the current original capture with the previous accepted original capture. The addon queries the hardware capabilities and converts the vectors into pixels at the model's working resolution. It does not extract LSFG's internal flow textures, and enhanced or generated images never become inputs to its motion estimator.
 
-The **compositor is OptiScaler's DLSS NR composition shader. It handles the SDR/scRGB colour conversion, reconstruction at reduced working resolutions, detail/colour transfer and luminance bounds. Any residual it reconstructs belongs to the same frame. The model forwarder is also adapted from that revision. RenoDX-derived colour work is credited in the [source notices](addons/NeuralRendering/NOTICE.md); the [shader](addons/NeuralRendering/third_party/optiscaler/dlssnr.hlsl) and licences are included with the addon source.
+The **compositor** is OptiScaler's DLSS NR composition shader. It handles the SDR/scRGB colour conversion, reconstruction at reduced working resolutions, detail/colour transfer and luminance bounds. Any residual it reconstructs belongs to the same frame. The model forwarder is also adapted from that revision. RenoDX-derived colour work is credited in the [source notices](addons/NeuralRendering/NOTICE.md); the [shader](addons/NeuralRendering/third_party/optiscaler/dlssnr.hlsl) and licences are included with the addon source.
 
 ### What was wrong with the old path?
 
