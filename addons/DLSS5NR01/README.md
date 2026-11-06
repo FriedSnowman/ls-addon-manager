@@ -6,7 +6,7 @@
 > then press **Test compatibility** in the addon's panel.
 
 > [!NOTE]
-> **Tested with World of Warcraft: Forever and Fallout: New Vegas.** This project was developed and tested against **World of Warcraft: Forever** (the beta; it runs as `WowB.exe`) and **Fallout: New Vegas** (Tale of Two Wastelands), on Lossless Scaling 3.2.2.0, Windows 11 and an RTX 4070 Ti SUPER. Other games and setups are untested.
+> **Tested with World of Warcraft: Forever and Fallout: New Vegas.** This project was developed and tested against **World of Warcraft: Forever** (the beta; it runs as `WowB.exe`) and **Fallout: New Vegas** (Tale of Two Wastelands), on Lossless Scaling 3.2.2.0, Windows 11 and an NVIDIA RTX GPU. Other games and setups are untested.
 
 An addon for LS Addon Manager, the addon manager for Lossless Scaling, that runs NVIDIA DLSS 5
 Neural Rendering (DLSSNR) on the frames Lossless Scaling captures and applies the result to every
@@ -61,8 +61,8 @@ walks through every setting, how to pick the working scale, and what each status
 
 ## Cost
 
-On an RTX 3090 a model run costs about 10 ms plus 7 ms per megapixel of model input, whatever the
-pixels are; on an RTX 4070 Ti SUPER about 2.7 ms plus 1.8 ms per megapixel. The *Working scale* is the only cost lever: the frame is shrunk by it before the model
+On an NVIDIA RTX GPU a model run costs about 10 ms plus 7 ms per megapixel of model input, whatever the
+pixels are; on an NVIDIA RTX GPU about 2.7 ms plus 1.8 ms per megapixel. The *Working scale* is the only cost lever: the frame is shrunk by it before the model
 sees it, and the delta is upsampled back at present time. At 5120x1440 a working scale of 0.35
 gives a 14 to 17 ms run, which keeps up with a 48 fps game. At a working scale past the frame
 interval the model skips frames and the previous delta is carried forward by the flow; the panel

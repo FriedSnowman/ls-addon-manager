@@ -22,7 +22,7 @@ import numpy as np
 W, H = 1920, 1080
 DEFAULT_NR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'addons', 'DLSS5NR01', 'build', 'Release')
 # Lossless Scaling's folder: LS_DIR, else the first of the usual places that holds the model (Steam's, or where it was moved to)
-_LS_DIRS = [os.environ.get('LS_DIR', ''), r'C:\Program Files (x86)\Steam\steamapps\common\Lossless Scaling', r'D:\Utilities\Lossless Scaling']
+_LS_DIRS = [os.environ.get('LS_DIR', ''), r'C:\Program Files (x86)\Steam\steamapps\common\Lossless Scaling', r'C:\Games\Lossless Scaling']
 DEFAULT_SNIPPET = next((os.path.join(d, 'nvngx_dlssnr.dll') for d in _LS_DIRS if d and os.path.isfile(os.path.join(d, 'nvngx_dlssnr.dll'))),
                        os.path.join(_LS_DIRS[1], 'nvngx_dlssnr.dll'))
 

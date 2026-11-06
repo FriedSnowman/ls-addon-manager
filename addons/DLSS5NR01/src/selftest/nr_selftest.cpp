@@ -340,7 +340,7 @@ int wmain(int argc, wchar_t** argv) {
     Say("graphics card: %s", gpuName);
     g_report.gpu = gpuName;
     { char m[32]; snprintf(m, sizeof m, "%llu GB", static_cast<unsigned long long>((desc.DedicatedVideoMemory + (512ull << 20)) >> 30)); g_report.memory = m; }
-    {   // the driver's number as NVIDIA writes it: the user-mode driver version 32.0.16.1692 is driver 616.92
+    {   // the driver's number as NVIDIA writes it: the user-mode driver version 32.0.16.1692 is driver test driver
         LARGE_INTEGER umd = {};
         if (SUCCEEDED(adapter->CheckInterfaceSupport(__uuidof(IDXGIDevice), &umd))) {
             const unsigned low = static_cast<unsigned>(umd.LowPart);

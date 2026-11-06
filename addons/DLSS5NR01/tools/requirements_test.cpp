@@ -42,7 +42,7 @@ static bool SameContent(const std::wstring& a, const std::wstring& b) {
 // Everything present and the tested model.
 static Inputs Good() {
     Inputs in;
-    in.nvidiaFound = true; in.gpuName = "NVIDIA GeForce RTX 4070 Ti SUPER"; in.gpuMemoryBytes = 12ull << 30;
+    in.nvidiaFound = true; in.gpuName = "NVIDIA RTX GPU"; in.gpuMemoryBytes = 12ull << 30;
     in.ngxRegistered = true; in.ngxCoreFound = true; in.ngxCoreVersion = "32.0.16.1692";
     in.modelPath = "D:\\LS\\nvngx_dlssnr.dll"; in.modelFound = true; in.modelSize = kTestedModelSize; in.modelVersion = "310,8,0,0";
     in.helperFound = true;
@@ -51,7 +51,7 @@ static Inputs Good() {
 
 int main(int argc, char** argv) {
     // ---- text helpers
-    Check("driver number from the NGX core version", DriverFromNgxVersion("32.0.16.1692") == "616.92" && DriverFromNgxVersion("31.0.15.5222") == "552.22");
+    Check("driver number from the NGX core version", DriverFromNgxVersion("32.0.16.1692") == "test driver" && DriverFromNgxVersion("31.0.15.5222") == "552.22");
     Check("...and nothing when the version is not in that shape", DriverFromNgxVersion("").empty() && DriverFromNgxVersion("1.2").empty() && DriverFromNgxVersion("a.b.c.d").empty());
     Check("short version accepts dots and commas", VersionShort("310.8.0.0") == "310.8" && VersionShort("310,8,0,0") == "310.8" && VersionShort("").empty() && VersionShort("7") == "7");
     Check("size text", SizeText(165840496ull) == "158.2 MB" && SizeText(0) == "0 MB" && SizeText(12ull << 30) == "12288.0 MB");
@@ -60,8 +60,8 @@ int main(int argc, char** argv) {
     Report r = Evaluate(Good());
     Check("all in place: overall Ok, six rows in order", r.overall == Level::Ok && r.rows.size() == 6 && r.rows[0].label == "Graphics card" && r.rows[5].label == "Engine");
     Check("all in place: the tested model is named as such", Has(Find(r, "Model file")->value, "310.8") && Has(Find(r, "Model file")->value, "tested") && Find(r, "Model file")->level == Level::Ok);
-    Check("all in place: the driver is shown as a driver number", Has(Find(r, "NVIDIA driver")->value, "616.92"));
-    Check("all in place: the card shows its memory", Has(Find(r, "Graphics card")->value, "12 GB") && Has(Find(r, "Graphics card")->value, "RTX 4070"));
+    Check("all in place: the driver is shown as a driver number", Has(Find(r, "NVIDIA driver")->value, "test driver"));
+    Check("all in place: the card shows its memory", Has(Find(r, "Graphics card")->value, "12 GB") && Has(Find(r, "Graphics card")->value, "NVIDIA RTX GPU"));
     Check("all in place: no hints on rows that are fine", Find(r, "Model file")->hint.empty() && Find(r, "Graphics card")->hint.empty());
     Check("all in place: the engine not having started is not a problem", Find(r, "Engine")->level == Level::Ok && Has(Find(r, "Engine")->value, "not started"));
     Check("all in place: the headline says so", Has(r.headline, "in place"));

@@ -279,7 +279,7 @@ int main(int argc, char** argv) {
     auto emptyFrame = [&]() { if (shotMode) shot.Frame([] {}, 1); else { ImGui::NewFrame(); ImGui::Render(); } };
     frame("before device");
 
-    // device on adapter 0 (the display 3090) and DEVICE_READY
+    // device on adapter 0 (the display adapter) and DEVICE_READY
     IDXGIFactory2* f = nullptr; CreateDXGIFactory1(IID_PPV_ARGS(&f)); IDXGIAdapter1* a = nullptr; f->EnumAdapters1(0, &a);
     ID3D11Device* dev = nullptr; ID3D11DeviceContext* dc = nullptr; D3D_FEATURE_LEVEL fl;
     UINT deviceFlags = 0;   // devflags=<n>: create the device as Lossless Scaling might (1 = D3D11_CREATE_DEVICE_SINGLETHREADED)

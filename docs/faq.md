@@ -12,7 +12,7 @@ on disk, and uninstalling puts its own file back.
 No. It runs inside Lossless Scaling, not inside the game. (Whether a game's anti-cheat has an opinion about Lossless Scaling itself is between you and the game; the manager does not change that, and cannot promise anything about it.)
 
 **Which versions and games has it been tested with?**
-Lossless Scaling **3.2.2.0** on Windows 11 with an RTX 4070 Ti SUPER, and the game **World of Warcraft: Forever** (the beta). Other versions, cards and games are untested. If you try one, tell us how it went.
+Lossless Scaling **3.2.2.0** on Windows 11 with an NVIDIA RTX GPU, and the game **World of Warcraft: Forever** (the beta). Other versions, cards and games are untested. If you try one, tell us how it went.
 
 **Steam or non-Steam Lossless Scaling?**
 Either. Setup looks in Steam libraries and in usual places on every drive, and lets you pick any folder. The copy it was developed with is not from Steam.

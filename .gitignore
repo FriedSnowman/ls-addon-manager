@@ -37,3 +37,29 @@ imgui.ini
 
 # the tools' own Python environment (tools\depth_maps.py)
 tools/.venv/
+
+# Private implementation notes, research, machine captures and local handoffs.
+/ROADMAP.md
+/docs/*
+!/docs/addon-authors.md
+!/docs/api-compatibility.md
+!/docs/faq.md
+/addons/*/docs/architecture.md
+/addons/*/docs/building.md
+/addons/*/docs/dlssnr-knobs.md
+/handoff/
+/testing/
+/profiles/
+/tools/local-build-lock.json
+
+# Local credentials, session state and diagnostic recordings.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.lsrec
+.agents/
+.codex/
+.aws/

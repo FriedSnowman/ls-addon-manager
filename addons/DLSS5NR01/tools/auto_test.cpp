@@ -1,5 +1,5 @@
 // Offline test of auto quality (auto_quality.cpp) with a simulated model: its time grows with the area it works on, about 2.7 ms plus 1.8 ms a
-// megapixel (as measured on an RTX 4070 Ti SUPER), on 2560x1440 frames at 60 per second.
+// megapixel (as measured on an NVIDIA RTX GPU), on 2560x1440 frames at 60 per second.
 #include "addon/auto_quality.h"
 #include <cmath>
 #include <cstdio>

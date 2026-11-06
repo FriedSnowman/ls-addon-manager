@@ -35,7 +35,7 @@ upscalers now beat a plain stretch in a fast turn, for 3-4 ms a frame at 4K.
 - **No more flicker while moving at 1:1 with DLSS.** Model L pulses on a four-frame cycle when DLSS runs at the screen's size (found
   offline on recordings: about 9 times a second at 36 fps); E does not. The DLSS model list has a new default, **Auto**: E at 1:1 (DLAA),
   L when upscaling. A model chosen before is kept (pick Auto once to switch).
-- **Cost, live at 4K 1:1 in World of Warcraft** (RTX 4070 Ti SUPER, GPU time a frame, the motion estimate's share in brackets): DLSS
+- **Cost, live at 4K 1:1 in World of Warcraft** (NVIDIA RTX GPU, GPU time a frame, the motion estimate's share in brackets): DLSS
   4.20 ms (1.64), FSR 3.3-3.7 ms (1.1-1.5), XeSS 2.7-2.8 ms (0.7).
 - **Before / after hotkey:** the upscaler addons now show the corner square too (green the upscaled picture, red the original, amber
   the split), as Neural Rendering does.
@@ -218,7 +218,7 @@ that turns a bug into a file we can replay.
   - **How addons declare them:** a `runtimes` list in `addon.json`.
 - **FSR 4 in the FSR Upscaler.** OptiScaler's FSR 4.1.1b INT8 build with the RDNA 2 fix comes as a second choice in the FSR menu; AMD's
   signed FSR 3.1.4 stays the default.
-  - **It runs on NVIDIA cards too:** tested on an RTX 4070 Ti.
+  - **It runs on NVIDIA cards too:** tested on an NVIDIA RTX GPU.
   - **The log says what runs:** which upscaler the runtime chose and what else it holds, for example "runs 4.1.1b (it holds: 4.1.1b,
     3.1.5, 2.3.4)".
   - **Fetching it:** `tools/fetch_fsr4.ps1` fetches it and checks its SHA-256.
@@ -428,7 +428,7 @@ the addon list. The guide is [addons/DLSS5NR01/docs/upscalers.md](addons/DLSS5NR
     quality mode, 1.5x). At the screen's own size it runs as **DLAA** (anti-aliasing only).
   - Two DLSS models: NVIDIA's default (K, DLSS 4) and M (DLSS 4.5, about twice K's cost). NVIDIA's DLSS runtime 310.9.1 comes with it.
   - Sharpening (contrast-adaptive, the FidelityFX CAS formula), since DLSS 4 has none and NIS does.
-  - Measured in World of Warcraft: Forever on an RTX 4070 Ti SUPER, model K: 2560x1440 -> 3840x2160 about 2.4 ms a frame; DLAA at 3840x2160
+  - Measured in World of Warcraft: Forever on an NVIDIA RTX GPU, model K: 2560x1440 -> 3840x2160 about 2.4 ms a frame; DLAA at 3840x2160
     about 3.2 ms (both before the motion estimate got cheaper, below).
 - **FSR 3 Upscaler** (`FSR3UPSC`, any DirectX 12 card: AMD, NVIDIA or Intel): AMD FidelityFX Super Resolution 3.1 in the same place, with the
   same engine and motion, and AMD's own sharpening (RCAS). AMD's prebuilt runtime (`amd_fidelityfx_dx12.dll`, FidelityFX SDK v1.1.4, MIT,
@@ -448,7 +448,7 @@ wrong estimate), a distrust mask tells the upscaler to lean on the current frame
 mask) instead of smearing its history. A still picture measures exactly still.
 - The upscalers' panel has a **Motion** choice: measured from the frames (the default), frame generation's flow (coarser, only with frame
   generation on), or none (to compare).
-- Cost, measured in World of Warcraft on an RTX 4070 Ti SUPER: about 0.35 ms a frame at 2560x1440 and 0.7 ms at 3840x2160. The log times each
+- Cost, measured in World of Warcraft on an NVIDIA RTX GPU: about 0.35 ms a frame at 2560x1440 and 0.7 ms at 3840x2160. The log times each
   stage (pyramid, search, median, every pixel) and says what share of the picture the mask marked (0.1-0.5% while moving, none while still).
 - In the test host, on an aliased picture sliding 5.37 x 2.21 pixels a frame, the estimate finds the slide to within about a tenth of a pixel,
   and the upscaled picture lands 3x (DLSS) and 2x (FSR 3) closer to the ideal picture than with no motion.
@@ -514,7 +514,7 @@ The manager and Neural Rendering now show 0.8.0.
   - NVIDIA's DLSS runtime 310.9.1 (`nvngx_dlss.dll`) comes with it, in its `dlss` folder, under NVIDIA's licence (`NVIDIA-LICENSE.txt`):
     nothing needs to be supplied.
   - Two models: NVIDIA's default (preset K, DLSS 4) and M (DLSS 4.5's second-generation transformer). Measured in the test host at
-    1920x1080 on an RTX 4070 Ti SUPER: K about 4.5 ms, M about 15 ms.
+    1920x1080 on an NVIDIA RTX GPU: K about 4.5 ms, M about 15 ms.
   - **Only one of the two addons runs at a time**: both would tap the same passes and add their results on top of each other. Turning one on in
     the addon list turns the other off there (a notice says so); with both on at start-up, the first in the list stays on. This is the new
     `conflicts` key of `addon.json` (docs/addon-authors.md), which any addon can use. Inside the addons a second guard does the same (the one
@@ -793,7 +793,7 @@ addon API, a questions-and-answers page, shareable model compatibility reports, 
 - **Setup: an update failed on read-only files.** An installed file marked read-only could not be replaced (the whole update rolled back). The flag is lifted for the swap and put back if the swap fails or is rolled back.
 - **Setup: two runs in the same second shared a backups folder** and the second overwrote the first's copies (the folder name is a time stamp to the second). A folder that exists gets a number added.
 - **Setup: only one window at a time**, so a second Setup cannot start a second install in the middle of the first. A drive root as the folder (`D:\`) no longer breaks the "restart as administrator" command line.
-  Choosing the folder *above* Lossless Scaling's (for example `D:\Utilities`) now uses the Lossless Scaling folder inside it when there is exactly one. The uninstall option that takes the addons out says that the addons' settings go with them.
+  Choosing the folder *above* Lossless Scaling's (for example `C:\Games`) now uses the Lossless Scaling folder inside it when there is exactly one. The uninstall option that takes the addons out says that the addons' settings go with them.
 - **The tray icon comes back after a failed re-add.** A live log showed one failed re-add after Explorer restarted lose the icon for the whole session; the window now retries every two seconds for a minute, and treats an add that
   Explorer carried out but reported as failed as done. The window test forces two failures and checks that the icon returns.
 - **A sample addon** (`examples/SampleAddon`): settings, a settings panel in the manager's look, a status line and a metric, about a hundred commented lines, with its own CMake file. It is loaded, started and drawn by the real manager
@@ -841,7 +841,7 @@ and can be turned off in *Settings > Updates* (see below; it is the only thing t
   own `Lossless.dll` back over ours) and uninstall, with backups of everything it replaces, verification by hash, a rollback if anything fails part-way, and no changes to the person's `config.json`,
   other addons or removed addons. It recognises earlier installs (0.4.1 and before have no version resource) by the log file name inside their `Lossless.dll`, and refuses while Lossless Scaling
   runs. A command line (`setup_cli`) drives it; the window comes next. 84 offline checks (`setup_test`, in the test runner) on fake folders, including a failure midway that must roll back.
-- **The README, the addon README, the user guide and `INSTALL.txt` say what this was tested with:** World of Warcraft: Forever (the beta; it runs as `WowB.exe`), Lossless Scaling 3.2.2.0, Windows 11, RTX 4070 Ti SUPER; other
+- **The README, the addon README, the user guide and `INSTALL.txt` say what this was tested with:** World of Warcraft: Forever (the beta; it runs as `WowB.exe`), Lossless Scaling 3.2.2.0, Windows 11, NVIDIA RTX GPU; other
   games and setups are untested.
 - Test hygiene: the features test starts each run with a fresh temporary folder (a leftover from the abrupt-exit run could make a later run with the same process id fail), and the window test
   switches the update check off so it never touches the internet.

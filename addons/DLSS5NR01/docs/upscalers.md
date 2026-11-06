@@ -9,7 +9,7 @@ Three addons, built from Neural Rendering's sources, that take the place of Loss
 | **FSR Upscaler** (`FSR3UPSC`) | AMD FidelityFX Super Resolution 3.1, or FSR 4 | any DirectX 12 card (AMD, NVIDIA, Intel) | AMD's FidelityFX runtime (`fsr\amd_fidelityfx_dx12.dll`, FSR 3.1.4, FidelityFX SDK v1.1.4, MIT, signed by AMD), and FSR 4.1.1b, the OptiScaler team's build (`runtimes\FSR\0dd77d9c`, AMD's SDK licence, not signed) |
 
 All three come in the download switched off: switch on the one you want. DLSS and FSR were developed and tested with World of Warcraft:
-Forever, Fallout: New Vegas (Tale of Two Wastelands) and Silent Hill f (HDR), on an RTX 4070 Ti SUPER. XeSS (new in 0.9.12) has passed the
+Forever, Fallout: New Vegas (Tale of Two Wastelands) and Silent Hill f (HDR), on an NVIDIA RTX GPU. XeSS (new in 0.9.12) has passed the
 offline tests but has not been tried in a game yet.
 
 A temporal upscaler builds each picture from several frames, so it has to know where every pixel was in the frame before. A game with DLSS or
@@ -82,7 +82,7 @@ has the graphics card to spare for it. A post-process anti-aliasing (FXAA, CMAA)
 
 ## What it costs
 
-Measured on an RTX 4070 Ti SUPER in World of Warcraft: Forever (GPU time a presented frame, everything the addon does):
+Measured on an NVIDIA RTX GPU in World of Warcraft: Forever (GPU time a presented frame, everything the addon does):
 
 | | DLSS (model K) | FSR 3.1 | XeSS |
 |---|---|---|---|

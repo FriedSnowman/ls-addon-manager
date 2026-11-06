@@ -124,9 +124,9 @@ int main(int argc, char** argv) {
     ReadSvgIcon(plugins / "products" / "DLSS4DLAA" / "icon.svg", b.iconSvg, b.iconSvgView);
     ReadSvgIcon(plugins / "products" / "FSR3UPSC" / "icon.svg", c.iconSvg, c.iconSvgView);
     ReadSvgIcon(plugins / "products" / "XESSUPSC" / "icon.svg", d.iconSvg, d.iconSvgView);
-    // the runtimes, as the repository's addon.json files list them, read from the install in D:\Utilities\Lossless Scaling (as the real
+    // the runtimes, as the repository's addon.json files list them, read from the install in C:\Games\Lossless Scaling (as the real
     // list reads them: version, signature, SHA-256). EAM_PREVIEW_FSR=<file>: that file as the FSR runtime (only read, never loaded)
-    const std::wstring lsDir = L"D:\\Utilities\\Lossless Scaling";
+    const std::wstring lsDir = L"C:\\Games\\Lossless Scaling";
     // (the model file is the person's own: the tidy scene for the README leaves its line out rather than show this machine's copy)
     { AddonManifest m; if (!clean && ReadManifest(plugins / "addon.json", m)) a.manifest.runtimes = m.runtimes; }
     { AddonManifest m; if (ReadManifest(plugins / "products" / "DLSS4DLAA" / "addon.json", m)) b.manifest.runtimes = m.runtimes; }
@@ -182,7 +182,7 @@ int main(int argc, char** argv) {
         M.SetStatus("FSR3UPSC", "FSR 3.1.4 1920x1080 -> 3840x2160, 1.6 ms", 1);
         SystemStats::Snapshot sys; sys.ok = true; sys.cpuPercent = 23; sys.ramUsedMB = 18841; sys.ramTotalMB = 32703;
         SystemStats::Instance().InjectForPreview(sys);
-        GpuStats::Snapshot g; g.name = "NVIDIA GeForce RTX 4070 Ti SUPER"; g.driver = "616.92"; g.deviceCount = 1; g.utilGpu = 97; g.utilMem = 44;
+        GpuStats::Snapshot g; g.name = "NVIDIA RTX GPU"; g.driver = "test driver"; g.deviceCount = 1; g.utilGpu = 97; g.utilMem = 44;
         g.clockGraphics = 2610; g.clockMem = 10501; g.tempC = 68; g.powerW = 283.4; g.powerLimitW = 285.0; g.vramUsedMB = 13132; g.vramTotalMB = 16376; g.throttle = 0x4;
         GpuStats::Instance().InjectForPreview(g);
     }
@@ -191,8 +191,8 @@ int main(int argc, char** argv) {
     std::map<std::string, std::function<void()>> panels;
     static FakeHost host;
     // Neural Rendering's model file, where a real install keeps it (the panel then shows its requirements met); nothing is loaded from it here
-    if (GetFileAttributesW(L"D:\\Utilities\\Lossless Scaling\\nvngx_dlssnr.dll") != INVALID_FILE_ATTRIBUTES)
-        host.cfg["DLSS5NR01/snippetPath"] = "D:\\Utilities\\Lossless Scaling\\nvngx_dlssnr.dll";
+    if (GetFileAttributesW(L"C:\\Games\\Lossless Scaling\\nvngx_dlssnr.dll") != INVALID_FILE_ATTRIBUTES)
+        host.cfg["DLSS5NR01/snippetPath"] = "C:\\Games\\Lossless Scaling\\nvngx_dlssnr.dll";
     {   // EAM_PREVIEW_CFG="FSR3UPSC/scalerStability=0.4;...": settings the addons start with (for a picture with the sliders somewhere)
         char* v = nullptr; size_t n = 0; _dupenv_s(&v, &n, "EAM_PREVIEW_CFG");
         for (std::string rest = v ? v : ""; !rest.empty();) {

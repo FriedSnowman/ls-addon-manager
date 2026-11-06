@@ -5,7 +5,7 @@ every setting does, how to pick the working scale, and what to do when something
 
 ## What was tested
 
-Everything here was developed and tested with **World of Warcraft: Forever** (the beta; it runs as `WowB.exe`), on Lossless Scaling 3.2.2.0, Windows 11 and an RTX 4070 Ti SUPER (RTX 30 was the
+Everything here was developed and tested with **World of Warcraft: Forever** (the beta; it runs as `WowB.exe`), on Lossless Scaling 3.2.2.0, Windows 11 and an NVIDIA RTX GPU (RTX 30 was the
 earlier development card). Other games and setups are untested; the addon does not depend on anything game-specific, so it may well work elsewhere, but that has not been
 seen.
 
@@ -159,7 +159,7 @@ What each of these measurably does, knob by knob, is in [dlssnr-knobs.md](dlssnr
 | Diagnostic view | Result | *Original* shows the frame untouched, *Delta x4* the delta amplified, *Frame role* tints real frames green and generated frames red, *LSFG flow* shows the flow field. |
 
 The lines above the controls are live: the model input size in megapixels, the measured model
-time next to the estimate (10 ms + 7 ms per megapixel on Ampere; about 2.7 ms + 1.8 ms on an RTX 4070 Ti SUPER), the frame interval, how many
+time next to the estimate (10 ms + 7 ms per megapixel on Ampere; about 2.7 ms + 1.8 ms on an NVIDIA RTX GPU), the frame interval, how many
 frames the model keeps up with, how long after the submit the GPU started and finished, and how
 many presents were composed with which pattern. A warning appears when the model runs on fewer
 than half of the frames.

@@ -31,7 +31,7 @@ updates itself. It is free, MIT-licensed and unofficial: not affiliated with the
 > and it does not say where to get it. Put it next to `LosslessScaling.exe` (Setup and the addon's **Browse for the model file...** button can copy it there), then
 > press **Test compatibility** in the addon's panel. Everything else, the upscalers included, works without it.
 
-**Tried with** World of Warcraft: Forever, Fallout: New Vegas (Tale of Two Wastelands), Silent Hill f (HDR) and Metro 2033 Redux, on an RTX 4070 Ti SUPER and
+**Tried with** World of Warcraft: Forever, Fallout: New Vegas (Tale of Two Wastelands), Silent Hill f (HDR) and Metro 2033 Redux, on an NVIDIA RTX GPU and
 Windows 11. Other games and cards are untested so far: reports are welcome.
 
 ## Contents
@@ -104,7 +104,7 @@ Lossless Scaling wait.
 - **Compare while you play:** before / after, a split view, and before / after pictures (see [Hotkeys](#hotkeys)).
 - **Auto quality** keeps the model within a time budget; a **compatibility test** tries the model on your card before you play.
 
-About 5 to 9 ms a frame on an RTX 4070 Ti SUPER with a 1912x1080 model input (8.5 ms at 4K in World of Warcraft). [The addon's README](addons/DLSS5NR01/README.md) has the details.
+About 5 to 9 ms a frame on an NVIDIA RTX GPU with a 1912x1080 model input (8.5 ms at 4K in World of Warcraft). [The addon's README](addons/DLSS5NR01/README.md) has the details.
 
 <p align="center"><img src="docs/images/hud-editor.png" alt="HUD areas drawn on a snapshot of World of Warcraft: Forever" width="100%"></p>
 
@@ -138,7 +138,7 @@ What all three do:
 - **Settings per game**, which come back when the game takes focus.
 - **Before / after** against NIS while you play, and a line of live numbers.
 
-What they cost on an RTX 4070 Ti SUPER, everything included (the 1:1 row: 0.9.14, live in World of Warcraft, the motion estimate included):
+What they cost on an NVIDIA RTX GPU, everything included (the 1:1 row: 0.9.14, live in World of Warcraft, the motion estimate included):
 
 | | DLSS | FSR 3.1 | XeSS |
 |---|---|---|---|

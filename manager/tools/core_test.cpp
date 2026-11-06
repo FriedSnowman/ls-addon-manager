@@ -239,7 +239,7 @@ static void TestConfig(const fs::path& T) {
         const fs::path p = dir / "config.json";
         C.Load(p.wstring());
         bool threw = false;
-        try { C.Set("x", "path", "C:\\Users\\Jos\xE9\\model.dll"); C.GlobalSet(nullptr, "note", std::string("caf\xE9")); C.Save(); } catch (...) { threw = true; }
+        try { C.Set("x", "path", "C:\\test\\invalid-\xE9\\model.dll"); C.GlobalSet(nullptr, "note", std::string("caf\xE9")); C.Save(); } catch (...) { threw = true; }
         Check("invalid UTF-8 from an addon does not make Save throw", !threw);
         Check("...and the file is still written, with the rest intact", fs::exists(p) && ReadJson(p)["addons"]["x"].contains("path"));
         std::string backup;

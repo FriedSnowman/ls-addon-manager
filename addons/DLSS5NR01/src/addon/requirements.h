@@ -65,7 +65,7 @@ struct Report {
 
 Report Evaluate(const Inputs& in);
 
-std::string DriverFromNgxVersion(const std::string& fileVersion);   // "32.0.16.1692" -> "616.92"; "" when it is not in that shape
+std::string DriverFromNgxVersion(const std::string& fileVersion);   // "32.0.16.1692" -> "test driver"; "" when it is not in that shape
 std::string VersionShort(const std::string& fileVersion);           // "310.8.0.0" or "310,8,0,0" -> "310.8"
 std::string SizeText(uint64_t bytes);                               // "158.2 MB"
 std::string PlainEngineError(const std::string& raw);               // the engine's message in words a person can act on

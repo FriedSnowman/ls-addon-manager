@@ -529,7 +529,7 @@ void DrawPanel() {
         if (dlaa) Note("DLAA works on the whole frame, so there is no model resolution to choose.");
         else {
         createChanged |= SL("Model resolution", &c.p.workingScale, 0.25f, 1.0f, "%.2f x the frame");
-        Tip("The frame is shrunk by this before the model sees it, and the model's change is stretched back up to the picture. 1.00 = the model sees the whole frame: best detail, costs the most. This is the only setting that changes the cost.\nOn an RTX 4070 Ti SUPER the model takes roughly 2.7 ms plus 1.8 ms per megapixel.\nChanging it has the model made again in the background: for a fraction of a second the last result carries on, and the game does not stall.\nWith Auto on, this is the most it uses.");
+        Tip("The frame is shrunk by this before the model sees it, and the model's change is stretched back up to the picture. 1.00 = the model sees the whole frame: best detail, costs the most. This is the only setting that changes the cost.\nOn an NVIDIA RTX GPU the model takes roughly 2.7 ms plus 1.8 ms per megapixel.\nChanging it has the model made again in the background: for a fraction of a second the last result carries on, and the game does not stall.\nWith Auto on, this is the most it uses.");
         changed |= ImGui::Checkbox("Auto: keep the model within a time budget", &c.autoQuality);
         Tip("Lowers the model resolution while the model takes longer than the budget below (a busy scene, a hot card), and raises it back toward your own setting above when there is room. It changes slowly (down after 3 s over the budget, up after 10 s well under it) so it judges steady numbers, not a moment's spike. Nothing that changes the look is touched.");
         if (c.autoQuality) {

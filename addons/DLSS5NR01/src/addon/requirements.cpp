@@ -72,7 +72,7 @@ std::wstring RegistryString(HKEY root, const wchar_t* subkey, const wchar_t* val
 } // namespace
 
 std::string DriverFromNgxVersion(const std::string& fileVersion) {
-    // NVIDIA's file versions end with the driver number: 32.0.16.1692 is driver 616.92, 31.0.15.5222 is 552.22.
+    // NVIDIA's file versions end with the driver number: 32.0.16.1692 is driver test driver, 31.0.15.5222 is 552.22.
     unsigned a, b, c, d;
     char extra;
     if (sscanf(fileVersion.c_str(), "%u.%u.%u.%u%c", &a, &b, &c, &d, &extra) != 4) return std::string();

@@ -143,7 +143,7 @@ LosslessScaling.exe (the addon's "Browse for the model file..." button copies it
 panel. Everything else here works without it.
 
 Tested with World of Warcraft: Forever (the beta; it runs as WowB.exe), Lossless Scaling 3.2.2.0, Windows 11,
-RTX 4070 Ti SUPER. Other games and setups are untested.
+NVIDIA RTX GPU. Other games and setups are untested.
 
 The manager checks github.com once a day for a newer release of this project (on by default; turn it off in Settings > Updates). It only compares version
 numbers: nothing is downloaded or installed, and it is the only thing the manager sends over the internet.
