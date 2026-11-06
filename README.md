@@ -347,6 +347,8 @@ Visual Studio 2022 (Desktop C++) and CMake 3.20+. Dear ImGui and MinHook are fet
 
 Releases are numbered **Build 1, Build 2, Build 3, ...**. Set `EAM_BUILD_NUMBER` in [`version.h`](manager/sdk/include/eam/version.h) for the next release; the manager, installer and package name use that number. Rebuilding keeps the same number. `tools/package.ps1 -Build 1` builds and packages Build 1, and refuses a number that differs from the source.
 
+Pushing a tag such as `build-1` runs the [release workflow](.github/workflows/release.yml). The tag number must match `EAM_BUILD_NUMBER` in that commit. After the tests and installer checks pass, it creates a GitHub release named **Build 1** with `LSAddonManager-build-1-x64.zip` and its SHA-256 checksum. The ZIP includes the installer, all four addons, required upscaler runtimes, licences and corresponding NR source; the DLSS5 model DLL is not included. If the release already exists, the workflow uploads the assets there. To retry a failed build, rerun the workflow from the Actions tab.
+
 ~~For the manager and Neural Rendering only, follow the local build guide and run `tools/build_local_nr.ps1`.~~ That build script is retired.
 
 Build the manager and new NR addon, then create its corresponding source archive:

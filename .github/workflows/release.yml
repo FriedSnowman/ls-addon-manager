@@ -1,0 +1,91 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'build-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Check release tag
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if ($env:RELEASE_TAG -cnotmatch '^build-([1-9][0-9]*)$') {
+            throw 'Release tags must be build-1, build-2, etc.'
+          }
+          $number = $Matches[1]
+          $source = Select-String -LiteralPath 'manager/sdk/include/eam/version.h' -Pattern '^#define EAM_BUILD_NUMBER ([1-9][0-9]*)$'
+          if (-not $source -or $number -ne $source.Matches[0].Groups[1].Value -or [long]$number -gt 65535) {
+            throw 'The release tag must match EAM_BUILD_NUMBER in manager/sdk/include/eam/version.h.'
+          }
+          "number=$number" >> $env:GITHUB_OUTPUT
+          "archive=dist/LSAddonManager-build-$number-x64.zip" >> $env:GITHUB_OUTPUT
+
+      - name: Build and test
+        run: |
+          powershell -NoProfile -File tools/ci.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Build or tests failed.' }
+
+      - name: Fetch pinned release dependencies
+        run: |
+          powershell -NoProfile -File tools/fetch_ngx_sdk.ps1 -AcceptNvidiaLicense
+          if ($LASTEXITCODE -ne 0) { throw 'NVIDIA SDK download failed.' }
+          powershell -NoProfile -File tools/fetch_ffx_sdk.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'FidelityFX download failed.' }
+          powershell -NoProfile -File tools/fetch_fsr4.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'FSR 4 download failed.' }
+          powershell -NoProfile -File tools/fetch_xess_sdk.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'XeSS SDK download failed.' }
+
+      - name: Package and verify installer
+        env:
+          BUILD_NUMBER: ${{ steps.version.outputs.number }}
+          RELEASE_ARCHIVE: ${{ steps.version.outputs.archive }}
+        run: |
+          powershell -NoProfile -File tools/package.ps1 -Build $env:BUILD_NUMBER
+          if ($LASTEXITCODE -ne 0) { throw 'Release packaging failed.' }
+          $hash = (Get-FileHash -LiteralPath $env:RELEASE_ARCHIVE -Algorithm SHA256).Hash.ToLowerInvariant()
+          $filename = Split-Path $env:RELEASE_ARCHIVE -Leaf
+          "$hash  $filename" | Set-Content -LiteralPath "$env:RELEASE_ARCHIVE.sha256" -Encoding ascii
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          BUILD_NUMBER: ${{ steps.version.outputs.number }}
+          RELEASE_ARCHIVE: ${{ steps.version.outputs.archive }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          $release = gh release view $env:RELEASE_TAG --json isDraft 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:RELEASE_TAG $env:RELEASE_ARCHIVE "$env:RELEASE_ARCHIVE.sha256" --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Uploading the release assets failed.' }
+            if (($release | ConvertFrom-Json).isDraft) {
+              gh release edit $env:RELEASE_TAG --draft=false
+            }
+          } else {
+            gh release create $env:RELEASE_TAG $env:RELEASE_ARCHIVE "$env:RELEASE_ARCHIVE.sha256" --verify-tag --title "Build $env:BUILD_NUMBER" --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing the release assets failed.' }
