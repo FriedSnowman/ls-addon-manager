@@ -76,11 +76,11 @@ The original repo and GitHub were nuked, and then their Reddit got nuked as well
 ---
 ---
 
-<!-- <p align="center"><img src="docs/images/banner.svg" alt="Addon Manager for Lossless Scaling" width="100%"></p> -->
+<p align="center"><img src="docs/images/banner.svg" alt="Addon Manager for Lossless Scaling" width="100%"></p>
 
 <p align="center"><b>Lossless Scaling, extended.</b><br>DLSS 5 Neural Rendering, DLSS, FSR and XeSS upscaling for games that never had them, and an addon manager that keeps it all in one window.</p>
 
-<!-- <p align="center"><img src="docs/images/addons.png" alt="The manager: the addons at the left, Neural Rendering's panel at the right, the machine's load in the header" width="100%"></p> -->
+<p align="center"><img src="docs/images/addons.png" alt="The manager: the addons at the left, Neural Rendering's panel at the right, the machine's load in the header" width="100%"></p>
 
 **Addon Manager for Lossless Scaling** loads alongside [Lossless Scaling](https://store.steampowered.com/app/993090/Lossless_Scaling/) and gives it an addon system,
 with source for four addons that do what Lossless Scaling alone cannot:
@@ -100,9 +100,9 @@ supports manual installation. It is free and unofficial: not affiliated with the
 > screen's own size with DLSS (the new **Auto** model), and all three now beat a plain stretch in a fast turn, for 3-4 ms a frame at 4K.
 > Everything else is in the [changelog](CHANGELOG.md).
 
-<!-- <p align="center"><img src="docs/images/shf-original.jpg" alt="Silent Hill f through Lossless Scaling, the original picture" width="100%"></p> -->
-<!-- <p align="center"><img src="docs/images/shf-neural-rendering.jpg" alt="The same scene with DLSS 5 Neural Rendering" width="100%"></p> -->
-<!-- <p align="center"><sub>Silent Hill f (Unreal Engine 5, HDR) through Lossless Scaling: the original above, DLSS 5 Neural Rendering below.</sub></p> -->
+<p align="center"><img src="docs/images/shf-original.jpg" alt="Silent Hill f through Lossless Scaling, the original picture" width="100%"></p>
+<p align="center"><img src="docs/images/shf-neural-rendering.jpg" alt="The same scene with DLSS 5 Neural Rendering" width="100%"></p>
+<p align="center"><sub>Silent Hill f (Unreal Engine 5, HDR) through Lossless Scaling: the original above, DLSS 5 Neural Rendering below.</sub></p>
 
 > [!IMPORTANT]
 > **DLSS 5 Neural Rendering needs a file you provide yourself:** your own copy of `nvngx_dlssnr.dll`. It is **not included**, this project **never downloads it**,
@@ -145,14 +145,12 @@ It writes `dist/LSAddonManager-build-<number>-x64.zip`, containing Setup and the
 It finds your Lossless Scaling folder (Steam or not; otherwise choose **Use a different folder...**) and offers what fits: **Install**, **Update**, **Repair** or **Uninstall**.
 The current packaging script requires all four addon products; Neural Rendering starts on, and included upscalers start off on a new installation.
 
-<!--
 <table>
 <tr>
 <td valign="top" width="50%"><b>Setup, before installing</b><br><img src="docs/images/setup-install.png" alt="Setup offering to install"></td>
 <td valign="top" width="50%"><b>Setup, when it is done</b><br><img src="docs/images/setup-installed.png" alt="Setup after installing"></td>
 </tr>
 </table>
--->
 
 **What Setup does:**
 
@@ -198,11 +196,11 @@ That package includes the runtimes needed by the upscalers it contains. Only one
 
 Upstream measured about 5 to 9 ms a frame on an NVIDIA RTX GPU with a 1912x1080 model input (8.5 ms at 4K in World of Warcraft). ~~The retired addon's README has the details.~~ These timings do not describe the replacement.
 
-<!-- <p align="center"><img src="docs/images/hud-editor.png" alt="HUD areas drawn on a snapshot of World of Warcraft: Forever" width="100%"></p> -->
+<p align="center"><img src="docs/images/hud-editor.png" alt="HUD areas drawn on a snapshot of World of Warcraft: Forever" width="100%"></p>
 
 ### The upscalers: DLSS, FSR and XeSS
 
-<!-- <p align="center"><img src="docs/images/upscaler.png" alt="The FSR Upscaler's panel in the manager" width="100%"></p> -->
+<p align="center"><img src="docs/images/upscaler.png" alt="The FSR Upscaler's panel in the manager" width="100%"></p>
 
 Lossless Scaling scales a game window up to the screen one frame at a time. The upscalers put a **temporal upscaler** in its place: it reads several frames and
 the motion between them, for a steadier, more detailed picture. The game needs no support for it: **the addons measure the motion from the frames themselves.**
@@ -258,7 +256,7 @@ Built into the manager, on its Features tab, both off until switched on:
 - **Addons without touching folders:** install from a folder, a zip or a DLL (or drop one on the window); *Remove* moves an addon aside, nothing is erased.
 - **Runtimes list:** every file the addons run on (DLSS, FSR, XeSS, your model), whether it is available, and whether it is loaded.
   **+** switches to another file while the game runs.
-  <!-- <p align="center"><img src="docs/images/runtimes.png" alt="The Runtimes list with the FSR menu open" width="75%"></p> -->
+  <p align="center"><img src="docs/images/runtimes.png" alt="The Runtimes list with the FSR menu open" width="75%"></p>
 - **Record a bug:** the standalone upscalers keep the last few seconds of frames and save them as a file that plays the problem back on another computer. The replacement NR addon does not include the old recorder.
 - **Stays out of the way:** it opens with Lossless Scaling, hides to the notification area, and comes back with a click or **Ctrl+Shift+F12**.
 - **Back up and restore** every setting to one file, and a **diagnostics zip** of logs and settings for a bug report (nothing is uploaded).
@@ -276,14 +274,12 @@ Built into the manager, on its Features tab, both off until switched on:
 
 Closing the window stops nothing: the manager hides to the notification area (Windows may keep its icon under the ^ arrow by the clock).
 
-<!--
 <table>
 <tr>
 <td valign="top" width="50%"><b>Performance</b><br><img src="docs/images/performance.png" alt="The Performance tab"></td>
 <td valign="top" width="50%"><b>Settings</b><br><img src="docs/images/settings.png" alt="The Settings tab"></td>
 </tr>
 </table>
--->
 
 ## Hotkeys
 
