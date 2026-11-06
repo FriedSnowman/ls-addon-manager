@@ -1,12 +1,18 @@
 # Builds manager, independent NVIDIA NR and retained DLSS/FSR/XeSS scalers. Nothing is deployed.
 # -Only host,neural,scalers selects products. CMake and Visual Studio C++ tools must be on PATH.
-param([string[]]$Only = @())
+# -IncludeTools also builds the UI preview and offline upscaler diagnostics.
+param([string[]]$Only = @(), [switch]$IncludeTools)
 $Only = @($Only | ForEach-Object { $_ -split "," } | Where-Object { $_ })   # accepts -Only a,b when started with -File
 $root = Split-Path $PSScriptRoot -Parent   # the repository folder
+$hostTargets = @('Lossless')
+if ($IncludeTools) { $hostTargets += 'eam_uipreview' }
+$scalerArgs = @('--target', 'DLSS4DLAA', 'FSR3UPSC')
+if (Test-Path "$root\addons\Upscalers\external\xess\inc\xess\xess_d3d12.h") { $scalerArgs += 'XESSUPSC' }
+if ($IncludeTools) { $scalerArgs = @() }
 $targets = @(
-    @{ Name = 'host';     Dir = "$root\manager\build";                 Args = @('--target', 'Lossless', '--target', 'eam_uipreview') },
+    @{ Name = 'host';     Dir = "$root\manager\build";                 Args = @('--target') + $hostTargets },
     @{ Name = 'neural'; Dir = "$root\addons\NeuralRendering\build"; Args = @('--target','DLSSNR02') },
-    @{ Name = 'scalers';       Dir = "$root\addons\Upscalers\build";                            Args = @() }
+    @{ Name = 'scalers';       Dir = "$root\addons\Upscalers\build"; Args = $scalerArgs }
 )
 $failed = 0
 foreach ($t in $targets) {
@@ -18,7 +24,7 @@ foreach ($t in $targets) {
     }
     Write-Host "== $($t.Name)"
     Push-Location $t.Dir
-    & cmake --build . --config Release @($t.Args) 2>&1 | Select-String -Pattern 'error|warning C4|vcxproj ->' | ForEach-Object { $_.Line }
+    & cmake --build . --config Release --parallel 2 @($t.Args) 2>&1 | Select-String -Pattern 'error|warning C4|vcxproj ->' | ForEach-Object { $_.Line }
     if ($LASTEXITCODE -ne 0) { $failed++ }
     Pop-Location
 }

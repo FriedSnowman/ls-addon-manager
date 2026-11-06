@@ -392,7 +392,7 @@ The broader build, test, packaging, and deployment tools are:
 ```powershell
 powershell -File tools\build_all.ps1              # the manager and the addons (-Only host: the manager only)
 powershell -File tools\run_addon_tests.ps1        # the offline tests for what changed (-All: everything, as before a release)
-powershell -File tools\ci.ps1                     # manager, installer, NR and sample builds; tests that need no GPU
+powershell -File tools\ci.ps1                     # fast payload and NR-loader smoke tests (-Full: broader suite)
 powershell -File tools\package.ps1                # the release zip, with Setup built around the files
 powershell -File tools\deploy.ps1 -What all       # copy a build into a Lossless Scaling folder, with backups
 ```

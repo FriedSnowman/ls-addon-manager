@@ -1,10 +1,13 @@
-# The tests that need neither a GPU nor a game nor NVIDIA's SDK, from a clean checkout: what the GitHub Actions build runs on every push, and what anyone can run to
-# see that a checkout is healthy. It configures and builds what it needs (Dear ImGui and MinHook are fetched at pinned versions), runs the tests, and builds the sample
-# addon the way its README describes. It does not execute Neural Rendering (hardware/model tests are separate) and does not open any window.
-#   powershell -File tools\ci.ps1
+# Fast CPU-only smoke tests: installer payload validation and NR runtime loading.
+# The default builds no GUI, shaders, GPU tests, or sample addon and downloads no dependencies.
+# Use -Full for the broader manager, installer, NR and sample build/test suite.
+#   powershell -File tools\ci.ps1 [-Full]
+param([switch]$Full)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $failed = @()
+$logs = Join-Path $root 'build\ci-logs'
+New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Section($text) { Write-Host ""; Write-Host "=== $text" }
 function Configure($src, $build, $extra = @()) {
@@ -13,13 +16,47 @@ function Configure($src, $build, $extra = @()) {
     if ($LASTEXITCODE -ne 0) { throw "cmake could not configure $src" }
 }
 function Build($build, $targets) {
-    & cmake --build $build --config Release --target @targets -- /nologo /verbosity:minimal
+    & cmake --build $build --config Release --parallel 2 --target @targets -- /nologo /verbosity:minimal
     if ($LASTEXITCODE -ne 0) { throw "the build failed in $build" }
 }
 function Run($name, $exe, $testArgs = @()) {
     Write-Host "--- $name"
-    & $exe @testArgs
-    if ($LASTEXITCODE -ne 0) { $script:failed += $name; Write-Host "FAILED: $name (exit $LASTEXITCODE)" }
+    $testTimer = [Diagnostics.Stopwatch]::StartNew()
+    $logBase = Join-Path $logs ($name -replace '[^a-zA-Z0-9_-]', '-')
+    $start = @{
+        FilePath = $exe; PassThru = $true; WindowStyle = 'Hidden'
+        RedirectStandardOutput = "$logBase.out.log"; RedirectStandardError = "$logBase.err.log"
+    }
+    if ($testArgs.Count) { $start.ArgumentList = @($testArgs | ForEach-Object { '"' + $_ + '"' }) }
+    $process = Start-Process @start
+    # Windows PowerShell otherwise loses ExitCode when a short-lived process exits.
+    $null = $process.Handle
+    $limit = if ($Full) { 300 } else { 30 }
+    if (-not $process.WaitForExit($limit * 1000)) {
+        & taskkill.exe /PID $process.Id /T /F | Out-Null
+        throw "$name exceeded its $limit second timeout. Logs: $logBase.*.log"
+    }
+    $process.WaitForExit()
+    Get-Content "$logBase.out.log", "$logBase.err.log" | ForEach-Object { Write-Host $_ }
+    Write-Host ('{0}: {1:N2}s' -f $name, $testTimer.Elapsed.TotalSeconds)
+    if ($process.ExitCode -ne 0) { throw "FAILED: $name (exit $($process.ExitCode))" }
+}
+
+if (-not $Full) {
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    # Separate build directories keep NEURAL_BUILD_ADDON=OFF out of product builds.
+    $smoke = Join-Path $root 'build\ci-smoke'
+    Section 'installer payload smoke test'
+    Configure "$root\installer" "$smoke\installer"
+    Build "$smoke\installer" @('setup_payload_test')
+    Run 'installer payload' "$smoke\installer\Release\setup_payload_test.exe"
+
+    Section 'NR runtime loader smoke test'
+    Configure "$root\addons\NeuralRendering" "$smoke\neural" @('-DNEURAL_BUILD_ADDON=OFF')
+    Build "$smoke\neural" @('neural_forwardertest')
+    Run 'NR runtime loader' "$smoke\neural\Release\neural_forwardertest.exe"
+    Write-Host ('FAST CI TESTS PASSED ({0:N1}s including build)' -f $timer.Elapsed.TotalSeconds)
+    exit 0
 }
 
 Section 'the manager and its tests'

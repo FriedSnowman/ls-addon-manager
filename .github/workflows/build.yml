@@ -1,5 +1,5 @@
-# Builds the manager, the installer and the sample addon, and runs the tests that need no GPU and no game, on every push and pull request.
-# Neural Rendering is built without the proprietary model or SDK. Hardware tests are run separately.
+# Fast payload and NR-loader smoke tests on every push and pull request.
+# Product compilation happens during release packaging; tools/ci.ps1 -Full is opt-in.
 name: build
 
 on:
@@ -13,9 +13,10 @@ permissions:
 jobs:
   windows:
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, pinned source
-      - name: Build and test
+      - name: Fast smoke tests
+        timeout-minutes: 3
         shell: pwsh
         run: powershell -NoProfile -File tools/ci.ps1

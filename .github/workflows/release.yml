@@ -42,10 +42,11 @@ jobs:
           "number=$number" >> $env:GITHUB_OUTPUT
           "archive=dist/LSAddonManager-build-$number-x64.zip" >> $env:GITHUB_OUTPUT
 
-      - name: Build and test
+      - name: Fast smoke tests
+        timeout-minutes: 3
         run: |
           powershell -NoProfile -File tools/ci.ps1
-          if ($LASTEXITCODE -ne 0) { throw 'Build or tests failed.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Smoke tests failed.' }
 
       - name: Fetch pinned release dependencies
         run: |
