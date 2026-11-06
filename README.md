@@ -9,7 +9,7 @@
 
 ## New DLSS5 addon
 
-The old addon had some serious architectural problems and didn't match the visuals of the other established projects. The DLSS5 addon has been replaced with a new NVIDIA-only implementation in [addons/NeuralRendering](addons/NeuralRendering).
+The old addon had some serious architectural problems and didn't match the visuals of other established projects. The DLSS5 addon has been replaced with a new NVIDIA-only implementation in [addons/NeuralRendering](addons/NeuralRendering).
 
 ### New Architecture
 
@@ -44,12 +44,12 @@ The main benefits are **a result tied to the current real frame**, **LSFG interp
 
 That ordering has a cost: LSFG waits for the accepted frame's NR work on the GPU. There is also a bounded CPU wait for a small scene-change summary. This is not a zero-latency path.
 
-Use **WGC**, an NVIDIA GPU with compatible optical-flow/model support, and **LSFG 3 or frame generation off**. With FG off, select Scaling Off or NIS. The supported runtime profile is LS **3.2.2.0** with the user-provided NR model **310.8.0.0**; exact hashes and setup are in the [new addon guide](addons/NeuralRendering/README.md). Unknown builds bypass unchanged. SDR and linear scRGB are supported; direct HDR10/PQ capture is not. Captures supply no game depth, exposure, jitter or engine motion vectors; the validated model uses constant placeholder depth.
+Use **WGC**, an NVIDIA GPU with compatible optical-flow/model support, and **LSFG 3 or frame generation off**. With FG off, select Scaling Off or NIS. The supported LS runtime is **3.2.2.0**. Newer user-provided NR model DLLs are accepted without a fixed hash restriction; **Model → Fast (B)** requests the smaller model in DLLs that include it. Models **310.8.0.0** and **310.9.16.0** have passed synthetic pipeline tests, including Original/Fast switching with 310.9.16.0. Tested DLL hashes, setup and model choices are in the [new addon guide](addons/NeuralRendering/README.md). Unknown LS builds and model initialization failures bypass unchanged. SDR and linear scRGB are supported; direct HDR10/PQ capture is not. Captures supply no game depth, exposure, jitter or engine motion vectors; the addon uses constant placeholder depth.
 
 ## Fork notice
 
 Fork of https://github.com/Echo-Storm/ls-addon-manager
-Original repo and GitHub were nuked, and then their Reddit got nuked as well. The code doesn't seem malicious at all, so maybe they just got fed up and retired? A real shame because it works EXTREMELY well.
+The original repo and GitHub were nuked, and then their Reddit got nuked as well. The code doesn't seem malicious at all, so maybe they just got fed up and retired? A real shame because it works EXTREMELY well.
 
 ---
 ---

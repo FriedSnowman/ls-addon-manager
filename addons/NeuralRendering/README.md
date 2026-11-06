@@ -10,9 +10,18 @@ It never enhances generated frames or reuses an earlier neural edit. AMD NR and 
 
 Install the matching manager (API 1.3) and this addon. Enable it in the manager. Select **WGC** in Lossless Scaling, with **LSFG 3 or frame generation off**. With FG off, choose Scaling Off or NIS. Select your user-provided `nvngx_dlssnr.dll` in the addon panel; the default location is beside `LosslessScaling.exe`. The model is never bundled or downloaded.
 
-Supported runtime: LS original DLL 3.2.2.0 SHA-256 `626b196d799606cd4250b7b29e04228692ab70cf56a5d1bbb56d748c8219f0eb`; model 310.8.0.0 SHA-256 `e16bcf15e16e13f527491cdf7845b2fe6521a738d8f7c9c721866a8496e1fc8e`. LS/model hashes are checked. An NVIDIA GPU with compatible NVOFA and model capabilities is required. Unknown LS/model builds, unsupported capture profiles and initialization failures pass originals through with an explicit status. DXGI duplication is not supported.
+Supported LS runtime: original DLL 3.2.2.0 SHA-256 `626b196d799606cd4250b7b29e04228692ab70cf56a5d1bbb56d748c8219f0eb`. The LS hash is checked. Model DLLs are not restricted to a hash or version: newer user-provided DLLs are accepted if they expose the required D3D12 NGX functions and initialize successfully. An NVIDIA GPU with compatible NVOFA and model capabilities is required. Unknown LS builds, unsupported capture profiles and model initialization failures pass originals through with an explicit status. DXGI duplication is not supported.
 
-SDR Rec.709 and linear scRGB are supported at the capture boundary. Direct HDR10/PQ capture is not enabled. scRGB's unit is 80 nits; reference white defaults to 203 nits. Real game depth, exposure, jitter, masks and engine motion vectors are unavailable. Constant depth 1 is a verified compatibility input for this exact model, not estimated geometry.
+SDR Rec.709 and linear scRGB are supported at the capture boundary. Direct HDR10/PQ capture is not enabled. scRGB's unit is 80 nits; reference white defaults to 203 nits. Real game depth, exposure, jitter, masks and engine motion vectors are unavailable. Constant depth 1 is a compatibility input, not estimated geometry. Synthetic pipeline tests passed with these DLLs:
+
+| Model version | SHA-256 |
+|---|---|
+| 310.8.0.0 | `e16bcf15e16e13f527491cdf7845b2fe6521a738d8f7c9c721866a8496e1fc8e` |
+| 310.9.16.0 (unsigned compatibility build) | `cdfa6c1ec784867182164c7836f324f087b5c9f374d0c9fe46f54999feabf3ed` |
+
+The 310.9.16.0 tests cover Default, Original and Fast model creation/evaluation/retirement, live model switching, SDR/scRGB output, native and half working resolutions, scene resets, overload and initialization recovery. D3D12 validation reported zero errors. Other DLLs and gameplay across hardware still need validation.
+
+**Model** selects Default (the DLL chooses), Original (A), or Fast (B). Fast requests preset 2, the smaller network included in 310.9.16.0 and later; Original requests preset 1. This mapping is documented in the [runtime model research](https://github.com/mauri870/dlssnr-pytorch#the-lighter-network-3109160-and-later). An older DLL may ignore the Fast hint and keep using its original network. The existing Preset 3 option remains available for saved configurations.
 
 ## Settings mapping
 
@@ -22,7 +31,7 @@ Model and composition controls use the pinned OptiScaler implementation's values
 
 | Setting | Value / meaning | Default |
 |---|---|---:|
-| Preset | `DLSSNR.Hint.Render.Preset`, 0–3 | 0 |
+| Model | `DLSSNR.Hint.Render.Preset`: Default 0, Original (A) 1, Fast (B) 2, legacy Preset 3 | Default |
 | Style | `DLSSNR.Style`, 0–2; upstream names Default/Natural/Cinematic | 0 |
 | Intensity | `DLSSNR.Intensity`, 0–2; **100% = 1**, 50% = 0.5 | 1 |
 | Local structure | `DLSSNR.LocalStructureStrength`, 0–2 | 0.8 |
@@ -64,6 +73,6 @@ The NR model has an independent lifetime: it does not initialize or shut down th
 
 Visual Studio 2022 C++ tools, Windows SDK and CMake 3.20+: configure this directory, then build Release target `DLSSNR02`. Neither a proprietary NGX SDK nor the model is needed to compile. The pinned ImGui source is fetched unless supplied through `FETCHCONTENT_SOURCE_DIR_IMGUI`; source packages include it in `dependencies/imgui`.
 
-Hardware tests: `neural_flowtest`, `neural_compositiontest`, `neural_modeltest <model>`, `neural_pipelinetest <model> [--debug]`. The manager's excluded `eam_captureprobe` target exercises the real LS DLL against its own source window; it never installs or modifies game/LS files.
+`neural_forwardertest` checks runtime loading, model selection and failure recovery with test DLLs, without a GPU or proprietary model. Hardware tests: `neural_flowtest`, `neural_compositiontest`, `neural_modeltest <model> [intensity=1] [preset=0]`, `neural_pipelinetest <model> [--debug] [--preset 0|1|2|3]`. The manager's excluded `eam_captureprobe` target exercises the real LS DLL against its own source window; it never installs or modifies game/LS files.
 
 GPL-3.0-only; see LICENSE and NOTICE.md. Binary packages include `NeuralRendering-source.zip` and attribution. The installer backs up only the retired plugin's owned executables/manifest, preserving user models, settings and unrelated files at their paths. The manager also refuses both retired folder IDs after manual overlay upgrades.

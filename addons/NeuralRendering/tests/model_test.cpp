@@ -14,7 +14,7 @@ int wmain(int argc, wchar_t **argv) {
     InstallExceptionDiagnostics();
     setvbuf(stdout, nullptr, _IONBF, 0);
     if (argc < 2) {
-        puts("usage: neural_modeltest <user nvngx_dlssnr.dll> [intensity=1]");
+        puts("usage: neural_modeltest <user nvngx_dlssnr.dll> [intensity=1] [preset=0]");
         return 2;
     }
     try {
@@ -56,9 +56,11 @@ int wmain(int argc, wchar_t **argv) {
             ModelSettings settings;
             if (argc > 2)
                 settings.intensity = float(_wtof(argv[2]));
+            if (argc > 3)
+                settings.preset = unsigned(_wtoi(argv[3]));
             if (cycle == 1)
                 settings.intensity = 0;
-            printf("Lifecycle cycle %u intensity %.2f\n", cycle, settings.intensity);
+            printf("Lifecycle cycle %u intensity %.2f preset %u\n", cycle, settings.intensity, settings.preset);
             rec.Begin(gpu.fence.Get());
             puts("Creating model feature");
             model.Initialize(gpu, rec, (folder / L"NeuralRendering_nvngx.dll").wstring(),

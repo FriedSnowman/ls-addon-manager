@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "model.h"
-#include "runtime.h"
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
@@ -50,9 +49,9 @@ void Model::Initialize(Gpu &gpu, Recording &rec, const std::wstring &forwarder, 
                        const std::wstring &cache, uint32_t w, uint32_t h, const ModelSettings &settings) {
     if (feature_ || params_)
         throw std::runtime_error("Model already initialized");
-    const auto identity = InspectRuntime(model);
-    if (!SupportedRuntime(identity))
-        throw std::runtime_error("This model build has not been validated with capture-only depth; NR bypassed");
+    const auto modelFile = std::filesystem::absolute(model);
+    if (!std::filesystem::is_regular_file(modelFile))
+        throw std::runtime_error("User-provided nvngx_dlssnr.dll was not found");
     auto strength = [](float v, float low) { return std::isfinite(v) && v >= low && v <= 2.f; };
     if (settings.preset > 3 || settings.style > 2 || !strength(settings.intensity, 0) ||
         !strength(settings.localStructure, 0) || !strength(settings.localTone, 0) ||
@@ -107,10 +106,13 @@ void Model::Initialize(Gpu &gpu, Recording &rec, const std::wstring &forwarder, 
     SetUInt(params_, "OutHeight", h);
     SetUInt(params_, "PerfQualityValue", 2);
     extras_(params_, 0, nullptr, nullptr, nullptr, 0, 0, 0, 0);
-    feature_ = create_(model.c_str(), cache.c_str(), gpu.device.Get(), rec.list.Get(), params_, w, h,
+    feature_ = create_(modelFile.c_str(), cache.c_str(), gpu.device.Get(), rec.list.Get(), params_, w, h,
                        int(settings.preset), settings.intensity, int(settings.style), settings.localStructure,
                        settings.localTone, settings.skinStructure, settings.autoMask ? 1 : 0, 1);
     if (!feature_) {
+        const auto error = Export<const char *(*)()>(forwarder_, "dlssnr_call_last_error")();
+        if (error && *error)
+            throw std::runtime_error(error);
         auto initResult = Export<const int *>(forwarder_, "dlssnr_call_last_init");
         auto createResult = Export<const int *>(forwarder_, "dlssnr_call_last_create");
         char text[256];

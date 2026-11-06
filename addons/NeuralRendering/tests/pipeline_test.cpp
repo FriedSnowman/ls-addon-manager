@@ -31,10 +31,29 @@ static std::vector<unsigned char> Read(ID3D11Device *device, ID3D11DeviceContext
 int wmain(int argc, wchar_t **argv) {
     InstallExceptionDiagnostics();
     setvbuf(stdout, nullptr, _IONBF, 0);
-    if (argc < 2)
+    auto usage = [] {
+        puts("usage: neural_pipelinetest <model DLL> [--debug] [--preset 0|1|2|3]");
         return 2;
+    };
+    if (argc < 2)
+        return usage();
+    bool enableDebug = false;
+    unsigned preset = 0;
+    for (int i = 2; i < argc; ++i) {
+        if (!wcscmp(argv[i], L"--debug")) {
+            enableDebug = true;
+        } else if (!wcscmp(argv[i], L"--preset") && i + 1 < argc) {
+            const auto value = argv[++i];
+            if (value[0] < L'0' || value[0] > L'3' || value[1] != 0)
+                return usage();
+            preset = unsigned(value[0] - L'0');
+        } else {
+            return usage();
+        }
+    }
+    printf("Model preset %u\n", preset);
     ComPtr<ID3D12Debug> debug;
-    if (argc > 2 && !wcscmp(argv[2], L"--debug")) {
+    if (enableDebug) {
         Check(D3D12GetDebugInterface(IID_PPV_ARGS(&debug)), "Enable test debug layer");
         debug->EnableDebugLayer();
     }
@@ -84,6 +103,7 @@ int wmain(int argc, wchar_t **argv) {
             settings.cachePath = (folder / L"pipeline-test-cache").wstring();
             settings.scalePercent = (scenario == 1 || scenario == 5) ? 50 : 100;
             settings.model.intensity = scenario == 0 ? 0 : 1;
+            settings.model.preset = preset;
             pipeline = std::make_unique<Pipeline>();
             pipeline->Initialize(device.Get(), w, h, hdr ? Encoding::ScRgb : Encoding::Sdr709, settings);
             const auto priorities = pipeline->Metrics();
@@ -258,6 +278,13 @@ int wmain(int argc, wchar_t **argv) {
                 waitFor(false, 2);
                 puts("PASS worker initialization failure/retry, settings recreation, disable/re-enable and epoch "
                      "change");
+                settings.model.intensity = 1;
+                for (unsigned selected : {1u, 2u, 0u}) {
+                    settings.model.preset = selected;
+                    service.Configure(settings, true, true);
+                    waitFor(false, 2);
+                }
+                puts("PASS live Original -> Fast -> default model recreation");
             }
         }
         if (messages) {

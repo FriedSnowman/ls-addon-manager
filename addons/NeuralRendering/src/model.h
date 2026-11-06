@@ -4,6 +4,7 @@
 
 namespace neural {
 struct ModelSettings {
+    // Runtime model hint: 0 default, 1 original (A), 2 fast (B); retain legacy 3.
     uint32_t preset = 0, style = 0;
     float intensity = 1, localStructure = 0.8f, localTone = 0.3f, skinStructure = -1;
     bool autoMask = true;

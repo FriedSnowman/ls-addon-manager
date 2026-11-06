@@ -36,9 +36,10 @@ Run 'installer core (fake Lossless Scaling folders)' "$root\installer\build\Rele
 Run 'installer file bundle' "$root\installer\build\Release\setup_payload_test.exe"
 Run 'Setup exe, silent mode' 'powershell' @('-NoProfile', '-File', "$root\installer\tests\setup_exe_test.ps1", '-Root', $root, '-NoWindow')
 
-Section 'the independent NR addon (build only; no proprietary model or SDK needed)'
+Section 'the independent NR addon (no proprietary model or SDK needed)'
 Configure "$root\addons\NeuralRendering" "$root\addons\NeuralRendering\build"
-Build "$root\addons\NeuralRendering\build" @('DLSSNR02','neural_flowtest','neural_compositiontest','neural_modeltest','neural_pipelinetest')
+Build "$root\addons\NeuralRendering\build" @('DLSSNR02','neural_forwardertest','neural_flowtest','neural_compositiontest','neural_modeltest','neural_pipelinetest')
+Run 'NR runtime compatibility and model selection' "$root\addons\NeuralRendering\build\Release\neural_forwardertest.exe"
 
 Section 'the sample addon, built as its README says'
 Configure "$root\examples\SampleAddon" "$root\examples\SampleAddon\build"

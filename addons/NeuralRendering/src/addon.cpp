@@ -281,7 +281,7 @@ EAM_EXPORT void AddonRenderSettings() {
         changed = true;
         rebuild = true;
     }
-    ImGui::TextWrapped("Processes real captures before LSFG. Requires NVIDIA, WGC, and the validated user-provided "
+    ImGui::TextWrapped("Processes real captures before LSFG. Requires NVIDIA, WGC, and a user-provided "
                        "model. Captures contain no game depth or motion data.");
     eam::ui::SectionLabel("Model file");
     ImGui::SetNextItemWidth(-90);
@@ -305,7 +305,7 @@ EAM_EXPORT void AddonRenderSettings() {
             rebuild = true;
         }
     }
-    ImGui::TextDisabled("Validated model: 310.8.0.0. The model is not included.");
+    ImGui::TextDisabled("The model DLL is not included.");
     eam::ui::SectionLabel("Quality and performance");
     int scale = int(settings.scalePercent);
     if (ImGui::SliderInt("Working resolution", &scale, 25, 100, "%d%%")) {
@@ -331,7 +331,7 @@ EAM_EXPORT void AddonRenderSettings() {
         rebuild = true;
     }
     int preset = int(settings.model.preset);
-    if (ImGui::Combo("Preset", &preset, "Default (0)\0Preset 1\0Preset 2\0Preset 3\0")) {
+    if (ImGui::Combo("Model", &preset, "Default\0Original (A)\0Fast (B)\0Preset 3\0")) {
         settings.model.preset = preset;
         rebuild = true;
     }

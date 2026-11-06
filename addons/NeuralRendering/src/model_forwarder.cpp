@@ -18,6 +18,7 @@
 #endif
 #include <d3d12.h>
 #include <windows.h>
+#include <cstdio>
 
 namespace {
 
@@ -61,6 +62,7 @@ using PFN_NrInitExt = int(__cdecl *)(unsigned long long, const wchar_t *, ID3D12
 using PFN_NrCreate = int(__cdecl *)(ID3D12GraphicsCommandList *, int, const void *, void **);
 using PFN_NrEvaluate = int(__cdecl *)(ID3D12GraphicsCommandList *, const void *, const void *, void *);
 using PFN_NrRelease = int(__cdecl *)(void *);
+using PFN_NrShutdown = int(__cdecl *)(ID3D12Device *);
 
 struct Snippet {
     HMODULE module = nullptr;
@@ -68,27 +70,42 @@ struct Snippet {
     PFN_NrCreate create = nullptr;
     PFN_NrEvaluate evaluate = nullptr;
     PFN_NrRelease release = nullptr;
+    PFN_NrShutdown shutdown = nullptr;
     bool initialised = false;
     ID3D12Device *device = nullptr;
     unsigned features = 0;
 };
 
 Snippet g_snip;
+char g_error[256]{};
+
+template <class Fn> bool loadExport(Fn &fn, const char *name) {
+    fn = reinterpret_cast<Fn>(GetProcAddress(g_snip.module, name));
+    if (!fn)
+        snprintf(g_error, sizeof(g_error), "NR model DLL is missing %s", name);
+    return fn != nullptr;
+}
 
 bool loadSnippet(const wchar_t *path) {
     if (g_snip.module) {
-        return g_snip.create != nullptr;
+        return true;
     }
-    g_snip.module = LoadLibraryExW(path, nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+    // Accept user-selected runtime revisions by their interface, not a fixed hash.
+    g_snip.module = LoadLibraryExW(path, nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (!g_snip.module) {
+        snprintf(g_error, sizeof(g_error), "Cannot load NR model DLL (Windows error %lu)", GetLastError());
         return false;
     }
-    g_snip.init = (PFN_NrInitExt)GetProcAddress(g_snip.module, "NVSDK_NGX_D3D12_Init_Ext");
-    g_snip.create = (PFN_NrCreate)GetProcAddress(g_snip.module, "NVSDK_NGX_D3D12_CreateFeature");
-    g_snip.evaluate = (PFN_NrEvaluate)GetProcAddress(g_snip.module, "NVSDK_NGX_D3D12_EvaluateFeature");
-    g_snip.release = (PFN_NrRelease)GetProcAddress(g_snip.module, "NVSDK_NGX_D3D12_ReleaseFeature");
-
-    return g_snip.create != nullptr && g_snip.evaluate != nullptr;
+    if (!loadExport(g_snip.init, "NVSDK_NGX_D3D12_Init_Ext") ||
+        !loadExport(g_snip.create, "NVSDK_NGX_D3D12_CreateFeature") ||
+        !loadExport(g_snip.evaluate, "NVSDK_NGX_D3D12_EvaluateFeature") ||
+        !loadExport(g_snip.release, "NVSDK_NGX_D3D12_ReleaseFeature") ||
+        !loadExport(g_snip.shutdown, "NVSDK_NGX_D3D12_Shutdown1")) {
+        FreeLibrary(g_snip.module);
+        g_snip = {};
+        return false;
+    }
+    return true;
 }
 
 } // namespace
@@ -114,6 +131,9 @@ __declspec(dllexport) void dlssnr_call_probe_float(void *params, const char *nam
 // Last init and create results, so the add-on can log why a feature never appeared.
 __declspec(dllexport) int dlssnr_call_last_init = 0;
 __declspec(dllexport) int dlssnr_call_last_create = 0;
+__declspec(dllexport) const char *dlssnr_call_last_error() {
+    return g_error;
+}
 
 // Creates a persistent Neural Rendering feature. The handle records initialisation work into cmd, so it
 // must outlive that command list's execution; releasing it early loses the device.
@@ -123,6 +143,9 @@ __declspec(dllexport) void *dlssnr_call_create(const wchar_t *snippetPath, const
                                                int preset, float intensity, int style, float localStructure,
                                                float localTone, float skinStructure, int useAutoMask,
                                                int uiCorrection) {
+    g_error[0] = 0;
+    dlssnr_call_last_init = 0;
+    dlssnr_call_last_create = 0;
     if (!loadSnippet(snippetPath) || !capabilityParams) {
         return nullptr;
     }
@@ -280,11 +303,7 @@ __declspec(dllexport) int dlssnr_call_shutdown(ID3D12Device *device) {
     if (g_snip.features || (g_snip.device && g_snip.device != device))
         return 0;
     if (g_snip.module && g_snip.initialised) {
-        using Shutdown = int(__cdecl *)(ID3D12Device *);
-        auto fn = reinterpret_cast<Shutdown>(GetProcAddress(g_snip.module, "NVSDK_NGX_D3D12_Shutdown1"));
-        if (!fn)
-            return 0;
-        volatile int result = fn(device);
+        volatile int result = g_snip.shutdown(device);
         if (result != 1)
             return result;
     }
