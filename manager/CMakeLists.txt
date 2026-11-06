@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.14)
-project(LSAddonManager VERSION 0.9.15)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/include/eam/version.h" _build_line REGEX "^#define EAM_BUILD_NUMBER [0-9]+$")
+string(REGEX REPLACE "^#define EAM_BUILD_NUMBER ([0-9]+)$" "\\1" EAM_BUILD_NUMBER "${_build_line}")
+if(NOT EAM_BUILD_NUMBER MATCHES "^[1-9][0-9]*$" OR EAM_BUILD_NUMBER GREATER 65535)
+    message(FATAL_ERROR "EAM_BUILD_NUMBER must be between 1 and 65535")
+endif()
+project(LSAddonManager VERSION 1.0.${EAM_BUILD_NUMBER})
+set(EAM_BUILD_LABEL "Build ${EAM_BUILD_NUMBER}")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/include/eam/version.h")
 enable_language(RC)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -32,7 +39,7 @@ set(CORE_SOURCES
     src/core/main.cpp
     src/core/instance_guard.cpp
     src/core/shader_hook.cpp
-    src/core/d3d11_hook.cpp
+    src/core/d3d11_hook.cpp src/core/shader_identity.cpp src/core/real_frame_hook.cpp
 )
 
 set(ADDON_SOURCES
@@ -150,7 +157,7 @@ target_link_libraries(Lossless
 # Keep a PDB and a linker map next to the Release DLL so crash backtraces can be resolved.
 if(MSVC)
     target_compile_options(Lossless PRIVATE $<$<CONFIG:Release>:/Zi>)
-    target_link_options(Lossless PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF /MAP>)
+    target_link_options(Lossless PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF /MAP /PDBALTPATH:$<TARGET_PDB_FILE_NAME:Lossless>>)
 endif()
 
 # Offscreen UI preview (no window): renders the theme, toggle, cards and sliders to BMP files. Not built by default;
@@ -216,7 +223,7 @@ add_library(eam_testaddon SHARED EXCLUDE_FROM_ALL tools/test_addon.cpp)
 target_include_directories(eam_testaddon PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include ${imgui_SOURCE_DIR})
 add_executable(eam_coretest EXCLUDE_FROM_ALL tools/core_test.cpp src/core/instance_guard.cpp
     ${ADDON_SOURCES} ${FEATURE_SOURCES} ${EVENT_SOURCES} ${HOST_SOURCES} ${CONFIG_SOURCES} ${LOG_SOURCES}
-    src/gui/icon_loader.cpp src/core/d3d11_hook.cpp src/core/shader_hook.cpp
+    src/gui/icon_loader.cpp src/core/d3d11_hook.cpp src/core/shader_identity.cpp src/core/real_frame_hook.cpp src/core/shader_hook.cpp
     ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
 target_include_directories(eam_coretest PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party ${minhook_SOURCE_DIR}/include)
 target_link_libraries(eam_coretest d3d11 dxgi d3dcompiler bcrypt minhook)
@@ -231,7 +238,7 @@ target_include_directories(eam_sampleaddon PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/s
 set_target_properties(eam_sampleaddon PROPERTIES PREFIX "" OUTPUT_NAME "SampleAddon")
 add_executable(eam_sampletest EXCLUDE_FROM_ALL tools/sample_test.cpp
     ${ADDON_SOURCES} ${FEATURE_SOURCES} ${EVENT_SOURCES} ${HOST_SOURCES} ${CONFIG_SOURCES} ${LOG_SOURCES}
-    src/gui/icon_loader.cpp src/core/d3d11_hook.cpp src/core/shader_hook.cpp
+    src/gui/icon_loader.cpp src/core/d3d11_hook.cpp src/core/shader_identity.cpp src/core/real_frame_hook.cpp src/core/shader_hook.cpp
     ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
 target_include_directories(eam_sampletest PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party ${minhook_SOURCE_DIR}/include)
 target_compile_definitions(eam_sampletest PRIVATE SAMPLE_ADDON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../examples/SampleAddon")
@@ -251,7 +258,7 @@ target_link_libraries(eam_featurestest d3d11 dxgi user32 minhook)
 # cmake --build . --config Release --target eam_guitest
 add_executable(eam_guitest EXCLUDE_FROM_ALL tools/gui_test.cpp
     ${ADDON_SOURCES} ${FEATURE_SOURCES} ${EVENT_SOURCES} ${HOST_SOURCES} ${CONFIG_SOURCES} ${LOG_SOURCES}
-    src/core/d3d11_hook.cpp src/core/shader_hook.cpp
+    src/core/d3d11_hook.cpp src/core/shader_identity.cpp src/core/real_frame_hook.cpp src/core/shader_hook.cpp
     ${GUI_SOURCES} ${IMGUI_SOURCES})
 target_include_directories(eam_guitest PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party ${minhook_SOURCE_DIR}/include)
 target_link_libraries(eam_guitest d3d11 dxgi d3dcompiler bcrypt minhook)
@@ -261,3 +268,11 @@ target_include_directories(eam_runtimetest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} $
 target_link_libraries(eam_runtimetest bcrypt)
 
 install(DIRECTORY sdk/include/eam DESTINATION include)
+
+add_executable(eam_captureprobe EXCLUDE_FROM_ALL tools/capture_probe.cpp
+    ${ADDON_SOURCES} ${FEATURE_SOURCES} ${EVENT_SOURCES} ${HOST_SOURCES} ${CONFIG_SOURCES} ${LOG_SOURCES}
+    src/gui/icon_loader.cpp src/core/d3d11_hook.cpp src/core/shader_identity.cpp src/core/real_frame_hook.cpp src/core/shader_hook.cpp
+    ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
+target_include_directories(eam_captureprobe PRIVATE ${imgui_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party ${minhook_SOURCE_DIR}/include)
+target_link_libraries(eam_captureprobe d3d11 dxgi d3dcompiler bcrypt minhook)
+target_link_options(eam_captureprobe PRIVATE "/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/tools/capture_probe.manifest")

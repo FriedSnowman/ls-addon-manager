@@ -2,6 +2,7 @@
 #include "metrics.h"
 #include "../config/config_manager.h"
 #include "../core/d3d11_hook.h"
+#include "../core/real_frame_hook.h"
 #include "../gui/icon_loader.h"
 #include "../event/event_system.h"
 #include "../log/logger.h"
@@ -46,6 +47,11 @@ bool CallPre(EamPreDispatchCallback cb, uint32_t x, uint32_t y, uint32_t z, void
 }
 bool CallPost(EamPostDispatchCallback cb, uint32_t x, uint32_t y, uint32_t z, void* owner) {
     __try { cb(x, y, z, owner); return true; }
+    __except (EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
+
+bool CallReal(EamRealFrameCallback cb, const EamRealFrame& frame, void* owner, bool* applied) {
+    __try { *applied = cb(frame, owner); return true; }
     __except (EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
 
@@ -147,6 +153,27 @@ void HostImpl::InvokePostDispatch(uint32_t x, uint32_t y, uint32_t z) {
     if (faulted) { DropFaulted(m_postHooks, "post"); Recount(); }
 }
 
+bool HostImpl::SetRealFrameCallback(EamRealFrameCallback cb, void* user) {
+    void* module = ModuleAt(_ReturnAddress());
+    std::lock_guard<std::mutex> lock(m_dispatchMutex);
+    if (m_realHook.callback && m_realHook.module != module) return false;
+    m_realHook = {cb, user, cb ? module : nullptr};
+    m_realCount.store(cb ? 1 : 0, std::memory_order_release);
+    return true;
+}
+EamFrameSupport HostImpl::GetRealFrameSupport() { return RealFrameHook::Support(); }
+bool HostImpl::InvokeRealFrame(const EamRealFrame& frame) {
+    std::lock_guard<std::mutex> lock(m_dispatchMutex);
+    if (!m_realHook.callback) return false;
+    bool applied = false;
+    if (!CallReal(m_realHook.callback, frame, m_realHook.owner, &applied)) {
+        m_realHook = {}; m_realCount.store(0, std::memory_order_release);
+        LOG_ERROR("Host", "Real-frame transform faulted and was removed; original frame retained");
+        return false;
+    }
+    return applied;
+}
+
 // ---- live status and metrics
 
 void HostImpl::SetStatus(const char* addonId, const char* text, int level) {
@@ -160,16 +187,17 @@ void HostImpl::PublishMetric(const char* addonId, const char* key, double value,
 size_t HostImpl::ForgetCode(uintptr_t begin, uintptr_t end) {
     std::lock_guard<std::mutex> lock(m_dispatchMutex);
     const auto inside = [&](auto& hook) { const uintptr_t at = reinterpret_cast<uintptr_t>(hook.callback); return at >= begin && at < end; };
-    const size_t before = m_preHooks.size() + m_postHooks.size();
+    const size_t before = m_preHooks.size() + m_postHooks.size() + m_realCount.load();
+    if (inside(m_realHook)) { m_realHook = {}; m_realCount.store(0); }
     m_preHooks.erase(std::remove_if(m_preHooks.begin(), m_preHooks.end(), inside), m_preHooks.end());
     m_postHooks.erase(std::remove_if(m_postHooks.begin(), m_postHooks.end(), inside), m_postHooks.end());
     Recount();
-    return before - (m_preHooks.size() + m_postHooks.size());
+    return before - (m_preHooks.size() + m_postHooks.size() + m_realCount.load());
 }
 
 size_t HostImpl::DispatchHookCount() {
     std::lock_guard<std::mutex> lock(m_dispatchMutex);
-    return m_preHooks.size() + m_postHooks.size();
+    return m_preHooks.size() + m_postHooks.size() + m_realCount.load();
 }
 
 } // namespace eam

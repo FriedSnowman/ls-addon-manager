@@ -1,8 +1,8 @@
 # Fetches AMD's FidelityFX runtime the FSR Upscaler loads, amd_fidelityfx_dx12.dll (FSR 3.1.4), from AMD's own public repository,
 # https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK (release v1.1.4, its PrebuiltSignedDLL folder), into
-# addons\DLSS5NR01\external\ffx\bin. The build copies it into the FSR addon's fsr folder, and the release ships it there.
+# addons\Upscalers\external\ffx\bin. The build copies it into the FSR addon's fsr folder, and the release ships it there.
 #
-# It is AMD's, under the MIT licence (addons\DLSS5NR01\third_party\ffx\LICENSE.txt, which goes into the release next to it); the API
+# It is AMD's, under the MIT licence (addons\Upscalers\third_party\ffx\LICENSE.txt, which goes into the release next to it); the API
 # headers the addon is built against are in that third_party folder already. Nothing is committed from here: external\ is ignored by git.
 #
 # The file is pinned to one commit of AMD's repository and checked against a SHA-256 value, and its Authenticode signature must be valid and
@@ -11,7 +11,7 @@
 param([string]$Dest = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-if (-not $Dest) { $Dest = "$root\addons\DLSS5NR01\external\ffx" }
+if (-not $Dest) { $Dest = "$root\addons\Upscalers\external\ffx" }
 
 $commit = 'c6efa6bf7f2027b3ec94f28578bb5965eabb9e55'   # AMD FidelityFX SDK 1.1.4
 $files = @(

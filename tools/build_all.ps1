@@ -1,13 +1,12 @@
-# Builds everything in the project: the manager (Lossless.dll, with the built-in features), the addons built from Neural Rendering's sources
-# (DLSS 5 Neural Rendering, the DLSS Upscaler and the FSR Upscaler), the offscreen UI preview and the offline test host. Release x64.
-# Nothing is deployed; see deploy.ps1.
-#   powershell -File build_all.ps1 [-Only host,nr]
+# Builds manager, independent NVIDIA NR and retained DLSS/FSR/XeSS scalers. Nothing is deployed.
+# -Only host,neural,scalers selects products. CMake and Visual Studio C++ tools must be on PATH.
 param([string[]]$Only = @())
 $Only = @($Only | ForEach-Object { $_ -split "," } | Where-Object { $_ })   # accepts -Only a,b when started with -File
 $root = Split-Path $PSScriptRoot -Parent   # the repository folder
 $targets = @(
     @{ Name = 'host';     Dir = "$root\manager\build";                 Args = @('--target', 'Lossless', '--target', 'eam_uipreview') },
-    @{ Name = 'nr';       Dir = "$root\addons\DLSS5NR01\build";                            Args = @() }
+    @{ Name = 'neural'; Dir = "$root\addons\NeuralRendering\build"; Args = @('--target','DLSSNR02') },
+    @{ Name = 'scalers';       Dir = "$root\addons\Upscalers\build";                            Args = @() }
 )
 $failed = 0
 foreach ($t in $targets) {

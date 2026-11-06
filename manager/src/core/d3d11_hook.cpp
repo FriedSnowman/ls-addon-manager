@@ -1,5 +1,7 @@
 #include "d3d11_hook.h"
 #include "hook_util.h"
+#include "shader_identity.h"
+#include "real_frame_hook.h"
 #include "../host/host_impl.h"
 #include "../event/event_system.h"
 #include "../log/logger.h"
@@ -61,9 +63,13 @@ template <int I> void STDMETHODCALLTYPE Detour(ID3D11DeviceContext* ctx, UINT x,
     t_dispatching = ctx;
     g_dispatches.fetch_add(1, std::memory_order_relaxed);
     eam::HostImpl* const host = g_host.load(std::memory_order_acquire);
+    if (host) RealFrameHook::Before(host, ctx, x, y, z);
     const bool skip = host && host->InvokePreDispatch(x, y, z);
     if (!skip) {
         original(ctx, x, y, z);
+    }
+    if (host) RealFrameHook::After(host, ctx, x, y, z, !skip);
+    if (!skip) {
         if (host) host->InvokePostDispatch(x, y, z);
     }
     t_dispatching = nullptr;
@@ -110,6 +116,7 @@ void Initialize(eam::HostImpl* host) {
     g_host.store(host, std::memory_order_release);
     if (g_importPatched) return;
     const HMODULE lossless = GetModuleHandleW(L"Lossless_original.dll");
+    RealFrameHook::VerifyRuntime(lossless);
     if (!lossless) { LOG_ERROR("D3D11Hook", "Lossless_original.dll is not loaded"); return; }
     HMODULE d3d11 = GetModuleHandleW(L"d3d11.dll");
     if (!d3d11) d3d11 = LoadLibraryW(L"d3d11.dll");
@@ -144,6 +151,7 @@ int InstallDispatchHooks() {
 }
 
 void Shutdown() {
+    RealFrameHook::Shutdown();
     g_host.store(nullptr, std::memory_order_release);
     for (auto& c : g_lsContexts) c.store(nullptr, std::memory_order_release);
     g_dispatches.store(0, std::memory_order_relaxed);
@@ -152,6 +160,7 @@ void Shutdown() {
 void Attach(ID3D11Device* device, ID3D11DeviceContext* context) {
     eam::HostImpl* const host = g_host.load(std::memory_order_acquire);
     if (!host) return;
+    if (!ShaderIdentity::Attach(device)) LOG_WARN("D3D11Hook", "Compute shader identities unavailable on this device; verified capture transforms must bypass");
     void* const before = host->GetD3D11Device();
     host->SetD3D11Device(device, context);
     if (!IsLossless(context)) g_lsContexts[g_nextContext.fetch_add(1) % kContexts].store(context, std::memory_order_release);

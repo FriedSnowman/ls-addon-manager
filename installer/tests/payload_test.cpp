@@ -63,8 +63,8 @@ int wmain() {
     const fs::path src = root / L"src";
     Write(src / L"Lossless.dll", std::string("MZ\0real dll bytes", 17) + std::string(70000, 'x'));
     Write(src / L"manager-icon.ico", "icon");
-    Write(src / L"addons" / L"DLSS5NR01" / L"DLSS5NR01.dll", std::string(3000, 'a'));
-    Write(src / L"addons" / L"DLSS5NR01" / L"addon.json", "{ \"id\": \"DLSS5NR01\" }");
+    Write(src / L"addons" / L"DLSSNR02" / L"DLSSNR02.dll", std::string(3000, 'a'));
+    Write(src / L"addons" / L"DLSSNR02" / L"addon.json", "{ \"id\": \"DLSSNR02\" }");
     Write(src / L"addons" / L"empty.bin", "");
     Write(src / L"addons" / L"\u00e9t\u00e9.txt", "accents in a name");
     std::vector<uint8_t> blob, again;
@@ -86,7 +86,7 @@ int wmain() {
     Check("every file comes out byte for byte the same (including an empty file and an accented name)", same && CountFiles(out) == 6);
 
     // 2. Names
-    Check("a plain relative name is fine", SafeRelativePath("addons/DLSS5NR01/addon.json"));
+    Check("a plain relative name is fine", SafeRelativePath("addons/DLSSNR02/addon.json"));
     Check("a name in the top folder is fine", SafeRelativePath("Lossless.dll"));
     const char* bad[] = {"", "/etc/passwd", "a/../b", "../x", "..", ".", "a//b", "a/", "/a", "C:/x", "C:x", "a\\b", "a/./b", "trailing.", "trailing ", "a/b:stream", "a*b", "a?b", "a|b", "a<b", "con\x01"};
     bool allBad = true;

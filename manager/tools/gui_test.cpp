@@ -100,7 +100,7 @@ static void PureChecks() {
 
 
     const std::string base = StatusCounts(3, 1);
-    Check("status: product and counts without a version", base == EAM_PRODUCT_SHORT "   |   3 addons, 1 on", base);
+    Check("status: product, build and counts", base == EAM_PRODUCT_SHORT "   |   " EAM_VERSION_STRING "   |   3 addons, 1 on", base);
     Check("status: one addon is singular", StatusCounts(1, 0).find("   |   1 addon, 0 on") != std::string::npos);
     Check("status: none is plural", StatusCounts(0, 0).find("   |   0 addons, 0 on") != std::string::npos);
     Check("status: a live status is added after the counts", WithLiveStatus("A", "Neural Rendering", "12 ms") == "A   |   Neural Rendering: 12 ms" && WithLiveStatus("A", "x", "") == "A");

@@ -1,0 +1,9 @@
+{
+  "optiscaler_commit": "973761621353b99bee3dc7d4bb27b117fef2644f",
+  "video2dlssnr_commit": "9e1bbfa5a700d0cd63b224ab6d95581bfe7ec959",
+  "files": {
+    "third_party/nvof/nvOpticalFlowD3D12.h": "f12bbc6c54278cb5d3ae81723ca0363644f672fc3e72b635a709470ffdd6886f",
+    "third_party/nvof/nvOpticalFlowCommon.h": "cdbdbf0797fc02d2de1051520d4164bb1e36b7722009f46cb16216675319436a",
+    "third_party/optiscaler/dlssnr.hlsl": "5d33bbfad569786c06cad1c020c676cdafac31917f92767b0128cabf4daab125"
+  }
+}

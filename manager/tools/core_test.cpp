@@ -11,6 +11,8 @@
 #include "src/core/d3d11_hook.h"
 #include "src/core/instance_guard.h"
 #include "src/core/shader_hook.h"
+#include "eam/shader_identity.h"
+#include <bcrypt.h>
 #include "src/gui/icon_loader.h"
 #include "abi_v1_0.h"
 #include "src/event/event_system.h"
@@ -603,9 +605,15 @@ static void TestDispatchHook() {
     D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, &second, nullptr, &secondCtx);
     if (!ctx || !otherCtx || !secondCtx) { Check("WARP devices for the test", false); return; }
     ID3DBlob* code = nullptr; ID3D11ComputeShader* cs = nullptr;
+    D3D11Hook::Attach(dev, ctx);
     const char src[] = "RWTexture2D<float> o : register(u0); [numthreads(1,1,1)] void main(uint3 i : SV_DispatchThreadID) { }";
     if (SUCCEEDED(D3DCompile(src, sizeof src - 1, nullptr, nullptr, nullptr, "main", "cs_5_0", 0, 0, &code, nullptr))) {
-        dev->CreateComputeShader(code->GetBufferPointer(), code->GetBufferSize(), nullptr, &cs); code->Release();
+        dev->CreateComputeShader(code->GetBufferPointer(), code->GetBufferSize(), nullptr, &cs);
+        eam::ShaderSha256 expected{},actual{};
+        BCryptHash(BCRYPT_SHA256_ALG_HANDLE,nullptr,0,(PUCHAR)code->GetBufferPointer(),(ULONG)code->GetBufferSize(),expected.data(),32);
+        Check("compute shader identity matches its bytecode SHA-256",eam::ReadShaderSha256(cs,actual)&&actual==expected);
+        Check("an absent shader has no identity",!eam::ReadShaderSha256(nullptr,actual));
+        code->Release();
     }
     D3D11Hook::Attach(dev, ctx);
     Check("the device made by Lossless Scaling is handed to the host", h.GetD3D11Device() == dev && h.GetD3D11DeviceContext() == ctx);
@@ -683,6 +691,8 @@ int main(int argc, char** argv) {
     MakeAddon(A, "renamed_new", "renamed_new.dll", R"({"renamed_from":["renamed_old"]})");                // an addon that changed its folder name
     MakeAddon(A, "renamed_old", "renamed_old.dll");                                            // ...and the folder it used to have
     MakeAddon(A, "LSP-ReShade", "LSP_ReShade.dll");                                            // a retired standalone addon: built in now
+    MakeAddon(A, "DLSS5NR01", "DLSS5NR01.dll");
+    MakeAddon(A, "LSP-NeuralRender", "LSP_NeuralRender.dll");
     WriteFile(A / "config.json", R"({"addons":{"beta":{"_enabled":false},"renamed_old":{"_enabled":false,"keep":"me"}},"global":{}})");
 
     setvbuf(stdout, nullptr, _IONBF, 0);
@@ -704,6 +714,7 @@ int main(int argc, char** argv) {
         Check("finds the twelve usable addons (the renamed one counts once)", mgr.GetAddons().size() == 12, "found " + std::to_string(mgr.GetAddons().size()));
         Check("a folder with no DLL is not an addon", IndexOf(mgr, "nodll") < 0);
         Check("a dot folder is not an addon", IndexOf(mgr, ".hidden") < 0);
+        Check("retired NR plugins cannot load after an overlay upgrade", IndexOf(mgr, "DLSS5NR01") < 0 && IndexOf(mgr, "LSP-NeuralRender") < 0);
         Check("the folder of a retired standalone addon is ignored, since that feature is built in", IndexOf(mgr, "LSP-ReShade") < 0);
         Check("an addon that was renamed hides its old folder", IndexOf(mgr, "renamed_new") >= 0 && IndexOf(mgr, "renamed_old") < 0);
         Check("...and keeps the settings it had under the old name, including being switched off", ConfigManager::Instance().Get("renamed_new", "keep") == "me" && !Find(mgr, "renamed_new")->enabled);

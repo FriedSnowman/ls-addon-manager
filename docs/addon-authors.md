@@ -97,8 +97,9 @@ Capabilities: `EAM_CAP_HAS_SETTINGS`, `EAM_CAP_REQUIRES_RESTART` (enabling or di
 | `CreateImage`, `ReleaseImage` (API 1.2) | Pixels you have (RGBA8) as an image for `ImGui::Image` in your panel, made on the manager window's own device (an addon cannot reach it otherwise). Release it when it is no longer drawn. |
 | `SetStatus(addonId, text, level)` | one line on your card and in the status bar ("Running, model 6.6 ms"); level 0 grey, 1 green, 2 amber, 3 red; refresh it, a status not refreshed for a few seconds is hidden |
 | `PublishMetric(addonId, key, value, unit)` | a number for the Performance tab; call it as often as you have a new value (the manager keeps the newest few thousand per series) |
+| `SetRealFrameCallback`, `GetRealFrameSupport` (API 1.3) | Exclusive transform on verified original captures before LSFG analysis. See `manager/sdk/include/eam/real_frame.h`. |
 
-`SetStatus` and `PublishMetric` are the newest calls, appended at the end of the interface, so an addon built against an older header is unaffected.
+API 1.3 appends real-frame calls after the existing status/metrics slots, preserving older interfaces. Set `min_host_version` to `1.3.0` when using them. A real-frame callback borrows a read-only original and an owned output initialized to its exact copy. Return true only after submitting the exact output's GPU dependency; return false to discard the transform and preserve the original. Do not retain borrowed pointers without acquiring and retiring your own references. Registration is exclusive and unregistering drains active callbacks before unloading.
 The addon API version is in `sdk/include/eam/version.h`; it moves on its own, not with the release number. Bump its minor number when calls are added.
 
 ## Rules that are easy to trip over
@@ -126,4 +127,4 @@ Header-only helpers that give a panel the same look as the manager: the palette 
 
 The manager ships an offscreen renderer (`eam_uipreview`) that draws its own tabs and any addon's panel into a picture without opening a window
 (`tools\ui_preview.ps1`). The manager's own tests (`manager\tools`, including a test of the sample addon) are run by `tools\run_addon_tests.ps1`, and Neural Rendering has its own in
-`addons\DLSS5NR01\tools`, run by `tools\run_hosttest_matrix.py`. Copy that approach: load your DLL in a small host that implements `IHost`, render the panel, and check the result.
+`addons\NeuralRendering\tests`, run by `tools\run_addon_tests.ps1 -Only nr -ModelPath <file>`. The excluded `eam_captureprobe` additionally uses a real LS DLL with its own source window to verify capture provenance. Load your DLL in a small host implementing `IHost`, render its panel, and check the result.

@@ -12,7 +12,7 @@
 param([string]$Dest = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-if (-not $Dest) { $Dest = "$root\addons\DLSS5NR01\external\fsr4" }
+if (-not $Dest) { $Dest = "$root\addons\Upscalers\external\fsr4" }
 
 $url = 'https://github.com/the3rdparty1917/fsr4xyz/releases/download/4.1.1b/FSR_4.1.1b_INT8_with_RDNA2_fix.7z'
 $inside = '4.1.1b\amd_fidelityfx_upscaler_dx12.dll'
@@ -41,6 +41,9 @@ try {
     New-Item -ItemType Directory -Force $Dest | Out-Null
     Move-Item -Force $dll $target
 } finally {
-    Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue   # the download and the unpacked copy (temporary files of this script)
+    $absolute=[IO.Path]::GetFullPath($work)
+    $boundary=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')+'\'
+    if(-not $absolute.StartsWith($boundary,[StringComparison]::OrdinalIgnoreCase)){throw 'Refusing cleanup outside the temporary folder'}
+    Remove-Item -LiteralPath $absolute -Recurse -Force -ErrorAction SilentlyContinue   # the download and the unpacked copy (temporary files of this script)
 }
 Write-Host "FSR 4.1.1b (OptiScaler) is in $Dest."

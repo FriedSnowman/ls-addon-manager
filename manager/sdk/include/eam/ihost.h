@@ -3,6 +3,7 @@
 // version added it, so an addon checks GetHostVersion() before using a call newer than its min_host_version.
 #pragma once
 #include "events.h"
+#include "real_frame.h"
 #include <cstdint>
 
 enum EamLogLevel : uint8_t {
@@ -82,4 +83,9 @@ struct IHost {
     // once. Give it back with ReleaseImage when it is no longer drawn. Any thread.
     virtual void* CreateImage(const void* rgba, uint32_t width, uint32_t height, uint32_t pitch) = 0;
     virtual void ReleaseImage(void* image) = 0;
+
+    // ---- API 1.3: one exclusive real-frame transformer, ahead of other dispatch callbacks.
+    // Null removes only the caller's registration. False means another addon owns the stage.
+    virtual bool SetRealFrameCallback(EamRealFrameCallback callback, void* userData = nullptr) = 0;
+    virtual EamFrameSupport GetRealFrameSupport() = 0;
 };

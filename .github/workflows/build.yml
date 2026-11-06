@@ -1,5 +1,5 @@
 # Builds the manager, the installer and the sample addon, and runs the tests that need no GPU and no game, on every push and pull request.
-# Neural Rendering is not built here: it needs NVIDIA's DLSS SDK, which cannot be redistributed. The window tests are left to a machine with a desktop and a GPU.
+# Neural Rendering is built without the proprietary model or SDK. Hardware tests are run separately.
 name: build
 
 on:

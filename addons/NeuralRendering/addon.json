@@ -1,0 +1,11 @@
+{
+  "name": "DLSS Neural Rendering",
+  "version": "1.0.1",
+  "author": "FriedSnowman",
+  "description": "NVIDIA neural rendering on original captures before LSFG, with NVIDIA Optical Flow. Requires WGC and a user-provided nvngx_dlssnr.dll.",
+  "min_host_version": "1.3.0",
+  "dependencies": [],
+  "enabled_by_default": false,
+  "wip": false,
+  "tags": ["graphics", "dlss", "neural-rendering"]
+}

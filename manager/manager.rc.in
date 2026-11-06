@@ -17,12 +17,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Echo-Storm"
             VALUE "FileDescription", "Addon Manager for Lossless Scaling: stands in for Lossless Scaling's Lossless.dll, forwards to Lossless_original.dll and loads addons"
-            VALUE "FileVersion", "@LSAddonManager_VERSION@"
+            VALUE "FileVersion", "@EAM_BUILD_LABEL@"
             VALUE "InternalName", "Lossless"
             VALUE "LegalCopyright", "MIT licence"
             VALUE "OriginalFilename", "Lossless.dll"
             VALUE "ProductName", "Addon Manager for Lossless Scaling"
-            VALUE "ProductVersion", "@LSAddonManager_VERSION@"
+            VALUE "ProductVersion", "@EAM_BUILD_LABEL@"
         END
     END
     BLOCK "VarFileInfo"

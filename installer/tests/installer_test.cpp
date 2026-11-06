@@ -62,10 +62,10 @@ static fs::path MakePayload(const std::wstring& name, const fs::path& oursDll, c
     fs::copy_file(oursDll, dir / L"Lossless.dll", fs::copy_options::overwrite_existing);
     Write(dir / L"manager-icon.ico", "icon " + tag);
     Write(dir / L"manager-icon.png", "png " + tag);
-    Write(dir / L"addons" / L"DLSS5NR01" / L"DLSS5NR01.dll", "addon " + tag);
-    Write(dir / L"addons" / L"DLSS5NR01" / L"nvngx.dll_dlss5nr01.dll", "helper " + tag);
-    Write(dir / L"addons" / L"DLSS5NR01" / L"nr_selftest.exe", "selftest " + tag);
-    Write(dir / L"addons" / L"DLSS5NR01" / L"addon.json", "{ \"id\": \"DLSS5NR01\", \"tag\": \"" + tag + "\" }");
+    Write(dir / L"addons" / L"DLSSNR02" / L"DLSSNR02.dll", "addon " + tag);
+    Write(dir / L"addons" / L"DLSSNR02" / L"NeuralRendering_nvngx.dll", "helper " + tag);
+    Write(dir / L"addons" / L"DLSSNR02" / L"NOTICE.md", "selftest " + tag);
+    Write(dir / L"addons" / L"DLSSNR02" / L"addon.json", "{ \"id\": \"DLSSNR02\", \"tag\": \"" + tag + "\" }");
     Write(dir / L"addons" / L"config.json", "{ \"payload\": \"must never be copied\" }");
     return dir;
 }
@@ -98,6 +98,10 @@ int wmain(int argc, wchar_t** argv) {
               InspectDll((g_exeDir / L"fake_other.dll").wstring()).kind == DllKind::Unknown && InspectDll(L"C:\\no\\such.dll").kind == DllKind::Missing);
         Check("SHA-256 of a known text", [] { Write(g_root / L"abc.txt", "abc"); return Hash(g_root / L"abc.txt") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"; }());
         Check("versions compare as numbers", CompareVersions("0.10.0", "0.9.0") > 0 && CompareVersions("3.2.2.0", "3.2.2") == 0 && CompareVersions("0.4.1", "0.5.0") < 0 && CompareVersions("", "0.1") < 0);
+        Check("numbered builds sort numerically", CompareVersions("Build 10", "Build 2") > 0 && CompareVersions("Build 1", "Build 2") < 0 && CompareVersions("Build 2", "Build 2") == 0);
+        Check("Build 1 upgrades the old releases", CompareVersions("Build 1", "0.9.15") > 0 && CompareVersions("0.9.15", "Build 1") < 0 && CompareVersions("", "Build 1") < 0);
+        Check("build labels match Windows numeric versions", CompareVersions("Build 1", "1.0.1.0") == 0 && CompareVersions("Build 65535", "1.0.65535.0") == 0);
+        Check("invalid build labels are not treated as numbered releases", CompareVersions("Build ", "") == 0 && CompareVersions("Build 0", "") == 0 && CompareVersions("Build 65536", "") == 0 && CompareVersions("Build 1x", "") == 0);
     }
 
     printf("== finding the folder\n");
@@ -197,11 +201,11 @@ int wmain(int argc, wchar_t** argv) {
         Check("install into a plain folder succeeds, with a message", r.ok && Has(r.message, "Installed"), r.message);
         Check("Lossless Scaling's file is now Lossless_original.dll, byte for byte", Hash(ls / L"Lossless_original.dll") == originalHash);
         Check("Lossless.dll is ours, byte for byte", Same(ls / L"Lossless.dll", g_ours));
-        Check("the icons and every addon file arrived", Read(ls / L"manager-icon.ico") == "icon A" && Same(ls / L"addons" / L"DLSS5NR01" / L"DLSS5NR01.dll", pay / L"addons" / L"DLSS5NR01" / L"DLSS5NR01.dll") &&
-              Same(ls / L"addons" / L"DLSS5NR01" / L"nr_selftest.exe", pay / L"addons" / L"DLSS5NR01" / L"nr_selftest.exe") && Read(ls / L"addons" / L"DLSS5NR01" / L"addon.json").find("\"A\"") != std::string::npos);
+        Check("the icons and every addon file arrived", Read(ls / L"manager-icon.ico") == "icon A" && Same(ls / L"addons" / L"DLSSNR02" / L"DLSSNR02.dll", pay / L"addons" / L"DLSSNR02" / L"DLSSNR02.dll") &&
+              Same(ls / L"addons" / L"DLSSNR02" / L"NOTICE.md", pay / L"addons" / L"DLSSNR02" / L"NOTICE.md") && Read(ls / L"addons" / L"DLSSNR02" / L"addon.json").find("\"A\"") != std::string::npos);
         Check("the person's settings, other addons, removed addons and Lossless Scaling's other files were not touched", UntouchedByInstall(ls));
         Check("the original was also copied to the backups", !r.backupDir.empty() && Hash(fs::path(r.backupDir) / L"Lossless.dll") == originalHash);
-        Check("no temporary file is left in the folder", Gone(ls / L"Lossless.dll.setup-new") && Gone(ls / L"addons" / L"DLSS5NR01" / L"addon.json.setup-new"));
+        Check("no temporary file is left in the folder", Gone(ls / L"Lossless.dll.setup-new") && Gone(ls / L"addons" / L"DLSSNR02" / L"addon.json.setup-new"));
         const State s = Inspect(ls.wstring());
         Check("the folder now reads as Installed, at the payload's version, with Lossless Scaling's version kept", s.situation == Situation::Installed && s.installedVersion == ourVersion && s.lsVersion == "3.2.2.0");
         Check("the folder is remembered for next time", RememberedFolder() == ls.wstring());
@@ -214,8 +218,8 @@ int wmain(int argc, wchar_t** argv) {
         // an update: the files that changed are replaced and the old ones saved
         const fs::path pay2 = MakePayload(L"payload_next", g_ours, "B");
         r = Install(ls.wstring(), pay2.wstring());
-        Check("a payload with changed addon files updates them", r.ok && Read(ls / L"addons" / L"DLSS5NR01" / L"DLSS5NR01.dll") == "addon B" && Read(ls / L"manager-icon.png") == "png B", r.message);
-        Check("...saves the old files in the backups", !r.backupDir.empty() && Read(fs::path(r.backupDir) / L"addons" / L"DLSS5NR01" / L"DLSS5NR01.dll") == "addon A");
+        Check("a payload with changed addon files updates them", r.ok && Read(ls / L"addons" / L"DLSSNR02" / L"DLSSNR02.dll") == "addon B" && Read(ls / L"manager-icon.png") == "png B", r.message);
+        Check("...saves the old files in the backups", !r.backupDir.empty() && Read(fs::path(r.backupDir) / L"addons" / L"DLSSNR02" / L"DLSSNR02.dll") == "addon A");
         Check("...and still leaves the person's settings and the original alone", UntouchedByInstall(ls) && Hash(ls / L"Lossless_original.dll") == originalHash);
     }
 
@@ -234,6 +238,24 @@ int wmain(int argc, wchar_t** argv) {
         Check("...saves the old one, and moves the old helper DLL aside instead of leaving it", !r.backupDir.empty() && Hash(fs::path(r.backupDir) / L"Lossless.dll.ours") == Hash(g_exeDir / L"fake_ours_old.dll") &&
               Gone(ls / L"addons" / L"DLSS5NR01" / L"nvngx.dll_lspnr.dll") && Read(fs::path(r.backupDir) / L"nvngx.dll_lspnr.dll") == "the old helper");
         Check("...and moves the icon under its old name (LP-icon) aside too", Gone(ls / L"LP-icon.ico") && Read(fs::path(r.backupDir) / L"LP-icon.ico") == "old icon" && fs::exists(ls / L"manager-icon.ico"));
+    }
+
+    printf("== retiring NR preserves models/settings and rolls back on locked files\n");
+    {
+        const fs::path ls=MakeLs(L"retire_nr");
+        const auto old=ls/L"addons"/L"DLSS5NR01";
+        Write(old/L"DLSS5NR01.dll","retired executable");Write(old/L"nvngx.dll_dlss5nr01.dll","retired helper");
+        Write(old/L"nvngx_dlssnr.dll","user model");Write(old/L"settings.json","user settings");Write(old/L"notes.txt","user notes");
+        const auto originalHash=Hash(ls/L"Lossless.dll");
+        HANDLE locked=CreateFileW((old/L"nvngx.dll_dlss5nr01.dll").c_str(),GENERIC_READ,0,nullptr,OPEN_EXISTING,0,nullptr);
+        Check("retirement fixture helper is locked",locked!=INVALID_HANDLE_VALUE);
+        auto r=Install(ls.wstring(),pay.wstring());
+        if(locked!=INVALID_HANDLE_VALUE)CloseHandle(locked);
+        Check("retirement failure rolls back old and new executables",!r.ok&&r.rolledBack&&Read(old/L"DLSS5NR01.dll")=="retired executable"&&Hash(ls/L"Lossless.dll")==originalHash&&Gone(ls/L"addons"/L"DLSSNR02"/L"DLSSNR02.dll"),r.message);
+        r=Install(ls.wstring(),pay.wstring());
+        Check("retired NR executable and helper move to backups",r.ok&&Gone(old/L"DLSS5NR01.dll")&&Gone(old/L"nvngx.dll_dlss5nr01.dll")&&Read(fs::path(r.backupDir)/L"retired-nr"/L"DLSS5NR01"/L"DLSS5NR01.dll")=="retired executable",r.message);
+        Check("user model/settings/notes stay at their paths",Read(old/L"nvngx_dlssnr.dll")=="user model"&&Read(old/L"settings.json")=="user settings"&&Read(old/L"notes.txt")=="user notes");
+        Check("replacement addon is installed",Read(ls/L"addons"/L"DLSSNR02"/L"DLSSNR02.dll")=="addon A");
     }
 
     printf("== an install from before the version resource existed (0.4.1 and earlier)\n");
@@ -303,7 +325,7 @@ int wmain(int argc, wchar_t** argv) {
         const std::string before = Hash(ls / L"Lossless.dll");
         const Result r = Install(ls.wstring(), pay.wstring());
         Check("install is refused while it runs, saying to close it", !r.ok && Has(r.message, "Close Lossless Scaling"), r.message);
-        Check("...and the folder is exactly as it was", Hash(ls / L"Lossless.dll") == before && Gone(ls / L"Lossless_original.dll") && Gone(ls / L"addons" / L"DLSS5NR01") && Gone(ls / L"backups"));
+        Check("...and the folder is exactly as it was", Hash(ls / L"Lossless.dll") == before && Gone(ls / L"Lossless_original.dll") && Gone(ls / L"addons" / L"DLSSNR02") && Gone(ls / L"backups"));
         Check("uninstall is refused while it runs too", !Uninstall(ls.wstring(), false).ok);
         if (started) { TerminateProcess(pi.hProcess, 0); WaitForSingleObject(pi.hProcess, 5000); CloseHandle(pi.hProcess); CloseHandle(pi.hThread); }
         Sleep(200);
@@ -322,15 +344,15 @@ int wmain(int argc, wchar_t** argv) {
     {
         // a file that cannot be replaced part-way through: Lossless.dll has already been swapped by then, and everything must go back
         const fs::path ls = MakeLs(L"rollback");
-        Write(ls / L"addons" / L"DLSS5NR01" / L"addon.json", "{ \"mine\": true }");
+        Write(ls / L"addons" / L"DLSSNR02" / L"addon.json", "{ \"mine\": true }");
         const std::string originalHash = Hash(ls / L"Lossless.dll");
-        HANDLE lock = CreateFileW((ls / L"addons" / L"DLSS5NR01" / L"addon.json").c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, nullptr);   // nobody else may open it
+        HANDLE lock = CreateFileW((ls / L"addons" / L"DLSSNR02" / L"addon.json").c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, nullptr);   // nobody else may open it
         Check("a file was locked for the test", lock != INVALID_HANDLE_VALUE);
         const Result r = Install(ls.wstring(), pay.wstring());
         if (lock != INVALID_HANDLE_VALUE) CloseHandle(lock);
         Check("the install fails when a file cannot be replaced, and says nothing was changed", !r.ok && r.rolledBack && Has(r.message, "Nothing was changed"), r.message);
         Check("...Lossless.dll is Lossless Scaling's own again, byte for byte, and no Lossless_original.dll is left", Hash(ls / L"Lossless.dll") == originalHash && Gone(ls / L"Lossless_original.dll"));
-        Check("...nothing that was added is left behind, and the locked file kept its content", Gone(ls / L"manager-icon.ico") && Gone(ls / L"addons" / L"DLSS5NR01" / L"DLSS5NR01.dll") && Read(ls / L"addons" / L"DLSS5NR01" / L"addon.json") == "{ \"mine\": true }");
+        Check("...nothing that was added is left behind, and the locked file kept its content", Gone(ls / L"manager-icon.ico") && Gone(ls / L"addons" / L"DLSSNR02" / L"DLSSNR02.dll") && Read(ls / L"addons" / L"DLSSNR02" / L"addon.json") == "{ \"mine\": true }");
         Check("...the person's settings are intact and the folder reads as a plain Lossless Scaling", UntouchedByInstall(ls) && Inspect(ls.wstring()).situation == Situation::NotInstalled);
         Check("...and trying again once the file is free works", Install(ls.wstring(), pay.wstring()).ok);
     }
@@ -342,7 +364,7 @@ int wmain(int argc, wchar_t** argv) {
         Install(ls.wstring(), pay.wstring());
         Result r = Uninstall(ls.wstring(), false);
         Check("uninstall puts Lossless Scaling's own Lossless.dll back, byte for byte", r.ok && Hash(ls / L"Lossless.dll") == originalHash && Gone(ls / L"Lossless_original.dll"), r.message);
-        Check("...ours is in the backups, and the addons and settings are still there", Same(fs::path(r.backupDir) / L"Lossless.dll.ours", g_ours) && Exists((ls / L"addons" / L"DLSS5NR01" / L"DLSS5NR01.dll").wstring()) && UntouchedByInstall(ls));
+        Check("...ours is in the backups, and the addons and settings are still there", Same(fs::path(r.backupDir) / L"Lossless.dll.ours", g_ours) && Exists((ls / L"addons" / L"DLSSNR02" / L"DLSSNR02.dll").wstring()) && UntouchedByInstall(ls));
         Check("...and the folder reads as a plain Lossless Scaling again", Inspect(ls.wstring()).situation == Situation::NotInstalled);
         r = Uninstall(ls.wstring(), false);
         Check("uninstalling again says there is nothing to do", r.ok && Has(r.message, "not installed"));
@@ -404,11 +426,11 @@ int wmain(int argc, wchar_t** argv) {
         SetFileAttributesW((ls / L"Lossless.dll").c_str(), FILE_ATTRIBUTE_READONLY);
         Result r = Install(ls.wstring(), pay.wstring());
         Check("a read-only Lossless.dll is no obstacle to installing", r.ok && Inspect(ls.wstring()).situation == Situation::Installed, r.message);
-        const fs::path files[] = {ls / L"Lossless.dll", ls / L"manager-icon.ico", ls / L"addons" / L"DLSS5NR01" / L"DLSS5NR01.dll", ls / L"addons" / L"DLSS5NR01" / L"addon.json"};
+        const fs::path files[] = {ls / L"Lossless.dll", ls / L"manager-icon.ico", ls / L"addons" / L"DLSSNR02" / L"DLSSNR02.dll", ls / L"addons" / L"DLSSNR02" / L"addon.json"};
         for (const auto& f : files) SetFileAttributesW(f.c_str(), FILE_ATTRIBUTE_READONLY);
         const fs::path payB = MakePayload(L"payload_readonly_b", g_ours, "B");
         r = Install(ls.wstring(), payB.wstring());
-        Check("read-only installed files are replaced by an update", r.ok && Has(Read(ls / L"addons" / L"DLSS5NR01" / L"addon.json"), "\"B\"") && Read(ls / L"manager-icon.ico") == "icon B", r.message);
+        Check("read-only installed files are replaced by an update", r.ok && Has(Read(ls / L"addons" / L"DLSSNR02" / L"addon.json"), "\"B\"") && Read(ls / L"manager-icon.ico") == "icon B", r.message);
         Check("...and the folder is still Installed, with the person's things untouched", Inspect(ls.wstring()).situation == Situation::Installed && UntouchedByInstall(ls));
         std::error_code ec;
         for (fs::recursive_directory_iterator it(ls, ec), end; !ec && it != end; it.increment(ec)) SetFileAttributesW(it->path().c_str(), FILE_ATTRIBUTE_NORMAL);
@@ -429,7 +451,7 @@ int wmain(int argc, wchar_t** argv) {
         for (size_t i = 0; i < dirs.size(); ++i) for (size_t j = i + 1; j < dirs.size(); ++j) if (dirs[i] == dirs[j] || dirs[i].empty()) distinct = false;
         Check("each one keeps its own backups folder", distinct);
         Check("the first update's backup still holds what it replaced (A), the second's holds B", updates.size() == 3 &&
-              Has(Read(fs::path(updates[0].backupDir) / L"addons" / L"DLSS5NR01" / L"addon.json"), "\"A\"") && Has(Read(fs::path(updates[1].backupDir) / L"addons" / L"DLSS5NR01" / L"addon.json"), "\"B\""));
+              Has(Read(fs::path(updates[0].backupDir) / L"addons" / L"DLSSNR02" / L"addon.json"), "\"A\"") && Has(Read(fs::path(updates[1].backupDir) / L"addons" / L"DLSSNR02" / L"addon.json"), "\"B\""));
     }
 
     RegDeleteKeyW(HKEY_CURRENT_USER, L"Software\\LSAddonManager_SetupTest");
