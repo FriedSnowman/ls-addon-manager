@@ -14,12 +14,7 @@ The old addon had some serious architectural problems and didn't match the visua
 ```mermaid
 ---
 config:
-  theme: neutral
   look: classic
-  themeVariables:
-    primaryColor: transparent
-    clusterBkg: transparent
-    edgeLabelBackground: transparent
   flowchart:
     curve: linear
     wrappingWidth: 320
