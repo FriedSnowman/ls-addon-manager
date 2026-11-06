@@ -21,7 +21,7 @@ Where a script needs your Lossless Scaling folder it takes `-LsDir` (or reads th
 | `make_readme_shots.py` | Crops those renders into `docs/images`. |
 | `compare_ui_renders.py` | Compares two folders of offscreen renders picture by picture (used to prove a rewrite of window code changed nothing you can see). |
 | `measure_original_share.py` | How much of `manager/src` and `manager/sdk` is still the code this project started from, against a checkout of the original (see NOTICE.md). |
-| `package.ps1` | Builds all products and a verified installer zip in `dist\` (`-Version`). No stale build fallback. Never packages the user-provided NR model. |
+| `package.ps1` | Builds all products and a verified `dist\LSAddonManager-build-<number>-x64.zip`. Defaults to `EAM_BUILD_NUMBER` in `manager/sdk/include/eam/version.h`; `-Build 1` checks that the source is Build 1. Never packages the user-provided NR model. |
 | `package_neural_source.ps1` | Packages GPL corresponding NR source, shaders, SDK headers, exact ImGui dependency and licences. Included in the installer payload. |
 | `fetch_xess_sdk.ps1` | Fetches Intel's XeSS SDK (release 3.0.2: headers, `libxess.dll`, and for `nr_fgeval` `libxess_fg.dll` and `libxell.dll`, licence) into `addons\Upscalers\external\xess`, checked by SHA-256 and Intel's signature. Without it the XeSS Upscaler is not built. |
 | `deploy.ps1` | Copies a build into a Lossless Scaling folder, with backups. `-What host\|nr\|dlaa\|fsr\|xess\|all`. |

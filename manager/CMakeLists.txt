@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.14)
-project(LSAddonManager VERSION 0.9.15)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/include/eam/version.h" _build_line REGEX "^#define EAM_BUILD_NUMBER [0-9]+$")
+string(REGEX REPLACE "^#define EAM_BUILD_NUMBER ([0-9]+)$" "\\1" EAM_BUILD_NUMBER "${_build_line}")
+if(NOT EAM_BUILD_NUMBER MATCHES "^[1-9][0-9]*$" OR EAM_BUILD_NUMBER GREATER 65535)
+    message(FATAL_ERROR "EAM_BUILD_NUMBER must be between 1 and 65535")
+endif()
+project(LSAddonManager VERSION 1.0.${EAM_BUILD_NUMBER})
+set(EAM_BUILD_LABEL "Build ${EAM_BUILD_NUMBER}")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/include/eam/version.h")
 enable_language(RC)
 
 set(CMAKE_CXX_STANDARD 17)

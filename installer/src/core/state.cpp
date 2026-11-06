@@ -82,6 +82,20 @@ State Inspect(const std::wstring& dir) {
 namespace {
 void Numbers(const std::string& v, long out[4]) {
     for (int i = 0; i < 4; ++i) out[i] = 0;
+    // Numbered releases follow the old 0.x releases and match their PE version.
+    if (v.compare(0, 6, "Build ") == 0) {
+        if (v.size() == 6) return;
+        long build = 0;
+        for (size_t i = 6; i < v.size(); ++i) {
+            if (v[i] < '0' || v[i] > '9') return;
+            build = build * 10 + (v[i] - '0');
+            if (build > 65535) return;
+        }
+        if (build == 0) return;
+        out[0] = 1;
+        out[2] = build;
+        return;
+    }
     int part = 0;
     size_t i = 0;
     while (i < v.size() && part < 4) {

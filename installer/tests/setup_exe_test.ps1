@@ -59,10 +59,12 @@ $ls = MakeLs 'ls1'
 $configBefore = Get-Content "$ls\addons\config.json" -Raw
 
 Write-Host '== silent mode'
+$expectedVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($ours).FileVersion
+$versionPattern = [regex]::Escape($expectedVersion)
 $r = Run @('--silent', 'status', '--folder', "`"$ls`"", '--payload', "`"$payload`"") 'status1'
-Check 'status of a plain Lossless Scaling folder: not installed, and it knows what it carries' ($r.Code -eq 0 -and $r.Log -match 'situation: not installed' -and $r.Log -match 'payload: \d+\.\d+\.\d+') $r.Log
+Check 'status of a plain Lossless Scaling folder: not installed, and it knows what it carries' ($r.Code -eq 0 -and $r.Log -match 'situation: not installed' -and $r.Log -match "(?m)^payload: $versionPattern\r?$") $r.Log
 $r = Run @('--version', '--payload', "`"$payload`"") 'version'
-Check '--version says what the setup carries' ($r.Code -eq 0 -and $r.Log -match '^payload \d+\.\d+\.\d+') $r.Log
+Check '--version says what the setup carries' ($r.Code -eq 0 -and $r.Log.Trim() -eq "payload $expectedVersion") $r.Log
 
 $r = Run @('--silent', 'install', '--folder', "`"$ls`"", '--payload', "`"$payload`"") 'install1'
 Check 'install succeeds' ($r.Code -eq 0) "$($r.Code) $($r.Log)"
@@ -73,7 +75,7 @@ Check 'the icons came across' ((Test-Path "$ls\manager-icon.ico") -and (Test-Pat
 Check 'the person''s settings and other addons are untouched' ((Get-Content "$ls\addons\config.json" -Raw) -eq $configBefore -and (Test-Path "$ls\addons\OtherAddon\other.dll"))
 Check 'the replaced original went to a backups folder' ((Get-ChildItem "$ls\backups" -Recurse -Filter 'Lossless.dll' -ErrorAction SilentlyContinue | Measure-Object).Count -ge 1)
 $r = Run @('--silent', 'status', '--folder', "`"$ls`"", '--payload', "`"$payload`"") 'status2'
-Check 'status now says installed, with the version' ($r.Log -match 'situation: installed' -and $r.Log -match 'installed: \d+\.\d+\.\d+') $r.Log
+Check 'status now says installed, with the version' ($r.Log -match 'situation: installed' -and $r.Log -match "(?m)^installed: $versionPattern\r?$") $r.Log
 
 $r = Run @('--silent', 'install', '--folder', "`"$ls`"", '--payload', "`"$payload`"") 'install2'
 Check 'installing again (reinstall) succeeds and changes nothing that matters' ($r.Code -eq 0 -and (Hash "$ls\Lossless.dll") -eq (Hash $ours) -and (Hash "$ls\Lossless_original.dll") -eq (Hash "$fakes\fake_original.dll")) "$($r.Code) $($r.Log)"

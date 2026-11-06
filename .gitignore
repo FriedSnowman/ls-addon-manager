@@ -36,6 +36,9 @@ addons/Upscalers/external/ngx/*
 !/docs/addon-authors.md
 !/docs/api-compatibility.md
 !/docs/faq.md
+!/docs/images/
+/docs/images/*
+!/docs/images/build-1-manager.png
 /addons/*/docs/architecture.md
 /addons/*/docs/building.md
 /addons/*/docs/dlssnr-knobs.md

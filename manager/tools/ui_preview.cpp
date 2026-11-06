@@ -103,7 +103,10 @@ int main(int argc, char** argv) {
     ApplyUiScale(scale);
 
     UiShot shot;
-    const int W = (int)(1100 * scale), H = (int)(740 * scale);   // a window of a realistic size (the README's screenshots)
+    char* heightEnv = nullptr; size_t heightLen = 0; _dupenv_s(&heightEnv, &heightLen, "EAM_PREVIEW_HEIGHT");
+    const int logicalHeight = heightEnv ? std::clamp(atoi(heightEnv), 600, 1600) : 740;
+    free(heightEnv);
+    const int W = (int)(1100 * scale), H = (int)(logicalHeight * scale);
     if (!shot.Init(W, H)) { printf("device init failed\n"); return 1; }
 
     // EAM_PREVIEW_CLEAN=1 draws the tidy scene used for the README screenshots: no toast, only the first addon on, no error chips.
@@ -116,7 +119,7 @@ int main(int argc, char** argv) {
     AddonInfo a, b, c, d;
     a.id = "DLSSNR02"; a.manifest.name = "DLSS Neural Rendering"; a.manifest.version = EAM_VERSION_STRING; a.manifest.author = "FriedSnowman"; a.hModule = (HMODULE)1; a.enabled = true;
     b.id = "DLSS4DLAA"; b.manifest.name = "DLSS Upscaler"; b.manifest.version = EAM_VERSION_STRING; b.manifest.author = "Echo-Storm"; b.enabled = false;
-    c.id = "FSR3UPSC"; c.manifest.name = "FSR Upscaler"; c.manifest.version = EAM_VERSION_STRING; c.manifest.author = "Echo-Storm"; c.hModule = (HMODULE)1; c.enabled = true;
+    c.id = "FSR3UPSC"; c.manifest.name = "FSR Upscaler"; c.manifest.version = EAM_VERSION_STRING; c.manifest.author = "Echo-Storm"; c.hModule = clean ? nullptr : (HMODULE)1; c.enabled = !clean;
     d.id = "XESSUPSC"; d.manifest.name = "XeSS Upscaler"; d.manifest.version = EAM_VERSION_STRING; d.manifest.author = "Echo-Storm"; d.enabled = false;
     if (!clean) { b.enabled = true; b.faulted = true; }   // the other scene shows the ERROR state
     ReadSvgIcon(root / "addons" / "NeuralRendering" / "icon.svg", a.iconSvg, a.iconSvgView);
@@ -154,7 +157,7 @@ int main(int argc, char** argv) {
     float model = 0.5f, sharpen = 0.0f, vib = 1.2f, blend = 0.72f, gamma = 1.0f; int passes = 1, grain = 2; bool sw = true, sw2 = false; int sel = 0;
     const float dModel = 0.35f, dSharpen = 0.0f, dVib = 0.0f, dBlend = 1.0f, dGamma = 1.0f; const int dPasses = 1, dGrain = 1;
     if (!clean) widgets::ToastShow("Installed 'Cool Addon' (switched off). Turn it on with its switch.", widgets::ToastType::Success, 1000.0f);
-    std::string status = window::StatusCounts(4, 2);
+    std::string status = window::StatusCounts(4, clean ? 1 : 2);
 
     // live data for the cards and the Performance tab: 20 s of a game near 60 fps with a few hitches, a model at ~6.6 ms, a GPU at its cap
     {
@@ -176,8 +179,8 @@ int main(int argc, char** argv) {
             M.PublishAt("system", "gpu_util", u > 100 ? 100 : u, "%", t);
             M.PublishAt("system", "gpu_power_w", 281.0f + (rnd() - 0.5f) * 4.0f, "W", t);
         }
-        M.SetStatus("DLSSNR02", "Running, model 5.2 ms, keeps up 99%", 1);
-        M.SetStatus("FSR3UPSC", "FSR 3.1.4 1920x1080 -> 3840x2160, 1.6 ms", 1);
+        M.SetStatus("DLSSNR02", clean ? "Enabled" : "Running, model 5.2 ms, keeps up 99%", 1);
+        if (!clean) M.SetStatus("FSR3UPSC", "FSR 3.1.4 1920x1080 -> 3840x2160, 1.6 ms", 1);
         SystemStats::Snapshot sys; sys.ok = true; sys.cpuPercent = 23; sys.ramUsedMB = 18841; sys.ramTotalMB = 32703;
         SystemStats::Instance().InjectForPreview(sys);
         GpuStats::Snapshot g; g.name = "NVIDIA RTX GPU"; g.driver = "test driver"; g.deviceCount = 1; g.utilGpu = 97; g.utilMem = 44;
@@ -199,7 +202,7 @@ int main(int argc, char** argv) {
         }
         free(v);
         // "DLSSNR02/_enabled=0": Neural Rendering switched off in the manager, its card and the status bar with it
-        if (host.cfg["DLSSNR02/_enabled"] == "0") { a.enabled = false; a.hModule = nullptr; status = window::StatusCounts(4, 1); }
+        if (host.cfg["DLSSNR02/_enabled"] == "0") { a.enabled = false; a.hModule = nullptr; status = window::StatusCounts(4, clean ? 0 : 1); }
     }
     for (int i = 3; i < argc; ++i) {
         HMODULE h = LoadLibraryA(argv[i]);
@@ -410,7 +413,7 @@ int main(int argc, char** argv) {
 
     // 4. Logs tab, with a few typical lines (sample data, like the rest of the preview)
     {
-        LOG_INFO("Core", "%s v%s starting...", EAM_PRODUCT_NAME, EAM_VERSION_STRING);
+        LOG_INFO("Core", "%s %s starting...", EAM_PRODUCT_NAME, EAM_VERSION_STRING);
         LOG_INFO("GUI", "Tray icon added");
         LOG_INFO("AddonManager", "Found 1 addons in addons");
         LOG_INFO("AddonManager", "Loaded 'DLSSNR02' %s", "0.9.1");

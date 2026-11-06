@@ -98,6 +98,10 @@ int wmain(int argc, wchar_t** argv) {
               InspectDll((g_exeDir / L"fake_other.dll").wstring()).kind == DllKind::Unknown && InspectDll(L"C:\\no\\such.dll").kind == DllKind::Missing);
         Check("SHA-256 of a known text", [] { Write(g_root / L"abc.txt", "abc"); return Hash(g_root / L"abc.txt") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"; }());
         Check("versions compare as numbers", CompareVersions("0.10.0", "0.9.0") > 0 && CompareVersions("3.2.2.0", "3.2.2") == 0 && CompareVersions("0.4.1", "0.5.0") < 0 && CompareVersions("", "0.1") < 0);
+        Check("numbered builds sort numerically", CompareVersions("Build 10", "Build 2") > 0 && CompareVersions("Build 1", "Build 2") < 0 && CompareVersions("Build 2", "Build 2") == 0);
+        Check("Build 1 upgrades the old releases", CompareVersions("Build 1", "0.9.15") > 0 && CompareVersions("0.9.15", "Build 1") < 0 && CompareVersions("", "Build 1") < 0);
+        Check("build labels match Windows numeric versions", CompareVersions("Build 1", "1.0.1.0") == 0 && CompareVersions("Build 65535", "1.0.65535.0") == 0);
+        Check("invalid build labels are not treated as numbered releases", CompareVersions("Build ", "") == 0 && CompareVersions("Build 0", "") == 0 && CompareVersions("Build 65536", "") == 0 && CompareVersions("Build 1x", "") == 0);
     }
 
     printf("== finding the folder\n");

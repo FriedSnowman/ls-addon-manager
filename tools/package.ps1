@@ -1,11 +1,11 @@
-# Builds Release and assembles dist\LSAddonManager-<version>-x64.zip: LSAddonManagerSetup.exe, one file that carries the manager and the addons
+# Builds Release and assembles dist\LSAddonManager-build-<number>-x64.zip: LSAddonManagerSetup.exe, one file that carries the manager and the addons
 # that build, with an install note and the licences. The files are not in the zip a second time: `LSAddonManagerSetup.exe --extract <folder>`
 # writes them out for installing by hand (since 0.9.12; the zip held every file twice before).
 # The user-provided NR model is never packaged. All four built addon products are required.
 # GPL NR corresponding source and its exact ImGui build dependency ship inside the payload.
-#   powershell -File tools/package.ps1 [-Version 0.9.15]
+#   powershell -File tools/package.ps1 [-Build 1]
 param(
-    [string]$Version = '',
+    [ValidateRange(0, 65535)][int]$Build = 0,
     [switch]$IncludeWip   # also package addons marked work in progress (none are now)
 )
 $ErrorActionPreference = 'Stop'
@@ -16,15 +16,19 @@ function RemoveUnder([string]$Path,[string]$Parent) {
     if(Test-Path -LiteralPath $absolute){Remove-Item -LiteralPath $absolute -Recurse -Force}
 }
 $root = Split-Path $PSScriptRoot -Parent
-if (-not $Version) {   # default: the release number in version.h
-    $Version = (Select-String -Path "$root\manager\sdk\include\eam\version.h" -Pattern 'EAM_VERSION_STRING "([^"]+)"').Matches[0].Groups[1].Value
-}
+$buildMatch = Select-String -Path "$root\manager\sdk\include\eam\version.h" -Pattern '^#define EAM_BUILD_NUMBER ([1-9][0-9]*)$'
+if (-not $buildMatch) { throw 'Set EAM_BUILD_NUMBER in manager/sdk/include/eam/version.h before packaging.' }
+$sourceBuild = [int]$buildMatch.Matches[0].Groups[1].Value
+if ($sourceBuild -gt 65535) { throw 'EAM_BUILD_NUMBER must be between 1 and 65535.' }
+if ($Build -eq 0) { $Build = $sourceBuild }
+if ($Build -ne $sourceBuild) { throw "Requested Build $Build does not match source Build $sourceBuild. Update EAM_BUILD_NUMBER before packaging." }
+$Version = "Build $Build"
+$buildSlug = "build-$Build"
 # Always build locally; downloaded or stale release artifacts are not a fallback.
 & powershell -NoProfile -File "$PSScriptRoot\build_all.ps1" -Only host,neural,scalers
 if ($LASTEXITCODE -ne 0) { throw 'Local build failed; refusing to package existing artifacts.' }
 
-if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version must be three nonnegative numbers separated by dots.' }
-$name = "LSAddonManager-$Version-x64"
+$name = "LSAddonManager-$buildSlug-x64"
 $dist = "$root\dist"
 $stage = "$dist\$name"
 RemoveUnder $stage $dist
@@ -79,7 +83,7 @@ foreach ($a in $addons) {
 # The single-file installer: the files above (only the ones that get installed) are packed into a bundle that becomes a resource of Setup.exe.
 # It is built in its own folder (installer\build_setup), so the test build of the installer, which carries no files, stays as the tests expect.
 $setupBuild = "$root\installer\build_setup"
-$payloadDir = "$dist\payload-$Version"
+$payloadDir = "$dist\payload-$buildSlug"
 RemoveUnder $payloadDir $dist
 New-Item -ItemType Directory -Force $payloadDir | Out-Null
 Copy-Item "$stage\Lossless.dll", "$stage\manager-icon.ico", "$stage\manager-icon.png" $payloadDir
@@ -88,7 +92,7 @@ Copy-Item "$stage\addons" "$payloadDir\addons" -Recurse
 if ($LASTEXITCODE -ne 0) { throw 'Installer configure failed' }
 & cmake --build $setupBuild --config Release --target pack_payload | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'the installer packer did not build' }
-$bundle = "$dist\payload-$Version.bin"
+$bundle = "$dist\payload-$buildSlug.bin"
 & "$setupBuild\Release\pack_payload.exe" $payloadDir $bundle
 if ($LASTEXITCODE -ne 0) { throw 'packing the installer files failed' }
 & cmake -S "$root\installer" -B $setupBuild "-DSETUP_PAYLOAD=$bundle" | Out-Null
