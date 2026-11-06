@@ -5,7 +5,7 @@
 namespace neural {
 struct ModelSettings {
     uint32_t preset = 0, style = 0;
-    float intensity = 1, localStructure = 1, localTone = 1, skinStructure = -1;
+    float intensity = 1, localStructure = 0.8f, localTone = 0.3f, skinStructure = -1;
     bool autoMask = true;
 };
 class Model {

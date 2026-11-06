@@ -150,7 +150,7 @@ target_link_libraries(Lossless
 # Keep a PDB and a linker map next to the Release DLL so crash backtraces can be resolved.
 if(MSVC)
     target_compile_options(Lossless PRIVATE $<$<CONFIG:Release>:/Zi>)
-    target_link_options(Lossless PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF /MAP>)
+    target_link_options(Lossless PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF /MAP /PDBALTPATH:$<TARGET_PDB_FILE_NAME:Lossless>>)
 endif()
 
 # Offscreen UI preview (no window): renders the theme, toggle, cards and sliders to BMP files. Not built by default;

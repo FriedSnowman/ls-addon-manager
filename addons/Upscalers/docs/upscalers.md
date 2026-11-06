@@ -147,4 +147,4 @@ Why it is built this way, briefly: NVIDIA's D3D11 DLSS run on Lossless Scaling's
 own; making Lossless Scaling's queue wait for the upscaler is avoided (one frame of latency instead); and with frame generation off the NIS
 pass reads Lossless Scaling's capture directly, a keyed-mutex texture shared from its capture device, which a plain copy read as black, so the
 frame is read the way NIS reads it. `scalerHandoff` in the addon's config (0 the default; 1 GPU wait; 2 upscaler runs but NIS stays; 3 NIS
-runs and the picture is pasted at Present) keeps the variants that found this. [architecture.md](architecture.md) has the details.
+runs and the picture is pasted at Present) keeps the variants that found this.

@@ -10,7 +10,7 @@ It never enhances generated frames or reuses an earlier neural edit. AMD NR and 
 
 Install the matching manager (API 1.3) and this addon. Enable it in the manager. Select **WGC** in Lossless Scaling, with **LSFG 3 or frame generation off**. With FG off, choose Scaling Off or NIS. Select your user-provided `nvngx_dlssnr.dll` in the addon panel; the default location is beside `LosslessScaling.exe`. The model is never bundled or downloaded.
 
-Currently validated: NVIDIA RTX GPU, driver test driver; LS original DLL 3.2.2.0 SHA-256 `626b196d799606cd4250b7b29e04228692ab70cf56a5d1bbb56d748c8219f0eb`; model 310.8.0.0 SHA-256 `e16bcf15e16e13f527491cdf7845b2fe6521a738d8f7c9c721866a8496e1fc8e`. LS/model hashes are checked. Other NVIDIA cards must satisfy the queried NVOFA and model capabilities; they have not been hardware tested here. Unknown LS/model builds, unsupported capture profiles and initialization failures pass originals through with an explicit status. DXGI duplication was unavailable on the validation desktop, so it is not enabled speculatively.
+Supported runtime: LS original DLL 3.2.2.0 SHA-256 `626b196d799606cd4250b7b29e04228692ab70cf56a5d1bbb56d748c8219f0eb`; model 310.8.0.0 SHA-256 `e16bcf15e16e13f527491cdf7845b2fe6521a738d8f7c9c721866a8496e1fc8e`. LS/model hashes are checked. An NVIDIA GPU with compatible NVOFA and model capabilities is required. Unknown LS/model builds, unsupported capture profiles and initialization failures pass originals through with an explicit status. DXGI duplication is not supported.
 
 SDR Rec.709 and linear scRGB are supported at the capture boundary. Direct HDR10/PQ capture is not enabled. scRGB's unit is 80 nits; reference white defaults to 203 nits. Real game depth, exposure, jitter, masks and engine motion vectors are unavailable. Constant depth 1 is a verified compatibility input for this exact model, not estimated geometry.
 
@@ -18,15 +18,15 @@ SDR Rec.709 and linear scRGB are supported at the capture boundary. Direct HDR10
 
 Model and composition controls use the pinned OptiScaler implementation's values directly. There is no conversion of retired DLSS5NR01 settings; the new addon has a separate ID and schema.
 
-**Restore OptiScaler defaults** restores the model and composition values below, keeping the selected model file, working resolution and flow settings. Existing saved adjustments are preserved until this button is used. Composition is under **Composition (advanced)** and is normally best left at its defaults. scRGB reference white is the capture-specific 203-nit baseline, not an inferred game exposure.
+**Restore defaults** restores the model and composition values below, keeping the selected model file, working resolution and flow settings. Existing saved adjustments are preserved until this button is used. Composition is under **Composition (advanced)**. scRGB reference white defaults to 203 nits.
 
-| New setting | OptiScaler value / meaning | Default |
+| Setting | Value / meaning | Default |
 |---|---|---:|
 | Preset | `DLSSNR.Hint.Render.Preset`, 0–3 | 0 |
 | Style | `DLSSNR.Style`, 0–2; upstream names Default/Natural/Cinematic | 0 |
 | Intensity | `DLSSNR.Intensity`, 0–2; **100% = 1**, 50% = 0.5 | 1 |
-| Local structure | `DLSSNR.LocalStructureStrength`, 0–2 | 1 |
-| Local tone | `DLSSNR.LocalToneStrength`, 0–2 | 1 |
+| Local structure | `DLSSNR.LocalStructureStrength`, 0–2 | 0.8 |
+| Local tone | `DLSSNR.LocalToneStrength`, 0–2 | 0.3 |
 | Skin structure | `DLSSNR.SkinStructureStrength`, -1–2; -1 follows local structure | -1 |
 | Automatic mask | `DLSSNR.UseAutoMask`, boolean | On |
 | Detail | `gTransferStrength`, 0–4; 1 applies the model's luminance edit, 0 removes it | 1 |
@@ -56,7 +56,7 @@ The panel reports effective dimensions, per-epoch accepted/bypassed counts and c
 
 Version 1.0.1 follows an elevated capture-device GPU priority with a supported D3D12 HIGH queue; normal capture priority remains normal. Unsupported or rejected HIGH creation falls back to normal. DXGI and D3D12 priority numbers use different scales. Every five seconds, the manager log records effective priorities, capture/callback CPU percentiles, last completed GPU stage times, resets and bypass/deadline counts. These measurements do not establish displayed frame cadence: the LS FPS counter alone cannot prove smooth interpolation. For a choppiness comparison, leave NR enabled and disable only **Apply model result**; processing continues with the exact original image passed to LSFG.
 
-Validation includes synthetic ground-truth flow, 160 byte-exact composition parity cases, model recreation, SDR/scRGB pipeline tests, overload/recovery, and 5,495 provenance comparisons through the real LS capture loop. D3D12 debug validation reports no errors. Gameplay image quality and performance across other cards/drivers remain unvalidated. See `docs/dlss-nr-implementation-log.md` in the source checkout.
+Validation includes synthetic ground-truth flow, composition parity, model recreation, SDR/scRGB pipeline tests, overload/recovery, and provenance comparisons through the real LS capture loop. Gameplay image quality and performance across hardware and drivers remain unvalidated.
 
 The NR model has an independent lifetime: it does not initialize or shut down the process-wide NGX core used by standalone DLSS upscalers. Live coexistence tests verify each addon continues processing after the other is disabled.
 

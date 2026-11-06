@@ -16,7 +16,7 @@ New-Item -ItemType Directory -Force $parent | Out-Null
 $stream=[IO.File]::Create($Destination)
 $archive=New-Object IO.Compression.ZipArchive($stream,[IO.Compression.ZipArchiveMode]::Create)
 try {
-    $sources=@(git -C $root ls-files --cached --others --exclude-standard -- addons/NeuralRendering manager/sdk/include)
+    $sources=@(git -C $root ls-files --cached -- addons/NeuralRendering manager/sdk/include)
     foreach($relative in $sources){
         if($relative -match '\.(dll|exe|lib|pdb|zip)$'){throw "Binary is not corresponding source: $relative"}
         [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $root $relative),$relative.Replace('\','/'),[IO.Compression.CompressionLevel]::Optimal)
@@ -24,7 +24,7 @@ try {
     foreach($file in 'imgui.cpp','imgui_draw.cpp','imgui_tables.cpp','imgui_widgets.cpp','imgui.h','imgui_internal.h','imconfig.h','imstb_rectpack.h','imstb_textedit.h','imstb_truetype.h','LICENSE.txt'){
         [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $ImGuiSource $file),('dependencies/imgui/'+$file),[IO.Compression.CompressionLevel]::Optimal)
     }
-    foreach($relative in 'tools/package_neural_source.ps1','docs/dlss-nr-replacement-plan.md','docs/dlss-nr-implementation-log.md','LICENSE'){
+    foreach($relative in 'tools/package_neural_source.ps1','LICENSE'){
         [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $root $relative),$relative,[IO.Compression.CompressionLevel]::Optimal)
     }
     $entry=$archive.CreateEntry('BUILD.txt');$writer=New-Object IO.StreamWriter($entry.Open())

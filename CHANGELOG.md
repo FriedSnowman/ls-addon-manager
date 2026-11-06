@@ -426,7 +426,7 @@ the old name and offers Update as before, the folder it remembered is still foun
 The manager and the addons now show 0.9.1. Two new addons take the place of Lossless Scaling's NIS scaler with a temporal upscaler, fed with
 motion measured from the frames themselves, so they work in any game Lossless Scaling can scale, with frame generation on or off. Both are a
 **preview** (work in progress, tried in World of Warcraft: Forever only): they are in the download but arrive switched off; switch one on in
-the addon list. The guide is [addons/DLSS5NR01/docs/upscalers.md](addons/DLSS5NR01/docs/upscalers.md).
+the addon list. The guide is [addons/Upscalers/docs/upscalers.md](addons/Upscalers/docs/upscalers.md).
 
 - **DLSS 4 Upscaler** (`DLSS4DLAA`, NVIDIA RTX cards): NVIDIA DLSS Super Resolution in place of the NIS pass. It grew out of 0.8.0's DLSS 4
   DLAA addon, which ran on the captured frame and changed nothing visible; doing the upscaling itself is what DLSS is made for.
@@ -983,7 +983,7 @@ The first release of Echo Addon Manager as its own project, with a fresh history
 - **DLSS 5 Neural Rendering** (andreiday, extended): read-only tap of Lossless Scaling's frames, a free-running model, present-time compose.
   Saved looks in a bar at the top of the panel, per-program looks, rectangles that keep the HUD untouched, shadows and highlights, sharpen,
   saturation and vibrance, film grain, temporal smoothing, compare and hotkeys, a live status line. Its own history is in
-  [its changelog](addons/DLSS5NR01/CHANGELOG.md).
+  the retired addon's changelog.
 - **ReShade Input Passthrough**: reworked as a plain switch with a tooltip; window handling restored cleanly and pinned when it cannot be undone. Offline lifecycle test.
 - **Windowed Mode**: reworked as a plain switch, panel fixed; adds the virtual display only while enabled. Offline test.
 

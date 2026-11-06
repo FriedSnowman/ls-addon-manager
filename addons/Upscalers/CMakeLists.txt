@@ -41,7 +41,7 @@ function(scaler_addon target)
     # Keep a PDB and a linker map next to the Release DLL so the offsets in a crash backtrace can be resolved.
     if(MSVC)
         target_compile_options(${target} PRIVATE $<$<CONFIG:Release>:/Zi>)
-        target_link_options(${target} PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF /MAP>)
+        target_link_options(${target} PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF /MAP /PDBALTPATH:$<TARGET_PDB_FILE_NAME:${target}>>)
     endif()
 endfunction()
 

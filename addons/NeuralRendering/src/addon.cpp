@@ -226,10 +226,11 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
     settings.flowQuality = unsigned(Number("flowQuality", 2, 1, 3));
     settings.model.preset = unsigned(Number("preset", 0, 0, 3));
     settings.model.style = unsigned(Number("style", 0, 0, 2));
-    settings.model.intensity = Number("intensity", 1, 0, 2);
-    settings.model.localStructure = Number("localStructure", 1, 0, 2);
-    settings.model.localTone = Number("localTone", 1, 0, 2);
-    settings.model.skinStructure = Number("skinStructure", -1, -1, 2);
+    const neural::ModelSettings modelDefaults;
+    settings.model.intensity = Number("intensity", modelDefaults.intensity, 0, 2);
+    settings.model.localStructure = Number("localStructure", modelDefaults.localStructure, 0, 2);
+    settings.model.localTone = Number("localTone", modelDefaults.localTone, 0, 2);
+    settings.model.skinStructure = Number("skinStructure", modelDefaults.skinStructure, -1, 2);
     settings.model.autoMask = Number("autoMask", 1, 0, 1) != 0;
     settings.composition.detail = Number("detail", 1, 0, 4);
     settings.composition.colour = Number("colour", 1, 0, 4);
@@ -246,7 +247,7 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
         host->Log(EAM_LOG_ERROR, "NR could not acquire the real-frame stage");
         return;
     }
-    host->Log(EAM_LOG_INFO, "DLSS NR started: original capture -> NVIDIA flow -> NR -> OptiScaler composition -> LSFG");
+    host->Log(EAM_LOG_INFO, "DLSS NR started: original capture -> NVIDIA flow -> NR -> composition -> LSFG");
     Status(true);
 }
 EAM_EXPORT void AddonShutdown() {
@@ -270,8 +271,7 @@ EAM_EXPORT const char *GetAddonAuthor() {
     return "FriedSnowman";
 }
 EAM_EXPORT const char *GetAddonDescription() {
-    return "NVIDIA neural rendering on original captures before LSFG, with independent NVIDIA optical flow and "
-           "OptiScaler composition.";
+    return "NVIDIA neural rendering on original captures before LSFG, with independent NVIDIA optical flow.";
 }
 EAM_EXPORT void AddonRenderSettings() {
     if (!host || !service)
@@ -323,15 +323,13 @@ EAM_EXPORT void AddonRenderSettings() {
         settings.flowQuality = quality + 1;
         rebuild = true;
     }
-    eam::ui::SectionLabel("Model controls (OptiScaler units)");
-    if (ImGui::Button("Restore OptiScaler defaults")) {
+    eam::ui::SectionLabel("Model controls");
+    if (ImGui::Button("Restore defaults")) {
         settings.model = neural::ModelSettings{};
         settings.composition = neural::CompositionSettings{};
         changed = true;
         rebuild = true;
     }
-    ImGui::TextWrapped(
-        "Restores model and composition controls. Keeps your model file, working resolution and flow settings.");
     int preset = int(settings.model.preset);
     if (ImGui::Combo("Preset", &preset, "Default (0)\0Preset 1\0Preset 2\0Preset 3\0")) {
         settings.model.preset = preset;
@@ -346,9 +344,8 @@ EAM_EXPORT void AddonRenderSettings() {
     rebuild |= Slider("Local structure", &settings.model.localStructure, 0, 2);
     rebuild |= Slider("Local tone", &settings.model.localTone, 0, 2);
     rebuild |= Slider("Skin structure", &settings.model.skinStructure, -1, 2);
-    ImGui::TextDisabled("Skin -1 follows local structure. Style names follow the upstream UI.");
+    ImGui::TextDisabled("Skin -1 follows local structure.");
     rebuild |= ImGui::Checkbox("Automatic mask", &settings.model.autoMask);
-    ImGui::TextWrapped("Composition uses the OptiScaler defaults. Usually leave these unchanged.");
     if (ImGui::CollapsingHeader("Composition (advanced)")) {
         changed |= Slider("Detail", &settings.composition.detail, 0, 4);
         changed |= Slider("Colour", &settings.composition.colour, 0, 4);

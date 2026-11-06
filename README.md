@@ -6,6 +6,14 @@ The standalone DLSS, FSR and XeSS upscalers are in [addons/Upscalers](addons/Ups
 
 [DLSS Neural Rendering](addons/NeuralRendering/README.md) is a fresh NVIDIA-only addon: original capture -> independent NVIDIA Optical Flow -> NR -> pinned OptiScaler composition -> LSFG. Enable WGC and use the validated LS/model builds described in its guide. The model is user-provided. Multipass and AMD NR are excluded; standalone upscalers remain supported.
 
-The old DLSS5NR01 implementation is completely retired. Upgrade backs up its owned executables and preserves user models/settings. New settings live under DLSSNR02, with no reinterpretation of the old values. The [implementation log](docs/dlss-nr-implementation-log.md) records tests, compatibility limits and departures from the [approved plan](docs/dlss-nr-replacement-plan.md).
+The old DLSS5NR01 implementation is retired. Upgrade backs up its owned executables and preserves user models/settings. New settings live under DLSSNR02.
 
-Build instructions: [LOCAL_BUILD.md](docs/LOCAL_BUILD.md). Addon SDK: [addon authors](docs/addon-authors.md). Third-party notices: [NOTICE.md](NOTICE.md). Historical NR documentation is labelled and retained under [docs/history/retired-nr](docs/history/retired-nr).
+Build with Visual Studio 2022 C++ Build Tools, the Windows SDK and CMake 3.20 or newer:
+
+```powershell
+powershell -NoProfile -File tools/ci.ps1
+```
+
+This builds the manager, installer, neural rendering addon and sample addon, and runs the tests that need no GPU or game. Standalone upscalers also need the vendor SDKs described in [addons/Upscalers](addons/Upscalers).
+
+Addon SDK: [addon authors](docs/addon-authors.md). Build and packaging tools: [tools](tools/README.md). Third-party notices: [NOTICE.md](NOTICE.md).

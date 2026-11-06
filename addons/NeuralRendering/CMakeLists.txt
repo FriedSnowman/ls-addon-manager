@@ -73,7 +73,7 @@ if(NEURAL_BUILD_ADDON)
     add_dependencies(DLSSNR02 neural_forwarder)
     set_target_properties(DLSSNR02 PROPERTIES PREFIX "" OUTPUT_NAME "DLSSNR02")
     target_compile_options(DLSSNR02 PRIVATE $<$<CONFIG:Release>:/Zi>)
-    target_link_options(DLSSNR02 PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF /MAP>)
+    target_link_options(DLSSNR02 PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF /MAP /PDBALTPATH:$<TARGET_PDB_FILE_NAME:DLSSNR02>>)
     add_custom_command(TARGET DLSSNR02 POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/addon.json" $<TARGET_FILE_DIR:DLSSNR02>)
 endif()

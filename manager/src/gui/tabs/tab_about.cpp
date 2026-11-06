@@ -49,7 +49,7 @@ void RenderTabAbout() {
         struct Item { const char* icon; const char* name; const char* what; };
         const Item items[] = {
             { eam::ui::icons::kSliders, "DLSS Neural Rendering",
-              "NVIDIA optical flow and neural rendering on original real captures before LSFG, with OptiScaler composition. WGC and a user-provided model are required." },
+              "NVIDIA optical flow and neural rendering on original real captures before LSFG. WGC and a user-provided model are required." },
             { eam::ui::icons::kUpscale, "DLSS Upscaler",
               "NVIDIA DLSS in place of Lossless Scaling's NIS scaler: real upscaling (or DLAA at the screen's own size) for games that never had "
               "it, with motion measured from the frames. NVIDIA RTX." },
@@ -107,7 +107,7 @@ void RenderTabAbout() {
                        "FidelityFX and FSR are trademarks of Advanced Micro Devices, Inc.; this project is not affiliated with or endorsed by AMD.");
     ImGui::PopStyleColor();
     ImGui::Dummy(ImVec2(0, S(4)));
-    ImGui::TextWrapped("Neural Rendering: GPL-3.0-only, with pinned OptiScaler composition/forwarder and RenoDX attribution. Corresponding source and licences are included in its folder. The NVIDIA model is user-provided.");
+    ImGui::TextWrapped("Neural Rendering: GPL-3.0-only. Corresponding source, licences and third-party attribution are included in its folder. The NVIDIA model is user-provided.");
     ImGui::TextDisabled("Also: Dear ImGui and nlohmann/json (MIT), stb_image (public domain), MinHook (BSD, used by Windowed mode).");
     ImGui::TextDisabled("Icon shapes are drawn in the manner of the Lucide set (ISC).");
     ImGui::TextDisabled("Lossless Scaling belongs to its author; this is an unofficial add-on for it.");

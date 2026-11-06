@@ -71,7 +71,7 @@ static void Shell(const char* active, const std::string& status, const std::func
 }
 
 struct FakeHost : IHost {
-    std::map<std::string, std::string> cfg;
+    std::map<std::string, std::string> cfg{{"DLSSNR02/modelPath", "C:\\Models\\nvngx_dlssnr.dll"}};
     void Log(EamLogLevel, const char* m) override { printf("[addon] %s\n", m); }
     const char* GetConfig(const char* id, const char* k, const char* d) override { auto it = cfg.find(std::string(id) + "/" + k); return it == cfg.end() ? d : it->second.c_str(); }
     void SetConfig(const char* id, const char* k, const char* v) override { cfg[std::string(id) + "/" + k] = v; }
@@ -123,8 +123,7 @@ int main(int argc, char** argv) {
     ReadSvgIcon(plugins / "products" / "DLSS4DLAA" / "icon.svg", b.iconSvg, b.iconSvgView);
     ReadSvgIcon(plugins / "products" / "FSR3UPSC" / "icon.svg", c.iconSvg, c.iconSvgView);
     ReadSvgIcon(plugins / "products" / "XESSUPSC" / "icon.svg", d.iconSvg, d.iconSvgView);
-    // the runtimes, as the repository's addon.json files list them, read from the install in C:\Games\Lossless Scaling (as the real
-    // list reads them: version and file identity). EAM_PREVIEW_FSR=<file>: that file as the FSR runtime (only read, never loaded)
+    // Example install location for preview runtime rows. EAM_PREVIEW_FSR can supply a runtime fixture.
     const std::wstring lsDir = L"C:\\Games\\Lossless Scaling";
     // (the model file is the person's own: the tidy scene for the README leaves its line out rather than show this machine's copy)
     { AddonManifest m; if (!clean && ReadManifest(root / "addons" / "NeuralRendering" / "addon.json", m)) a.manifest.runtimes = m.runtimes; }
@@ -190,9 +189,6 @@ int main(int argc, char** argv) {
     std::map<std::string, std::function<void()>> panels;
     std::vector<std::pair<HMODULE, void(*)()>> loadedPanels;
     static FakeHost host;
-    // Neural Rendering's model file, where a real install keeps it (the panel then shows its requirements met); nothing is loaded from it here
-    if (GetFileAttributesW(L"C:\\Games\\Lossless Scaling\\nvngx_dlssnr.dll") != INVALID_FILE_ATTRIBUTES)
-        host.cfg["DLSSNR02/modelPath"] = "C:\\Games\\Lossless Scaling\\nvngx_dlssnr.dll";
     {   // EAM_PREVIEW_CFG="FSR3UPSC/scalerStability=0.4;...": settings the addons start with (for a picture with the sliders somewhere)
         char* v = nullptr; size_t n = 0; _dupenv_s(&v, &n, "EAM_PREVIEW_CFG");
         for (std::string rest = v ? v : ""; !rest.empty();) {

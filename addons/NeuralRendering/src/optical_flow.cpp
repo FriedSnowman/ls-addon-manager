@@ -208,7 +208,7 @@ bool OpticalFlow::Shutdown(DWORD timeout) {
     if (!unregister(flowHandle_) || !unregister(costHandle_))
         return false;
     // NVIDIA's D3D12 resource wrappers retain session state even after unregister.
-    // Release registered textures BEFORE destroying that session (verified on test driver).
+    // Release registered textures before destroying their session.
     for (auto &r : inputs_)
         r = {};
     flow_ = {};
