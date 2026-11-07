@@ -16,6 +16,7 @@ struct EamRealFrame {
     uint64_t sequence = 0, epoch = 0;
 };
 // Render-thread callback. Queue GPU completion on context before returning true.
-// Restore modified D3D11 state. False/fault discards output and preserves the original.
+// Restore modified D3D11 state. False/fault preserves the original only when processing
+// is not required (API 1.4 RequireRealFrameProcessing); otherwise capture pauses.
 // Sequence counts admissions, not presents. Epoch changes with settings/device/size.
 using EamRealFrameCallback = bool(*)(const EamRealFrame&, void*);

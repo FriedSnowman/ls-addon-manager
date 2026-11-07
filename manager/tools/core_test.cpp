@@ -9,6 +9,7 @@
 #include "src/config/config_manager.h"
 #include "src/config/settings_backup.h"
 #include "src/core/d3d11_hook.h"
+#include "src/core/real_frame_hook.h"
 #include "src/core/instance_guard.h"
 #include "src/core/shader_hook.h"
 #include "eam/shader_identity.h"
@@ -30,6 +31,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iterator>
 #include <string>
 #include <utility>
@@ -271,6 +273,28 @@ static void TestHost(const fs::path& T) {
     HostImpl h;
 
     Check("the host reports the addon API version", h.GetHostVersion() == (uint32_t)EAM_API_VERSION_INT);
+    h.SetRealFrameCallback([](const EamRealFrame&, void*) { return false; });
+    h.RequireRealFrameProcessing(true);
+    auto rejected = std::async(std::launch::async, [&] { return h.InvokeRealFrame(EamRealFrame{}); });
+    Check("a required transform cannot pass an original frame after rejection",
+          rejected.wait_for(std::chrono::milliseconds(75)) == std::future_status::timeout);
+    auto otherHooks = std::async(std::launch::async, [&] {
+        h.SetPostDispatchCallback(PostCounts, nullptr);
+        h.SetPostDispatchCallback(nullptr, nullptr);
+    });
+    Check("paused NR does not block another addon's hook registration",
+          otherHooks.wait_for(std::chrono::milliseconds(75)) == std::future_status::ready);
+    h.RequireRealFrameProcessing(false);
+    otherHooks.get();
+    Check("explicit disable releases a rejected frame", !rejected.get());
+    h.RequireRealFrameProcessing(true);
+    auto unsupported = std::async(std::launch::async, [&] { RealFrameHook::Before(&h, nullptr, 0, 0, 0); });
+    Check("an unsupported runtime pauses required capture",
+          unsupported.wait_for(std::chrono::milliseconds(75)) == std::future_status::timeout &&
+          h.GetRealFrameSupport() == EamFrameSupport::UnsupportedRuntime);
+    h.RequireRealFrameProcessing(false);
+    unsupported.get();
+    h.SetRealFrameCallback(nullptr);
     h.SetConfig("a", "k", "v");
     Check("a setting written by an addon reads back", std::string(h.GetConfig("a", "k", "")) == "v");
     Check("a missing setting gives the default given", std::string(h.GetConfig("a", "nope", "dflt")) == "dflt");

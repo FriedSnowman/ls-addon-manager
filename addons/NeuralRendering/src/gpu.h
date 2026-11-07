@@ -63,7 +63,7 @@ class Gpu {
     uint64_t Submit(Recording &);
     uint64_t Signal();
     bool Complete(uint64_t value) const;
-    bool Wait(uint64_t value, DWORD timeoutMs = 3000) const; // init/test/retirement only
+    bool Wait(uint64_t value, DWORD timeoutMs = 3000) const; // INFINITE applies capture backpressure
     uint64_t LastSubmitted() const { return nextFence_; }
 
   private:

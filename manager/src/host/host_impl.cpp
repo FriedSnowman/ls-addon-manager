@@ -155,22 +155,34 @@ void HostImpl::InvokePostDispatch(uint32_t x, uint32_t y, uint32_t z) {
 
 bool HostImpl::SetRealFrameCallback(EamRealFrameCallback cb, void* user) {
     void* module = ModuleAt(_ReturnAddress());
-    std::lock_guard<std::mutex> lock(m_dispatchMutex);
+    const auto owner = m_realModule.load(std::memory_order_acquire);
+    if (owner && owner != module) return false;
+    std::lock_guard<std::mutex> lock(m_realMutex);
     if (m_realHook.callback && m_realHook.module != module) return false;
     m_realHook = {cb, user, cb ? module : nullptr};
+    m_realModule.store(cb ? module : nullptr, std::memory_order_release);
+    if (!cb) m_realRequired.store(false, std::memory_order_release);
     m_realCount.store(cb ? 1 : 0, std::memory_order_release);
     return true;
 }
 EamFrameSupport HostImpl::GetRealFrameSupport() { return RealFrameHook::Support(); }
+void HostImpl::RequireRealFrameProcessing(bool required) {
+    // A paused callback holds m_realMutex. Its owner must be able to release the
+    // requirement from the UI/shutdown thread without waiting for that callback.
+    if (m_realModule.load(std::memory_order_acquire) == ModuleAt(_ReturnAddress()))
+        m_realRequired.store(required, std::memory_order_release);
+}
 bool HostImpl::InvokeRealFrame(const EamRealFrame& frame) {
-    std::lock_guard<std::mutex> lock(m_dispatchMutex);
+    std::lock_guard<std::mutex> lock(m_realMutex);
     if (!m_realHook.callback) return false;
     bool applied = false;
     if (!CallReal(m_realHook.callback, frame, m_realHook.owner, &applied)) {
-        m_realHook = {}; m_realCount.store(0, std::memory_order_release);
-        LOG_ERROR("Host", "Real-frame transform faulted and was removed; original frame retained");
+        LOG_ERROR("Host", "Real-frame transform faulted; required processing is paused until disabled");
+        while (RealFrameRequired()) Sleep(25);
+        m_realHook = {}; m_realModule.store(nullptr); m_realCount.store(0, std::memory_order_release);
         return false;
     }
+    while (!applied && RealFrameRequired()) Sleep(25);
     return applied;
 }
 
@@ -185,14 +197,25 @@ void HostImpl::PublishMetric(const char* addonId, const char* key, double value,
 }
 
 size_t HostImpl::ForgetCode(uintptr_t begin, uintptr_t end) {
-    std::lock_guard<std::mutex> lock(m_dispatchMutex);
     const auto inside = [&](auto& hook) { const uintptr_t at = reinterpret_cast<uintptr_t>(hook.callback); return at >= begin && at < end; };
-    const size_t before = m_preHooks.size() + m_postHooks.size() + m_realCount.load();
-    if (inside(m_realHook)) { m_realHook = {}; m_realCount.store(0); }
-    m_preHooks.erase(std::remove_if(m_preHooks.begin(), m_preHooks.end(), inside), m_preHooks.end());
-    m_postHooks.erase(std::remove_if(m_postHooks.begin(), m_postHooks.end(), inside), m_postHooks.end());
-    Recount();
-    return before - (m_preHooks.size() + m_postHooks.size() + m_realCount.load());
+    size_t removed = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_dispatchMutex);
+        const size_t before = m_preHooks.size() + m_postHooks.size();
+        m_preHooks.erase(std::remove_if(m_preHooks.begin(), m_preHooks.end(), inside), m_preHooks.end());
+        m_postHooks.erase(std::remove_if(m_postHooks.begin(), m_postHooks.end(), inside), m_postHooks.end());
+        Recount();
+        removed = before - (m_preHooks.size() + m_postHooks.size());
+    }
+    const auto module = reinterpret_cast<uintptr_t>(m_realModule.load(std::memory_order_acquire));
+    if (module >= begin && module < end) {
+        std::lock_guard<std::mutex> lock(m_realMutex);
+        if (inside(m_realHook)) {
+            m_realHook = {}; m_realModule.store(nullptr); m_realRequired.store(false); m_realCount.store(0);
+            ++removed;
+        }
+    }
+    return removed;
 }
 
 size_t HostImpl::DispatchHookCount() {

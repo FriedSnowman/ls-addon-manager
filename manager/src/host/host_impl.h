@@ -40,6 +40,8 @@ public:
     void ReleaseImage(void* image) override;
     bool SetRealFrameCallback(EamRealFrameCallback, void* userData = nullptr) override;
     EamFrameSupport GetRealFrameSupport() override;
+    void RequireRealFrameProcessing(bool required) override;
+    bool RealFrameRequired() const { return m_realRequired.load(std::memory_order_acquire); }
     bool HasRealFrameCallback() const { return m_realCount.load(std::memory_order_acquire) != 0; }
     bool InvokeRealFrame(const EamRealFrame&);
 
@@ -69,8 +71,11 @@ private:
     void* m_d3d11Context = nullptr;
 
     std::mutex m_dispatchMutex;
+    std::mutex m_realMutex; // Required NR may wait; unrelated addon hooks remain accessible.
     Hook<EamRealFrameCallback> m_realHook{};
     std::atomic<size_t> m_realCount{0};
+    std::atomic<bool> m_realRequired{false};
+    std::atomic<void*> m_realModule{nullptr};
     std::vector<Hook<EamPreDispatchCallback>> m_preHooks;
     std::vector<Hook<EamPostDispatchCallback>> m_postHooks;
     // How many of each there are, read without the lock: every one of Lossless Scaling's dispatches asks, and usually there are none.

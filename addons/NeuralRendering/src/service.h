@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include "pipeline.h"
-#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -31,13 +30,12 @@ class Service {
     std::mutex mutex_;
     std::condition_variable condition_;
     std::thread worker_;
-    bool stopping_ = false, pending_ = false, enabled_ = false, failed_ = false, poisoned_ = false;
-    uint64_t revision_ = 0, serial_ = 0, activeSerial_ = 0, waitingBypasses_ = 0;
+    bool stopping_ = false, pending_ = false, processing_ = false, enabled_ = false, failed_ = false, poisoned_ = false;
+    uint64_t revision_ = 0, serial_ = 0, activeSerial_ = 0;
     PipelineSettings settings_;
     Request desired_;
     std::unique_ptr<Pipeline> active_;
     ServiceSnapshot snapshot_;
-    std::atomic<bool> dropped_{false};
     void Worker();
     bool Retire(std::unique_ptr<Pipeline> &);
 };

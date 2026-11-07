@@ -31,6 +31,10 @@ struct ProbeHost:eam::HostImpl {
         if(!cb){const bool result=HostImpl::SetRealFrameCallback(nullptr);callback=nullptr;user=nullptr;return result;}
         callback=cb;user=data;volatile bool installed=HostImpl::SetRealFrameCallback(NeuralFrame);return installed;
     }
+    void RequireRealFrameProcessing(bool required) override {
+        HostImpl::RequireRealFrameProcessing(required);
+        volatile bool applied=RealFrameRequired();(void)applied;
+    }
 } host;
 bool verifyNeural=true;
 unsigned neuralAccepted=0,neuralEdited=0;
@@ -72,7 +76,7 @@ bool NeuralFrame(const EamRealFrame& f,void*) {
     bool result=host.callback&&host.callback(f,host.user);if(result)++neuralAccepted;
     if(pacing::enabled && begin-pacing::start>3)pacing::callbacks.push_back(1000*(pacing::Now()-begin));
     if(verifyNeural){const auto after=Pixels(ctx,original),enhanced=Pixels(ctx,output);
-        if(before.empty()||before!=after||(!result&&enhanced!=before)){++failures;puts("NR original/bypass provenance failure");}else ++checked;
+        if(before.empty()||before!=after||(!result&&host.RealFrameRequired())){++failures;puts("NR required-frame provenance failure");}else ++checked;
         if(result&&enhanced!=before)++neuralEdited;
         neuralImages[original]=result?enhanced:before;neuralImages[output]=result?enhanced:before;
     }

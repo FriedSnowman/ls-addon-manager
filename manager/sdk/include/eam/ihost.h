@@ -88,4 +88,9 @@ struct IHost {
     // Null removes only the caller's registration. False means another addon owns the stage.
     virtual bool SetRealFrameCallback(EamRealFrameCallback callback, void* userData = nullptr) = 0;
     virtual EamFrameSupport GetRealFrameSupport() = 0;
+
+    // ---- API 1.4: the exclusive transform owner can require successful processing.
+    // Unsupported capture profiles and failed callbacks pause capture until the owner
+    // explicitly releases the requirement. Clear this before removing the callback.
+    virtual void RequireRealFrameProcessing(bool required) = 0;
 };

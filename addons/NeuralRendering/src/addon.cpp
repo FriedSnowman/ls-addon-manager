@@ -53,11 +53,11 @@ struct FrameDiagnostics {
         snprintf(text, sizeof(text),
                  "NR timing: capture %ux%u, model %ux%u, observed %.1f fps; capture mean/p95/p99 %.2f/%.2f/%.2f ms; "
                  "callback CPU mean/p95/p99 %.2f/%.2f/%.2f ms; last GPU prepare/flow/model/compose "
-                 "%.2f/%.2f/%.2f/%.2f ms; epoch accepted/bypassed %llu/%llu, cuts/resets %llu/%llu, "
-                 "summary deadlines %llu; GPU priority capture/NR %d/%d; %s",
+                 "%.2f/%.2f/%.2f/%.2f ms; epoch processed %llu, cuts/resets %llu/%llu, "
+                 "slot/summary CPU wait %.2f/%.2f ms; GPU priority capture/NR %d/%d; %s",
                  m.width, m.height, m.workingWidth, m.workingHeight, c[0] > 0 ? 1000 / c[0] : 0, c[0], c[1], c[2], t[0],
-                 t[1], t[2], m.prepareMs, m.flowMs, m.modelMs, m.compositionMs, m.accepted, m.bypassed, m.cuts,
-                 m.resets, m.deadlineMisses, m.captureGpuPriority, m.nrQueuePriority, snapshot.status.c_str());
+                 t[1], t[2], m.prepareMs, m.flowMs, m.modelMs, m.compositionMs, m.accepted, m.cuts,
+                 m.resets, m.slotWaitMs, m.summaryWaitMs, m.captureGpuPriority, m.nrQueuePriority, snapshot.status.c_str());
         host->Log(EAM_LOG_INFO, text);
         count = 0;
         report = now;
@@ -117,6 +117,7 @@ void Save() {
 void Configure(bool rebuild) {
     settings.modelPath = Wide(modelPath);
     service->Configure(settings, enabled, rebuild);
+    host->RequireRealFrameProcessing(enabled);
 }
 const char *Support(EamFrameSupport s) {
     switch (s) {
@@ -125,19 +126,19 @@ const char *Support(EamFrameSupport s) {
     case EamFrameSupport::Waiting:
         return "Waiting for a real capture";
     case EamFrameSupport::UnsupportedCapture:
-        return "Select WGC capture in Lossless Scaling";
+        return "Capture paused: disable NR, then select WGC capture in Lossless Scaling";
     case EamFrameSupport::UnsupportedFrameGeneration:
-        return "Select LSFG 3 or turn frame generation off";
+        return "Capture paused: disable NR, then select LSFG 3 or turn frame generation off";
     case EamFrameSupport::UnsupportedScaler:
-        return "With FG off, select Scaling Off or NIS";
+        return "Capture paused: disable NR, then select Scaling Off or NIS with FG off";
     case EamFrameSupport::UnrecognizedShader:
-        return "Unrecognized LS capture shader; original frames pass through";
+        return "Capture paused: unrecognized LS shader; disable NR to continue";
     case EamFrameSupport::UnsupportedTexture:
-        return "Unsupported capture format; use SDR or scRGB";
+        return "Capture paused: unsupported texture; disable NR and use SDR or scRGB";
     case EamFrameSupport::SettingsChanging:
         return "Lossless Scaling settings are changing";
     case EamFrameSupport::UnsupportedRuntime:
-        return "This Lossless Scaling build has not been validated";
+        return "Capture paused: unsupported Lossless Scaling build; disable NR to continue";
     default:
         return "Capture unavailable";
     }
@@ -164,11 +165,8 @@ void Status(bool force = false) {
     host->PublishMetric(Id, "summary_wait_ms", m.summaryWaitMs, "ms");
     host->PublishMetric(Id, "nr_total_ms", m.prepareMs + m.flowMs + m.modelMs + m.compositionMs, "ms");
     host->PublishMetric(Id, "callback_cpu_ms", lastCallbackMs.load(), "ms");
-    host->PublishMetric(Id, "summary_deadlines", double(m.deadlineMisses), "frames");
+    host->PublishMetric(Id, "slot_wait_ms", m.slotWaitMs, "ms");
     host->PublishMetric(Id, "accepted", double(m.accepted), "frames");
-    host->PublishMetric(Id, "bypassed", double(m.bypassed), "frames");
-    if (m.accepted + m.bypassed)
-        host->PublishMetric(Id, "keepup_pct", 100.0 * m.accepted / (m.accepted + m.bypassed), "%");
 }
 bool Frame(const EamRealFrame &frame, void *) {
     static std::chrono::steady_clock::time_point last;
@@ -200,8 +198,8 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
                                  user);
     eam::ui::InitAddonImGui();
     host = supplied;
-    if (host->GetHostVersion() < 0x010300) {
-        host->SetStatus(Id, "Manager API 1.3 or newer is required", 3);
+    if (host->GetHostVersion() < 0x010400) {
+        host->SetStatus(Id, "Manager API 1.4 or newer is required", 3);
         return;
     }
     HMODULE module = nullptr;
@@ -240,18 +238,22 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
     settings.composition.reconstruction = unsigned(Number("reconstruction", 1, 0, 1));
     settings.composition.apply = Number("apply", 1, 0, 1) != 0;
     service = std::make_unique<neural::Service>();
-    Configure(true);
     if (!host->SetRealFrameCallback(Frame)) {
         service.reset();
         host->SetStatus(Id, "Another addon owns real-frame processing", 3);
         host->Log(EAM_LOG_ERROR, "NR could not acquire the real-frame stage");
         return;
     }
+    Configure(true);
     host->Log(EAM_LOG_INFO, "DLSS NR started: original capture -> NVIDIA flow -> NR -> composition -> LSFG");
     Status(true);
 }
 EAM_EXPORT void AddonShutdown() {
     if (host) {
+        if (service) {
+            service->Configure(settings, false, false);
+            host->RequireRealFrameProcessing(false);
+        }
         host->SetRealFrameCallback(nullptr);
         service.reset();
         host->SetStatus(Id, "", 0);
@@ -265,7 +267,7 @@ EAM_EXPORT const char *GetAddonName() {
     return "DLSS Neural Rendering";
 }
 EAM_EXPORT const char *GetAddonVersion() {
-    return "1.0.0";
+    return "1.0.2";
 }
 EAM_EXPORT const char *GetAddonAuthor() {
     return "FriedSnowman";
@@ -282,7 +284,8 @@ EAM_EXPORT void AddonRenderSettings() {
         rebuild = true;
     }
     ImGui::TextWrapped("Processes real captures before LSFG. Requires NVIDIA, WGC, and a user-provided "
-                       "model. Captures contain no game depth or motion data.");
+                       "model. Every capture waits for processing; GPU load can reduce the frame rate. "
+                       "Captures contain no game depth or motion data.");
     eam::ui::SectionLabel("Model file");
     ImGui::SetNextItemWidth(-90);
     if (ImGui::InputText("##model", modelPath, sizeof(modelPath), ImGuiInputTextFlags_EnterReturnsTrue)) {
@@ -366,7 +369,7 @@ EAM_EXPORT void AddonRenderSettings() {
         ImGui::TextWrapped(
             "Detail and colour default to 1. Replace proxies use the model image directly. Apply-off keeps "
             "processing active for comparison. Working resolution and model changes rebuild the pipeline "
-            "after release; original captures pass through during rebuilding.");
+            "after release; capture waits during rebuilding.");
     }
     if (ImGui::Button("Retry initialization")) {
         rebuild = true;
@@ -394,8 +397,6 @@ EAM_EXPORT void AddonRenderSettings() {
                 lastCallbackMs.load());
     ImGui::TextWrapped("GPU: prepare %.2f / flow wait+convert %.2f / model %.2f / compose %.2f ms", m.prepareMs,
                        m.flowMs, m.modelMs, m.compositionMs);
-    ImGui::TextWrapped("Scene summary CPU wait %.2f ms (4 ms deadline); %llu missed deadlines this epoch",
-                       m.summaryWaitMs, m.deadlineMisses);
-    ImGui::Text("Epoch: %llu accepted / %llu bypassed / %llu cuts / %llu resets", m.accepted, m.bypassed, m.cuts,
-                m.resets);
+    ImGui::TextWrapped("CPU wait: frame slot %.2f ms / scene summary %.2f ms", m.slotWaitMs, m.summaryWaitMs);
+    ImGui::Text("Epoch: %llu processed / %llu cuts / %llu resets", m.accepted, m.cuts, m.resets);
 }

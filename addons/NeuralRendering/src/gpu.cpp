@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "gpu.h"
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -250,7 +251,18 @@ bool Gpu::Wait(uint64_t value, DWORD timeout) const {
     if (!event)
         return false;
     const HRESULT hr = fence->SetEventOnCompletion(value, event);
-    const bool done = SUCCEEDED(hr) && WaitForSingleObject(event, timeout) == WAIT_OBJECT_0 && Complete(value);
+    bool done = false;
+    if (SUCCEEDED(hr)) {
+        const auto start = GetTickCount64();
+        do {
+            const auto elapsed = GetTickCount64() - start;
+            const DWORD interval = timeout == INFINITE ? 100 : DWORD(std::min<uint64_t>(100, timeout - std::min<uint64_t>(elapsed, timeout)));
+            const auto result = WaitForSingleObject(event, interval);
+            if (result == WAIT_OBJECT_0) { done = Complete(value); break; }
+            if (result != WAIT_TIMEOUT || FAILED(device->GetDeviceRemovedReason()))
+                break;
+        } while (timeout == INFINITE || GetTickCount64() - start < timeout);
+    }
     CloseHandle(event);
     return done;
 }

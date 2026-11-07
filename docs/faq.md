@@ -67,7 +67,7 @@ Both are switched off until you turn them on in the *Features* tab. Windowed mod
 This project does not distribute or download it. Supply your own validated copy and select its existing path with **Browse** in the addon panel. The default is beside `LosslessScaling.exe`; browsing does not copy it. Other addons work without this model.
 
 **How is compatibility checked?**
-The new addon checks the LS/model hashes and queried NVIDIA optical-flow capabilities, then reports initialization or capture errors in its panel. Unknown profiles bypass unchanged. Developer model/pipeline harnesses test the supported runtime independently; passing them does not establish gameplay quality.
+The new addon checks the LS runtime and queried NVIDIA optical-flow capabilities, then reports initialization or capture errors in its panel. Every capture waits for NR, including under overload and during initialization or rebuilding. Unsupported profiles and processing errors pause capture; disable NR to change an unsupported setup, or retry initialization after correcting a model error. Developer model/pipeline harnesses test the supported runtime independently; passing them does not establish gameplay quality.
 
 **Can I share what worked on my card?**
 Yes. Include the addon version, Lossless Scaling version, capture mode and a description of the result in an issue.

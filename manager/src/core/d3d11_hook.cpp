@@ -160,7 +160,7 @@ void Shutdown() {
 void Attach(ID3D11Device* device, ID3D11DeviceContext* context) {
     eam::HostImpl* const host = g_host.load(std::memory_order_acquire);
     if (!host) return;
-    if (!ShaderIdentity::Attach(device)) LOG_WARN("D3D11Hook", "Compute shader identities unavailable on this device; verified capture transforms must bypass");
+    if (!ShaderIdentity::Attach(device)) LOG_WARN("D3D11Hook", "Compute shader identities unavailable on this device; required capture transforms will pause");
     void* const before = host->GetD3D11Device();
     host->SetD3D11Device(device, context);
     if (!IsLossless(context)) g_lsContexts[g_nextContext.fetch_add(1) % kContexts].store(context, std::memory_order_release);

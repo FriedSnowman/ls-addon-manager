@@ -1,5 +1,11 @@
 # Changelog
 
+## Local changes (2026-11-07)
+
+- **Neural Rendering processes every capture.** Removed automatic original-frame passthrough during overload, initialization and rebuilding. Capture waits for NR, so contention lowers throughput instead of alternating enhanced and original images.
+- Processing failures pause the current capture with an explicit error until retry or disable. Unsupported capture profiles pause until NR is disabled. NR 1.0.2 requires the matching manager with API 1.4.
+- Replaced bypass/deadline counts with processed counts and frame-slot/scene-summary wait timings.
+
 ## Local changes (2026-11-05)
 
 - Removed the manager's addon trust checks, hash allowlist, security level setting, tampered badges and runtime signature warnings. Local rebuilds load directly.

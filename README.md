@@ -62,11 +62,11 @@ The retired `DLSS5NR01` addon evaluated the model asynchronously, saved the diff
 
 ### Benefits, requirements and limits
 
-The main benefits are **a result tied to the current real frame**, **LSFG interpolation of the enhanced image**, and **a compositor whose output is checked against its pinned upstream implementation**. Resizes, capture restarts, sequence gaps and detected cuts reset history. The panel exposes effective dimensions, GPU stage timings and bypass counts so it is possible to see when the pipeline cannot keep up.
+The main benefits are **a result tied to the current real frame**, **LSFG interpolation of the enhanced image**, and **a compositor whose output is checked against its pinned upstream implementation**. Resizes, capture restarts, sequence gaps and detected cuts reset history. The panel exposes effective dimensions, GPU stage timings and CPU waits so it is possible to see when processing limits throughput. Every capture waits for NR; overload never switches to an original frame.
 
 That ordering has a cost: LSFG waits for the accepted frame's NR work on the GPU. There is also a bounded CPU wait for a small scene-change summary. This is not a zero-latency path.
 
-Use **WGC**, an NVIDIA GPU with compatible optical-flow/model support, and **LSFG 3 or frame generation off**. With FG off, select Scaling Off or NIS. The supported LS runtime is **3.2.2.0**. Newer user-provided NR model DLLs are accepted without a fixed hash restriction; **Model → Fast (B)** requests the smaller model in DLLs that include it. Models **310.8.0.0** and **310.9.16.0** have passed synthetic pipeline tests, including Original/Fast switching with 310.9.16.0. Tested DLL hashes, setup and model choices are in the [new addon guide](addons/NeuralRendering/README.md). Unknown LS builds and model initialization failures bypass unchanged. SDR and linear scRGB are supported; direct HDR10/PQ capture is not. Captures supply no game depth, exposure, jitter or engine motion vectors; the addon uses constant placeholder depth.
+Use **WGC**, an NVIDIA GPU with compatible optical-flow/model support, and **LSFG 3 or frame generation off**. With FG off, select Scaling Off or NIS. The supported LS runtime is **3.2.2.0**. Newer user-provided NR model DLLs are accepted without a fixed hash restriction; **Model → Fast (B)** requests the smaller model in DLLs that include it. Models **310.8.0.0** and **310.9.16.0** have passed synthetic pipeline tests, including Original/Fast switching with 310.9.16.0. Tested DLL hashes, setup and model choices are in the [new addon guide](addons/NeuralRendering/README.md). Unsupported LS builds pause capture while NR is enabled. Model initialization failures pause with an explicit error until retry or disable. SDR and linear scRGB are supported; direct HDR10/PQ capture is not. Captures supply no game depth, exposure, jitter or engine motion vectors; the addon uses constant placeholder depth.
 
 ## Fork notice
 
@@ -357,7 +357,7 @@ The addons run model evaluation and upscaling on a Direct3D 12 device of their o
 ~~NVIDIA's, AMD's and Intel's evaluation code runs on worker threads. Synchronization includes GPU waits and bounded CPU waits; for example, Neural Rendering's bridge can wait up to 2 ms for an idle worker and 4 ms for a submission.~~
 ~~Neural Rendering hooks the frame Lossless Scaling captures or presents and composes the result with Direct3D 11; the upscalers recognise its NIS pass and put their picture in its output.~~
 
-The standalone upscalers retain their NIS hook and worker-based evaluation. The new NR addon initializes/rebuilds on a worker, then submits the current capture's flow, model evaluation and OptiScaler composition before LSFG. GPU fences order D3D11 capture, D3D12 processing and D3D11 consumption; scene-change detection has a 4 ms CPU deadline. See [Architecture](#architecture) above and the [real-frame API](manager/sdk/include/eam/real_frame.h).
+The standalone upscalers retain their NIS hook and worker-based evaluation. The new NR addon initializes/rebuilds on a worker, then submits the current capture's flow, model evaluation and OptiScaler composition before LSFG. GPU fences order D3D11 capture, D3D12 processing and D3D11 consumption; capture waits for initialization, free slots and the current scene summary without a frame deadline. See [Architecture](#architecture) above and the [real-frame API](manager/sdk/include/eam/real_frame.h).
 
 ### Building
 

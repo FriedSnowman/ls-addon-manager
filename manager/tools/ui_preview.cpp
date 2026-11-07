@@ -91,6 +91,7 @@ struct FakeHost : IHost {
     void ReleaseImage(void*) override {}
     bool SetRealFrameCallback(EamRealFrameCallback,void*) override { return true; }
     EamFrameSupport GetRealFrameSupport() override { return EamFrameSupport::Waiting; }
+    void RequireRealFrameProcessing(bool) override {}
     void SetStatus(const char*, const char*, int) override {}
     void PublishMetric(const char*, const char*, double, const char*) override {}
 };
@@ -172,7 +173,6 @@ int main(int argc, char** argv) {
         }
         for (double t = now - 20.0; t <= now; t += 0.2) {
             M.PublishAt("DLSSNR02", "model_ms", 6.6f + (rnd() - 0.5f) * 0.7f, "ms", t);
-            M.PublishAt("DLSSNR02", "keepup_pct", 98.0f + rnd() * 2.0f, "%", t);
         }
         for (double t = now - 20.0; t <= now; t += 0.5) {
             const float u = 90.0f + (rnd() - 0.3f) * 9.0f;

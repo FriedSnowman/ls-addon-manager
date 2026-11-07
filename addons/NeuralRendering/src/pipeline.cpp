@@ -57,8 +57,18 @@ bool WaitFence(ID3D12Fence *fence, uint64_t value, DWORD timeout) {
     HANDLE e = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!e)
         return false;
-    const bool ok = SUCCEEDED(fence->SetEventOnCompletion(value, e)) &&
-                    WaitForSingleObject(e, timeout) == WAIT_OBJECT_0 && complete();
+    bool ok = false;
+    if (SUCCEEDED(fence->SetEventOnCompletion(value, e))) {
+        const auto start = GetTickCount64();
+        do {
+            const auto elapsed = GetTickCount64() - start;
+            const DWORD interval = timeout == INFINITE ? 100 : DWORD(std::min<uint64_t>(100, timeout - std::min<uint64_t>(elapsed, timeout)));
+            const auto result = WaitForSingleObject(e, interval);
+            if (result == WAIT_OBJECT_0) { ok = complete(); break; }
+            if (result != WAIT_TIMEOUT || fence->GetCompletedValue() == UINT64_MAX)
+                break;
+        } while (timeout == INFINITE || GetTickCount64() - start < timeout);
+    }
     CloseHandle(e);
     return ok;
 }
@@ -170,7 +180,7 @@ void Pipeline::Initialize(ID3D11Device *device, unsigned w, unsigned h, Encoding
         throw;
     }
     gpu_.Submit(rec);
-    if (!gpu_.Wait(rec.completion))
+    if (!gpu_.Wait(rec.completion, INFINITE))
         throw std::runtime_error("Model initialization did not retire");
     initialized_ = true;
 }
@@ -200,9 +210,9 @@ void Pipeline::ReadTimings(Slot &s) {
     s.timings.object->Unmap(0, &none);
     s.hasTimings = false;
 }
-bool Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &settings) {
+void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &settings) {
     if (!initialized_)
-        return false;
+        throw std::runtime_error("NR pipeline is not initialized");
     auto *ctx = static_cast<ID3D11DeviceContext *>(frame.context);
     ComPtr<ID3D11DeviceContext4> context;
     Check(ctx->QueryInterface(IID_PPV_ARGS(&context)), "Capture context shared fences");
@@ -217,10 +227,21 @@ bool Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
             break;
         }
     }
+    metrics_.slotWaitMs = 0;
     if (index < 0) {
-        ++metrics_.bypassed;
-        Invalidate();
-        return false;
+        // Apply backpressure to capture. Never replace an overloaded frame with its original.
+        index = int(cursor_);
+        if (index == previous_)
+            index = (index + 1) % 3;
+        auto &pending = slots_[index];
+        const auto start = std::chrono::steady_clock::now();
+        ctx->Flush();
+        if (!gpu_.Wait(pending.prepare.completion, INFINITE) ||
+            !gpu_.Wait(pending.finish.completion, INFINITE) ||
+            !WaitFence(consumed12_.Get(), pending.consumed, INFINITE))
+            throw std::runtime_error("GPU failed while waiting for an NR frame slot");
+        metrics_.slotWaitMs =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
     }
     auto &slot = slots_[index];
     cursor_ = (index + 1) % 3;
@@ -266,15 +287,11 @@ bool Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
     metrics_.summaryWaitMs = 0;
     if (!reset) {
         const auto start = std::chrono::steady_clock::now();
-        const bool complete = gpu_.Wait(ready, 4);
+        const bool complete = gpu_.Wait(ready, INFINITE);
         metrics_.summaryWaitMs =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-        if (!complete) {
-            ++metrics_.deadlineMisses;
-            ++metrics_.bypassed;
-            Invalidate();
-            return false;
-        }
+        if (!complete)
+            throw std::runtime_error("GPU failed while waiting for the current scene summary");
         void *pointer = nullptr;
         D3D12_RANGE range{0, 8};
         Check(slot.readback.object->Map(0, &range, &pointer), "Read scene summary");
@@ -317,7 +334,6 @@ bool Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
     ++metrics_.accepted;
     if (reset)
         ++metrics_.resets;
-    return true;
 }
 bool Pipeline::Retire() {
     if (!gpu_.device || !gpu_.fence)

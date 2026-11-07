@@ -11,7 +11,7 @@ Service::~Service() {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         stopping_ = true;
-        condition_.notify_one();
+        condition_.notify_all();
     }
     worker_.join();
 }
@@ -21,7 +21,6 @@ void Service::Configure(const PipelineSettings &settings, bool enabled, bool reb
     if (rebuild || enabled_ != enabled) {
         ++revision_;
         failed_ = false;
-        dropped_ = true;
     }
     enabled_ = enabled;
     snapshot_.enabled = enabled;
@@ -31,62 +30,79 @@ void Service::Configure(const PipelineSettings &settings, bool enabled, bool reb
         pending_ = true;
         snapshot_.status = "Disabled";
         snapshot_.ready = false;
-        condition_.notify_one();
+        snapshot_.failed = false;
     }
+    condition_.notify_all();
 }
 ServiceSnapshot Service::Snapshot() {
     std::lock_guard<std::mutex> lock(mutex_);
     return snapshot_;
 }
 bool Service::Process(const EamRealFrame &frame) {
-    std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
-    if (!lock.owns_lock()) {
-        dropped_ = true;
-        return false;
-    }
-    if (!enabled_ || poisoned_)
-        return false;
-    if (frame.size < sizeof(EamRealFrame) || !frame.context || !frame.original || !frame.output || !frame.width ||
-        !frame.height)
-        return false;
-    ComPtr<ID3D11Device> device;
-    static_cast<ID3D11DeviceContext *>(frame.context)->GetDevice(&device);
-    const Encoding encoding = frame.encoding == EamFrameEncoding::ScRgb ? Encoding::ScRgb : Encoding::Sdr709;
-    if (!desired_.run || desired_.device != device || desired_.width != frame.width ||
-        desired_.height != frame.height || desired_.encoding != encoding || desired_.epoch != frame.epoch ||
-        desired_.revision != revision_) {
-        desired_ = {device, frame.width, frame.height, encoding, frame.epoch, revision_, ++serial_, true, settings_};
-        pending_ = true;
-        waitingBypasses_ = 0;
-        snapshot_.metrics = {};
-        failed_ = false;
+    std::unique_lock<std::mutex> lock(mutex_);
+    while (enabled_ && !stopping_) {
+        if (poisoned_ || (failed_ && desired_.revision == revision_)) {
+            // Keep this capture pending. Only an explicit retry/configuration change or
+            // disable can leave an error; failure never selects the original image.
+            const auto revision = revision_;
+            condition_.wait(lock, [&] { return stopping_ || !enabled_ || (!poisoned_ && revision_ != revision); });
+            continue;
+        }
+        if (frame.size < sizeof(EamRealFrame) || !frame.context || !frame.original || !frame.output ||
+            !frame.width || !frame.height) {
+            failed_ = snapshot_.failed = true;
+            snapshot_.ready = false;
+            desired_.revision = revision_;
+            snapshot_.status = "Invalid real capture; processing paused. Disable NR to continue.";
+            continue;
+        }
+        ComPtr<ID3D11Device> device;
+        static_cast<ID3D11DeviceContext *>(frame.context)->GetDevice(&device);
+        const Encoding encoding = frame.encoding == EamFrameEncoding::ScRgb ? Encoding::ScRgb : Encoding::Sdr709;
+        if (!desired_.run || desired_.device != device || desired_.width != frame.width ||
+            desired_.height != frame.height || desired_.encoding != encoding || desired_.epoch != frame.epoch ||
+            desired_.revision != revision_) {
+            desired_ = {device, frame.width, frame.height, encoding, frame.epoch, revision_, ++serial_, true, settings_};
+            pending_ = true;
+            snapshot_.metrics = {};
+            failed_ = snapshot_.failed = false;
+            snapshot_.ready = false;
+            snapshot_.status = "Preparing NVIDIA pipeline; capture is waiting";
+            condition_.notify_all();
+        }
+        if (!active_ || activeSerial_ != desired_.serial) {
+            condition_.wait(lock, [&] {
+                return stopping_ || !enabled_ || failed_ || poisoned_ || desired_.revision != revision_ ||
+                       (active_ && activeSerial_ == desired_.serial);
+            });
+            continue;
+        }
+        auto *pipeline = active_.get();
+        const auto composition = settings_.composition;
+        processing_ = true;
+        lock.unlock();
+        std::string error;
+        try {
+            pipeline->Process(frame, composition);
+        } catch (const std::exception &e) {
+            error = e.what();
+        }
+        lock.lock();
+        processing_ = false;
+        condition_.notify_all();
+        snapshot_.metrics = pipeline->Metrics();
+        if (error.empty()) {
+            if (enabled_) {
+                snapshot_.ready = true;
+                snapshot_.status = "Running before LSFG; every capture processed";
+            }
+            return true;
+        }
+        failed_ = pending_ = snapshot_.failed = true;
         snapshot_.ready = false;
-        snapshot_.failed = false;
-        snapshot_.status = "Preparing NVIDIA pipeline; original frames pass through";
-        condition_.notify_one();
+        snapshot_.status = error + "; processing paused. Retry initialization or disable NR.";
     }
-    if (!active_ || activeSerial_ != desired_.serial || failed_) {
-        snapshot_.metrics.bypassed = ++waitingBypasses_;
-        return false;
-    }
-    try {
-        if (dropped_.exchange(false))
-            active_->Invalidate();
-        const bool result = active_->Process(frame, settings_.composition);
-        snapshot_.metrics = active_->Metrics();
-        snapshot_.metrics.bypassed += waitingBypasses_;
-        snapshot_.ready = true;
-        snapshot_.status = result ? "Running before LSFG" : "Frame bypassed; resetting history";
-        return result;
-    } catch (const std::exception &e) {
-        failed_ = true;
-        pending_ = true;
-        snapshot_.ready = false;
-        snapshot_.failed = true;
-        snapshot_.status = e.what();
-        condition_.notify_one();
-        return false;
-    }
+    return false; // Only an explicit disable/shutdown permits an original handoff.
 }
 bool Service::Retire(std::unique_ptr<Pipeline> &p) {
     if (!p)
@@ -110,7 +126,7 @@ void Service::Worker() {
         bool stop = false, build = false;
         {
             std::unique_lock<std::mutex> lock(mutex_);
-            condition_.wait(lock, [&] { return stopping_ || pending_; });
+            condition_.wait(lock, [&] { return !processing_ && (stopping_ || pending_); });
             stop = stopping_;
             pending_ = false;
             request = desired_;
@@ -124,6 +140,7 @@ void Service::Worker() {
             snapshot_.ready = false;
             snapshot_.failed = true;
             snapshot_.status = "GPU retirement failed; restart Lossless Scaling before retrying";
+            condition_.notify_all();
         }
         if (stop)
             return;
@@ -147,17 +164,16 @@ void Service::Worker() {
                     keep = true;
                     snapshot_.status = "Ready for real capture";
                     snapshot_.metrics = active_->Metrics();
-                    snapshot_.metrics.bypassed = waitingBypasses_;
                     snapshot_.ready = true;
                     snapshot_.failed = false;
-                    dropped_ = true;
                 } else {
                     failed_ = true;
-                    snapshot_.status = error;
+                    snapshot_.status = error + "; processing paused. Retry initialization or disable NR.";
                     snapshot_.failed = true;
                     snapshot_.ready = false;
                 }
             }
+            condition_.notify_all();
         }
         if (!keep && !Retire(created)) {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -165,6 +181,7 @@ void Service::Worker() {
             snapshot_.ready = false;
             snapshot_.failed = true;
             snapshot_.status = "GPU retirement failed; restart Lossless Scaling before retrying";
+            condition_.notify_all();
         }
     }
 }

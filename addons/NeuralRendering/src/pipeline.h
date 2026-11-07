@@ -16,18 +16,19 @@ struct PipelineSettings {
     std::wstring modelPath, forwarderPath, cachePath;
 };
 struct PipelineMetrics {
-    uint64_t accepted = 0, bypassed = 0, cuts = 0, resets = 0, deadlineMisses = 0;
+    uint64_t accepted = 0, cuts = 0, resets = 0;
     unsigned width = 0, height = 0, workingWidth = 0, workingHeight = 0;
     int captureGpuPriority = 0, nrQueuePriority = 0;
-    double summaryWaitMs = 0, prepareMs = 0, flowMs = 0, modelMs = 0, compositionMs = 0;
+    double slotWaitMs = 0, summaryWaitMs = 0, prepareMs = 0, flowMs = 0, modelMs = 0, compositionMs = 0;
     float sceneDistance = 0;
 };
 // One device/size/settings epoch. Creation/retirement belong to the service worker.
-// Process runs only on the capture render thread, serially with the service lock.
+// The host serializes Process on the capture render thread. The service keeps this
+// epoch alive until Process returns, while status/configuration remain accessible.
 class Pipeline {
   public:
     void Initialize(ID3D11Device *, unsigned width, unsigned height, Encoding, const PipelineSettings &);
-    bool Process(const EamRealFrame &, const CompositionSettings &);
+    void Process(const EamRealFrame &, const CompositionSettings &);
     bool Retire();
     PipelineMetrics Metrics() const { return metrics_; }
     void Invalidate() {

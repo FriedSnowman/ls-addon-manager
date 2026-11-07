@@ -117,7 +117,6 @@ void RenderTabPerformance() {
     }
     const Metrics::Series frame = M.Get(source, "frame_ms", kGraphSeconds + 1);
     const Metrics::Series model = M.Get(source, modelKey, kGraphSeconds + 1);
-    const Metrics::Series keep = M.Get(source, "keepup_pct", kGraphSeconds + 1);
     const Metrics::Series util = M.Get("system", "gpu_util", kGraphSeconds + 1);
     const Metrics::Series power = M.Get("system", "gpu_power_w", kGraphSeconds + 1);
     const GpuStats::Snapshot gpu = GpuStats::Instance().Get();
@@ -135,7 +134,7 @@ void RenderTabPerformance() {
         return;
     }
 
-    const Stats fs = Summarise(frame, now, kStatSeconds), ms = Summarise(model, now, kStatSeconds), ks = Summarise(keep, now, kStatSeconds);
+    const Stats fs = Summarise(frame, now, kStatSeconds), ms = Summarise(model, now, kStatSeconds);
     const Stats us = Summarise(util, now, kStatSeconds);
 
     // ---- tiles
@@ -151,8 +150,8 @@ void RenderTabPerformance() {
     Tile("t2", tileW, "SLOWEST 5% OF FRAMES", big, sub, U(fs.p95 > 25.0f ? eam::ui::theme::kWarn : eam::ui::theme::kAccent));
     ImGui::SameLine();
     if (!model.samples.empty()) snprintf(big, sizeof big, "%.1f ms", ms.avg); else snprintf(big, sizeof big, "-");
-    snprintf(sub, sizeof sub, !keep.samples.empty() ? "enhanced %.0f%% this epoch" : "", ks.avg);
-    Tile("t3", tileW, "MODEL COST", big, sub, U(ks.n && ks.avg < 90.0f ? eam::ui::theme::kWarn : eam::ui::theme::kAccent));
+    snprintf(sub, sizeof sub, "%s", source == std::string("DLSSNR02") ? "every capture waits for NR" : "");
+    Tile("t3", tileW, "MODEL COST", big, sub, U(eam::ui::theme::kAccent));
     ImGui::SameLine();
     if (haveGpu) snprintf(big, sizeof big, "%u%%", gpu.utilGpu); else snprintf(big, sizeof big, "-");
     snprintf(sub, sizeof sub, haveGpu ? "%.0f of %.0f W" : "", gpu.powerW, gpu.powerLimitW);
@@ -225,10 +224,6 @@ void RenderTabPerformance() {
         Reading(U(eam::ui::theme::kWarn), b); said = true;
     } else if (haveGpu && (gpu.throttle & 0x60) && gpu.utilGpu >= 80) {
         Reading(U(eam::ui::theme::kWarn), "The GPU is slowing down because of temperature. Check the case airflow and the fan curve."); said = true;
-    }
-    if (ks.n && ks.avg < 90.0f) {
-        char b[200]; snprintf(b, sizeof b, "The model runs on only %.0f%% of frames: other frames pass through unchanged, including during initialization. Lower Working resolution if bypasses continue.", ks.avg);
-        Reading(U(eam::ui::theme::kWarn), b); said = true;
     }
     if (haveFrames && fs.n > 30) {
         if (fs.p95 > 1.5f * fs.p50 && fs.p95 > 22.0f) {

@@ -2,10 +2,12 @@
 #include "exception_diagnostics.h"
 #include "pipeline.h"
 #include "service.h"
+#include <algorithm>
 #include <DirectXPackedVector.h>
 #include <cstdio>
 #include <d3d12sdklayers.h>
 #include <filesystem>
+#include <future>
 #include <thread>
 using namespace neural;
 static std::vector<unsigned char> Read(ID3D11Device *device, ID3D11DeviceContext *context, ID3D11Texture2D *texture) {
@@ -114,7 +116,7 @@ int wmain(int argc, wchar_t **argv) {
                 throw std::runtime_error("NR queue did not follow capture GPU priority");
             printf("PASS GPU priority: capture=%d NR=%d\n", priorities.captureGpuPriority, priorities.nrQueuePriority);
             std::vector<unsigned char> bytes(size_t(w) * h * bpp);
-            unsigned accepted = 0, bypassed = 0;
+            unsigned accepted = 0;
             double edits = 0;
             for (unsigned frame = 0; frame < 18; frame++) {
                 // Translation, repetition, deliberate scene cut and explicit long gap reset.
@@ -152,35 +154,32 @@ int wmain(int argc, wchar_t **argv) {
                 f.encoding = hdr ? EamFrameEncoding::ScRgb : EamFrameEncoding::Sdr709;
                 f.sequence = frame + 1 + (frame >= 14 ? 3 : 0);
                 f.epoch = scenario + 1;
-                bool ok = pipeline->Process(f, settings.composition);
-                if (ok)
-                    accepted++;
-                else
-                    bypassed++;
+                pipeline->Process(f, settings.composition);
+                accepted++;
                 const auto out = Read(device.Get(), context.Get(), output.Get());
                 const auto unchanged = Read(device.Get(), context.Get(), original.Get());
                 if (unchanged != bytes)
                     throw std::runtime_error("Original capture was modified");
-                if ((!ok || scenario == 0 || !settings.composition.apply) && out != bytes)
-                    throw std::runtime_error("Bypass/intensity-zero identity failed");
+                if ((scenario == 0 || !settings.composition.apply) && out != bytes)
+                    throw std::runtime_error("Apply-off/intensity-zero identity failed");
                 if (hdr)
                     for (size_t p = 0; p < out.size(); p += 2)
                         if (!std::isfinite(DirectX::PackedVector::XMConvertHalfToFloat(
                                 *reinterpret_cast<const uint16_t *>(&out[p]))))
                             throw std::runtime_error("Non-finite HDR output");
-                if (ok && out != bytes)
+                if (out != bytes)
                     edits++;
             }
             const auto m = pipeline->Metrics();
-            printf("Scenario %u: %ux%u work=%ux%u accepted=%u bypassed=%u edits=%.0f cuts=%llu resets=%llu "
+            printf("Scenario %u: %ux%u work=%ux%u processed=%u edits=%.0f cuts=%llu resets=%llu "
                    "prepare=%.3f flow=%.3f model=%.3f composition=%.3f summarywait=%.3f ms\n",
-                   scenario, w, h, m.workingWidth, m.workingHeight, accepted, bypassed, edits, m.cuts, m.resets,
+                   scenario, w, h, m.workingWidth, m.workingHeight, accepted, edits, m.cuts, m.resets,
                    m.prepareMs, m.flowMs, m.modelMs, m.compositionMs, m.summaryWaitMs);
-            if (accepted < 12 || m.cuts < 1 || m.resets < 3 || (scenario > 0 && edits < 10))
+            if (accepted != 18 || m.accepted != 18 || m.cuts < 1 || m.resets < 3 || (scenario > 0 && edits < 10))
                 throw std::runtime_error("Pipeline coverage requirements failed");
-            if (scenario == 0) {
-                // Hold the capture queue so preparation misses its deadline and all three
-                // slots become occupied. A CPU watchdog releases it even on test failure.
+            if (scenario == 1) {
+                // Exercise both scene-summary and full-slot waits. Delays beyond the old
+                // deadline must still process every frame, with the model result applied.
                 ComPtr<ID3D11Device5> d5;
                 Check(device.As(&d5), "Test fence device");
                 ComPtr<ID3D11DeviceContext4> c4;
@@ -195,13 +194,16 @@ int wmain(int argc, wchar_t **argv) {
                 HRESULT opened = testGpu.device->OpenSharedHandle(handle, IID_PPV_ARGS(&hold12));
                 CloseHandle(handle);
                 Check(opened, "Open test hold");
-                Check(c4->Wait(hold11.Get(), 1), "Hold capture queue");
+                for (unsigned phase = 0; phase < 2; ++phase) {
+                const uint64_t releaseValue = phase + 1;
+                Check(c4->Wait(hold11.Get(), releaseValue), "Hold capture queue");
                 context->Flush();
-                std::thread release([hold12] {
+                std::thread release([hold12, releaseValue] {
                     Sleep(100);
-                    hold12->Signal(1);
+                    hold12->Signal(releaseValue);
                 });
-                unsigned skipped = 0;
+                const auto before = pipeline->Metrics().accepted;
+                double summaryWait = 0, slotWait = 0;
                 try {
                     for (unsigned n = 0; n < 6; n++) {
                         EamRealFrame f;
@@ -210,24 +212,28 @@ int wmain(int argc, wchar_t **argv) {
                         f.output = output.Get();
                         f.width = w;
                         f.height = h;
-                        f.sequence = 22 + n;
+                        f.sequence = 22 + phase * 6 + n;
                         f.epoch = 1;
-                        if (!pipeline->Process(f, settings.composition))
-                            skipped++;
+                        if (phase == 1) pipeline->Invalidate();
+                        pipeline->Process(f, settings.composition);
+                        summaryWait = std::max(summaryWait, pipeline->Metrics().summaryWaitMs);
+                        slotWait = std::max(slotWait, pipeline->Metrics().slotWaitMs);
                     }
                 } catch (...) {
-                    hold12->Signal(1);
+                    hold12->Signal(releaseValue);
                     release.join();
                     throw;
                 }
-                hold12->Signal(1);
+                hold12->Signal(releaseValue);
                 release.join();
-                Read(device.Get(), context.Get(), output.Get());
+                const auto enhanced = Read(device.Get(), context.Get(), output.Get());
                 const auto overloaded = pipeline->Metrics();
-                if (skipped < 2 || overloaded.deadlineMisses == 0)
-                    throw std::runtime_error("Overload did not exercise bounded bypass");
-                printf("PASS overload: %u bypassed, %llu summary deadlines missed; queue recovered\n", skipped,
-                       overloaded.deadlineMisses);
+                if (overloaded.accepted != before + 6 || enhanced == bytes ||
+                    (phase == 0 ? summaryWait : slotWait) < 20)
+                    throw std::runtime_error("Overload did not wait and enhance every frame");
+                printf("PASS overload phase %u: all 6 processed, summary/slot waits %.2f/%.2f ms; queue recovered\n",
+                       phase, summaryWait, slotWait);
+                }
             }
             if (!pipeline->Retire())
                 throw std::runtime_error("Pipeline retirement failed");
@@ -236,10 +242,8 @@ int wmain(int argc, wchar_t **argv) {
                 Service service;
                 settings.modelPath = L"missing-user-model.dll";
                 service.Configure(settings, true, true);
-                auto waitFor = [&](bool failure, uint64_t epoch) {
-                    const auto until = GetTickCount64() + 10000;
-                    unsigned attempts = 0;
-                    while (GetTickCount64() < until) {
+                unsigned attempts = 0;
+                auto process = [&](uint64_t epoch) {
                         EamRealFrame f;
                         f.context = context.Get();
                         f.original = original.Get();
@@ -248,43 +252,54 @@ int wmain(int argc, wchar_t **argv) {
                         f.height = h;
                         f.sequence = ++attempts;
                         f.epoch = epoch;
-                        const bool acceptedNow = service.Process(f);
-                        const auto state = service.Snapshot();
-                        if (failure && state.failed) {
-                            printf("PASS failure: %s\n", state.status.c_str());
-                            return;
-                        }
-                        if (!failure && state.failed)
-                            throw std::runtime_error(state.status);
-                        if (!failure && acceptedNow) {
-                            Read(device.Get(), context.Get(), output.Get());
-                            return;
-                        }
-                        Sleep(5);
-                    }
-                    throw std::runtime_error("Service initialization timeout");
+                        return service.Process(f);
                 };
-                waitFor(true, 1);
+                auto waitFor = [&](uint64_t epoch) {
+                    if (!process(epoch)) throw std::runtime_error("Enabled service returned an original frame");
+                    Read(device.Get(), context.Get(), output.Get());
+                };
+                auto pending = std::async(std::launch::async, [&] { return process(1); });
+                const auto until = GetTickCount64() + 10000;
+                while (!service.Snapshot().failed && GetTickCount64() < until) Sleep(5);
+                if (!service.Snapshot().failed || pending.wait_for(std::chrono::milliseconds(50)) != std::future_status::timeout) {
+                    service.Configure(settings, false, false);
+                    pending.wait();
+                    throw std::runtime_error("Initialization failure did not pause capture");
+                };
+                printf("PASS failure pauses capture: %s\n", service.Snapshot().status.c_str());
                 settings.modelPath = std::filesystem::absolute(argv[1]).wstring();
                 service.Configure(settings, true, true);
-                waitFor(false, 1);
+                if (!pending.get()) throw std::runtime_error("Retry bypassed the waiting capture");
+                Read(device.Get(), context.Get(), output.Get());
+                waitFor(1);
                 settings.model.intensity = 0;
                 service.Configure(settings, true, true);
-                waitFor(false, 1);
+                waitFor(1);
                 service.Configure(settings, false, false);
                 if (service.Snapshot().enabled)
                     throw std::runtime_error("Disable failed");
                 service.Configure(settings, true, true);
-                waitFor(false, 2);
+                waitFor(2);
                 puts("PASS worker initialization failure/retry, settings recreation, disable/re-enable and epoch "
                      "change");
                 settings.model.intensity = 1;
                 for (unsigned selected : {1u, 2u, 0u}) {
                     settings.model.preset = selected;
                     service.Configure(settings, true, true);
-                    waitFor(false, 2);
+                    waitFor(2);
                 }
                 puts("PASS live Original -> Fast -> default model recreation");
+                settings.modelPath = L"missing-user-model.dll";
+                service.Configure(settings, true, true);
+                auto disabled = std::async(std::launch::async, [&] { return process(2); });
+                const auto disableUntil = GetTickCount64() + 10000;
+                while (!service.Snapshot().failed && GetTickCount64() < disableUntil) Sleep(5);
+                const bool paused = service.Snapshot().failed &&
+                                    disabled.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout;
+                service.Configure(settings, false, false);
+                if (disabled.get() || !paused || service.Snapshot().failed)
+                    throw std::runtime_error("Explicit disable did not release the failed capture");
+                puts("PASS explicit disable releases paused initialization and clears the error");
             }
         }
         if (messages) {
