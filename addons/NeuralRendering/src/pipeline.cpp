@@ -113,7 +113,8 @@ void Pipeline::SharedFence(ComPtr<ID3D11Fence> &f11, ComPtr<ID3D12Fence> &f12) {
 void Pipeline::Initialize(ID3D11Device *device, unsigned w, unsigned h, Encoding encoding, const PipelineSettings &s) {
     settings_ = s;
     encoding_ = encoding;
-    if (s.scalePercent < 25 || s.scalePercent > 100 || s.flowQuality < 1 || s.flowQuality > 3)
+    if (s.scalePercent < 25 || s.scalePercent > 100 || s.flowQuality < 1 || s.flowQuality > 3 ||
+        s.passes < 1 || s.passes > PipelineSettings::MaxPasses)
         throw std::runtime_error("Invalid pipeline settings");
     Check(device->QueryInterface(IID_PPV_ARGS(&device11_)), "D3D11 shared fences require Windows 10");
     ComPtr<IDXGIDevice> dxgi;
@@ -151,6 +152,8 @@ void Pipeline::Initialize(ID3D11Device *device, unsigned w, unsigned h, Encoding
         slot.keep = gpu_.Texture(w, h, DXGI_FORMAT_R16G16B16A16_FLOAT);
         slot.working = gpu_.Texture(ww, wh, DXGI_FORMAT_R16G16B16A16_FLOAT);
         slot.model = gpu_.Texture(ww, wh, DXGI_FORMAT_R16G16B16A16_FLOAT);
+        if (s.passes > 1)
+            slot.modelScratch = gpu_.Texture(ww, wh, DXGI_FORMAT_R16G16B16A16_FLOAT);
         slot.motion = gpu_.Texture(ww, wh, DXGI_FORMAT_R16G16_FLOAT);
         slot.summary = gpu_.Buffer(8, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
         slot.readback = gpu_.Buffer(8, D3D12_HEAP_TYPE_READBACK);
@@ -182,6 +185,28 @@ void Pipeline::Initialize(ID3D11Device *device, unsigned w, unsigned h, Encoding
     gpu_.Submit(rec);
     if (!gpu_.Wait(rec.completion, INFINITE))
         throw std::runtime_error("Model initialization did not retire");
+    // OptiScaler's independent-history chain: one persistent feature per pass.
+    // The original one-pass creation/submission above is unchanged. Each extra
+    // creation retires separately, before any feature is evaluated.
+    for (unsigned pass = 1; pass < s.passes; ++pass) {
+        extraModels_.push_back(std::make_unique<Model>());
+        rec.Begin(gpu_.fence.Get());
+        auto profile = s.model;
+        profile.localTone = 0; // PreSR-Multipass default: avoid compounding local tone.
+        try {
+            extraModels_.back()->Initialize(gpu_, rec, s.forwarderPath, s.modelPath, s.cachePath, ww, wh, profile);
+        } catch (const std::exception &e) {
+            gpu_.Submit(rec);
+            throw std::runtime_error("NR pass " + std::to_string(pass + 1) + " initialization: " + e.what());
+        } catch (...) {
+            gpu_.Submit(rec);
+            throw;
+        }
+        gpu_.Submit(rec);
+        if (!gpu_.Wait(rec.completion, INFINITE))
+            throw std::runtime_error("Additional model initialization did not retire");
+    }
+    metrics_.passes = s.passes;
     initialized_ = true;
 }
 void Pipeline::Copy(ID3D11DeviceContext *ctx, ID3D11ShaderResourceView *src, ID3D11UnorderedAccessView *dst) {
@@ -310,8 +335,19 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
     flow_.Convert(gpu_, finish, slot.motion, reset);
     finish.list->EndQuery(queries_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query + 2);
     model_.Evaluate(finish, slot.working, depth_, slot.motion, slot.model, reset);
+    Resource *result = &slot.model;
+    for (size_t pass = 0; pass < extraModels_.size(); ++pass) {
+        Resource *next = result == &slot.model ? &slot.modelScratch : &slot.model;
+        try {
+            // Same capture's guides/reset, separate temporal history for each layer.
+            extraModels_[pass]->Evaluate(finish, *result, depth_, slot.motion, *next, reset);
+        } catch (const std::exception &e) {
+            throw std::runtime_error("NR pass " + std::to_string(pass + 2) + " evaluation: " + e.what());
+        }
+        result = next;
+    }
     finish.list->EndQuery(queries_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query + 3);
-    composition_.Resolve(gpu_, finish, slot.working, slot.model, slot.keep, slot.output.texture, encoding_, settings);
+    composition_.Resolve(gpu_, finish, slot.working, *result, slot.keep, slot.output.texture, encoding_, settings);
     slot.output.texture.Transition(finish.list.Get(), D3D12_RESOURCE_STATE_COMMON);
     finish.list->EndQuery(queries_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query + 4);
     finish.list->ResolveQueryData(queries_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query, 5, slot.timings.object.Get(), 0);
@@ -340,6 +376,19 @@ bool Pipeline::Retire() {
         return true;
     if (!gpu_.Wait(gpu_.LastSubmitted()) || !WaitFence(consumed12_.Get(), lastConsumed_, 3000))
         return false;
+    if (!extraModels_.empty()) {
+        // Shared snippet shutdown refuses while ANY pass feature remains live.
+        // Include a partially initialized final pass when recovering from creation failure.
+        for (auto &model : extraModels_)
+            if (!model->ReleaseFeature())
+                return false;
+        if (!model_.ReleaseFeature())
+            return false;
+        for (auto &model : extraModels_)
+            if (!model->Shutdown())
+                return false;
+        extraModels_.clear();
+    }
     if (!model_.Shutdown() || !flow_.Shutdown())
         return false;
     initialized_ = false;

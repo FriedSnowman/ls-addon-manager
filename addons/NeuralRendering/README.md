@@ -2,9 +2,9 @@
 
 `DLSSNR02` is the new NVIDIA-only addon. It processes **original real captures before LSFG**:
 
-`capture -> original-image NVIDIA Optical Flow -> one NR evaluation -> OptiScaler composition -> LSFG analysis/interpolation -> presentation`
+`capture -> original-image NVIDIA Optical Flow -> NR (1–10 passes) -> OptiScaler composition -> LSFG analysis/interpolation -> presentation`
 
-It never enhances generated frames or reuses an earlier neural edit. AMD NR and multipass are absent. The independent DLSS, FSR and XeSS upscaler addons are preserved; they operate later, at the NIS stage.
+It never enhances generated frames or reuses an earlier neural edit. AMD NR is absent. The independent DLSS, FSR and XeSS upscaler addons are preserved; they operate later, at the NIS stage.
 
 ## Setup and supported profile
 
@@ -31,13 +31,14 @@ Model and composition controls use the pinned OptiScaler implementation's values
 
 | Setting | Value / meaning | Default |
 |---|---|---:|
+| Multipass | Off = one evaluation; 2–10 sequential model evaluations on the same real capture | Off |
 | Model | `DLSSNR.Hint.Render.Preset`: Default 0, Original (A) 1, Fast (B) 2, legacy Preset 3 | Default |
 | Style | `DLSSNR.Style`, 0–2; upstream names Default/Natural/Cinematic | 0 |
 | Intensity | `DLSSNR.Intensity`, 0–2; **100% = 1**, 50% = 0.5 | 1 |
 | Local structure | `DLSSNR.LocalStructureStrength`, 0–2 | 0.8 |
 | Local tone | `DLSSNR.LocalToneStrength`, 0–2 | 0.3 |
 | Skin structure | `DLSSNR.SkinStructureStrength`, -1–2; -1 follows local structure | -1 |
-| Automatic mask | `DLSSNR.UseAutoMask`, boolean | On |
+| Automatic skin detection | `DLSSNR.UseAutoMask`; detects skin so Skin structure can adjust its detail separately | On |
 | Detail | `gTransferStrength`, 0–4; 1 applies the model's luminance edit, 0 removes it | 1 |
 | Colour | `gColourStrength`, 0–4; 0 preserves the original palette, 1 uses model colour, >1 boosts chroma | 1 |
 | Maximum luminance ratio | `gMaxRatio`; two-sided luminance bound, e.g. 2 means 0.5×–2× | 2 |
@@ -54,6 +55,16 @@ Replace proxy modes decode the model image directly and bypass the normal compos
 Flow compares **current original to previous accepted original**. NVOFA S10.5 vectors are divided by 32 and scaled separately by workingWidth/captureWidth and workingHeight/captureHeight. NR receives working-pixel displacement with MV scale 1. Flow cost is diagnostic and does not attenuate vectors. This differs from OptiScaler's usual game-vector input; no numerical mapping to an undocumented LSFG flow texture is assumed.
 
 Shortfuse/RenoDX composition inspired upstream OptiScaler, but controls from other revisions are not automatically interchangeable. This build pins OptiScaler `973761621353b99bee3dc7d4bb27b117fef2644f`; the exact shader and licences ship with the corresponding source. The parity test compares against that revision, not an evolving upstream HEAD.
+
+## Multipass
+
+**Multipass**, below **Automatic skin detection**, selects Off, 2, 3, …, 10. Off retains the original single-pass model settings, GPU operations and composition; it does not disable Neural Rendering. Existing configurations default to Off (stored as one pass). One pass allocates no extra model features or scratch images. Restore defaults also restores Off.
+
+The chain follows [OptiScaler PreSR-Multipass's design](https://github.com/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/blob/main/OptiScaler/dlssnr/design/pre-sr-multipass.md): each pass owns a persistent model and independent temporal history. Later passes inherit the selected model controls with local tone set to zero. The input is encoded once, model outputs alternate between two working textures, and the final answer is composed once against the untouched original input. Flow is still calculated once from original captures; every pass receives the same current-frame guides and reset. The pinned composition shader is unchanged.
+
+Extra passes add model time and model-history VRAM, plus one working-size RGBA16F scratch texture in each of the three frame slots. They can strengthen the effect, including unwanted artifacts. The model timing reports the entire chain. Changing the count rebuilds on control release; capture waits for all requested features to finish initialization. A failed extra pass pauses processing with its pass number, just like other NR failures; no partial result or fewer passes are silently substituted. Initialization and retirement are fenced, with all feature handles released before shared runtime shutdown.
+
+On RTX 5080 with model 310.9.16.0, the one-pass build matched all 108 pre-change output images byte-for-byte across the six pipeline scenarios. Two-, three- and ten-pass debug runs passed SDR/scRGB, native/reduced working size, scene resets, overload, model switching and live 1→3→2→1 switching with zero D3D12 errors. A copy-model fixture separately checks the pass resource chain through ten passes, independent histories, shared guides/resets, and creation/evaluation failures in passes 2, 3 and 10. This is synthetic validation; representative gameplay quality and pacing remain to be assessed.
 
 ## Timing, resets and failures
 
@@ -73,6 +84,6 @@ The NR model has an independent lifetime: it does not initialize or shut down th
 
 Visual Studio 2022 C++ tools, Windows SDK and CMake 3.20+: configure this directory, then build Release target `DLSSNR02`. Neither a proprietary NGX SDK nor the model is needed to compile. The pinned ImGui source is fetched unless supplied through `FETCHCONTENT_SOURCE_DIR_IMGUI`; source packages include it in `dependencies/imgui`.
 
-`neural_forwardertest` checks runtime loading, model selection and failure recovery with test DLLs, without a GPU or proprietary model. Hardware tests: `neural_flowtest`, `neural_compositiontest`, `neural_modeltest <model> [intensity=1] [preset=0]`, `neural_pipelinetest <model> [--debug] [--preset 0|1|2|3]`. The manager's excluded `eam_captureprobe` target exercises the real LS DLL against its own source window; it never installs or modifies game/LS files.
+`neural_forwardertest` checks runtime loading, model selection, independent feature handles and failure recovery with test DLLs, without a GPU or proprietary model. Hardware tests: `neural_flowtest`, `neural_compositiontest`, `neural_modeltest <model> [intensity=1] [preset=0]`, `neural_pipelinetest <model> [--debug] [--preset 0|1|2|3] [--passes 1..10]`, and `neural_multipasstest` (NVIDIA hardware/driver, no proprietary model required). For before/after pixel comparisons, run the old pipeline test with `--capture-output <file>` and the new one with `--verify-output <file>`, using the same model, preset and GPU. The manager's excluded `eam_captureprobe` target exercises the real LS DLL against its own source window; it never installs or modifies game/LS files.
 
 GPL-3.0-only; see LICENSE and NOTICE.md. Binary packages include `NeuralRendering-source.zip` and attribution. The installer backs up only the retired plugin's owned executables/manifest, preserving user models, settings and unrelated files at their paths. The manager also refuses both retired folder IDs after manual overlay upgrades.

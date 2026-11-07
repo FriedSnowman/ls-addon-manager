@@ -72,6 +72,9 @@ The new addon checks the LS runtime and queried NVIDIA optical-flow capabilities
 **Can I share what worked on my card?**
 Yes. Include the addon version, Lossless Scaling version, capture mode and a description of the result in an issue.
 
+**How do I enable multipass?**
+Set **Multipass**, below **Automatic skin detection**, to 2–10. The default **Off** preserves the existing single-pass rendering path. Each extra pass has its own temporal history, inherits the model settings with local tone zero, and adds GPU time and VRAM use. Composition happens once after the full chain. Pass-count changes wait for rebuilding; failures pause with an explicit error until retry or disable.
+
 ## DLSS, FSR and XeSS Upscalers
 
 **The upscaler is on, but nothing changes.**

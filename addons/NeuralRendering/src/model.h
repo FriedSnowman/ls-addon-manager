@@ -11,11 +11,17 @@ struct ModelSettings {
 };
 class Model {
   public:
+    Model() = default;
+    Model(const Model &) = delete;
+    Model &operator=(const Model &) = delete;
     ~Model();
     // Feature creation records work: release only after the containing queue retires.
     void Initialize(Gpu &, Recording &, const std::wstring &forwarder, const std::wstring &model,
                     const std::wstring &cache, uint32_t width, uint32_t height, const ModelSettings &);
     void Evaluate(Recording &, Resource &colour, Resource &depth, Resource &motion, Resource &output, bool reset);
+    // A chain must release every feature before any instance shuts down the shared
+    // snippet. Keep parameters/modules alive until that second retirement phase.
+    bool ReleaseFeature();
     bool Shutdown();
     int FloatSlot() const { return floatSlot_; }
 

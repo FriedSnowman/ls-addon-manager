@@ -17,7 +17,9 @@ New-Item -ItemType Directory -Force $parent | Out-Null
 $stream=[IO.File]::Create($Destination)
 $archive=New-Object IO.Compression.ZipArchive($stream,[IO.Compression.ZipArchiveMode]::Create)
 try {
-    $sources=@(git -C $root ls-files --cached -- addons/NeuralRendering manager/sdk/include)
+    # Local installers include current work, including new source files that have
+    # not been staged yet. Ignore build output and private files through .gitignore.
+    $sources=@(git -C $root ls-files --cached --others --exclude-standard -- addons/NeuralRendering manager/sdk/include | Sort-Object -Unique)
     foreach($relative in $sources){
         if($relative -match '\.(dll|exe|lib|pdb|zip)$'){throw "Binary is not corresponding source: $relative"}
         [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $root $relative),$relative.Replace('\','/'),[IO.Compression.CompressionLevel]::Optimal)

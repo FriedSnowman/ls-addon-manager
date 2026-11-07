@@ -2,6 +2,8 @@
 
 ## Local changes (2026-11-07)
 
+- **NR 1.1.1:** renamed the control to Multipass, moved it below Automatic skin detection, and extended the slider to Off / 2–10. Off preserves single-pass rendering. Replaced its explanation with “Do not use multipass other than to make bad memes.” Renamed Automatic mask to Automatic skin detection and explained its connection to Skin structure.
+- **OptiScaler-style multipass in NR 1.1.0.** Optional 2–3 passes use independent model histories and a single final composition. The default one-pass path allocates no extra GPU resources and matched 108 pre-change output images byte-for-byte. Added pass-count controls, shared-runtime retirement and extra-pass failure tests; the full chain's model cost is reported in existing timing metrics.
 - **Neural Rendering processes every capture.** Removed automatic original-frame passthrough during overload, initialization and rebuilding. Capture waits for NR, so contention lowers throughput instead of alternating enhanced and original images.
 - Processing failures pause the current capture with an explicit error until retry or disable. Unsupported capture profiles pause until NR is disabled. NR 1.0.2 requires the matching manager with API 1.4.
 - Replaced bypass/deadline counts with processed counts and frame-slot/scene-summary wait timings.

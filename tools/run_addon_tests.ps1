@@ -48,10 +48,11 @@ $suites = [ordered]@{
                    Build = @('installer', 'setup_core', 'setup_cli', 'pack_payload', 'LSAddonManagerSetup');
                    Script = "$root\installer\tests\setup_exe_test.ps1" }
     nr        = @{ When = '^addons/NeuralRendering/|^manager/sdk/|^manager/src/core/real_frame';
-                   Build = @('neural','DLSSNR02','neural_forwardertest','neural_flowtest','neural_compositiontest','neural_modeltest','neural_pipelinetest');
+                   Build = @('neural','DLSSNR02','neural_forwardertest','neural_flowtest','neural_compositiontest','neural_modeltest','neural_pipelinetest','neural_multipasstest');
                    Runs = @(@('NR runtime compatibility and model selection', "$root\addons\NeuralRendering\build\Release\neural_forwardertest.exe", @()),
                             @('NVIDIA independent optical flow', "$root\addons\NeuralRendering\build\Release\neural_flowtest.exe", @()),
-                            @('OptiScaler composition parity', "$root\addons\NeuralRendering\build\Release\neural_compositiontest.exe", @())) }
+                            @('OptiScaler composition parity', "$root\addons\NeuralRendering\build\Release\neural_compositiontest.exe", @()),
+                            @('Multipass histories and failure retirement', "$root\addons\NeuralRendering\build\Release\neural_multipasstest.exe", @())) }
     scalers   = @{ When = '^addons/Upscalers/|^manager/sdk/';
                    Build = @('scalers', 'nr_taptest', 'nr_rectest', 'nr_lsrec', 'DLSS4DLAA', 'FSR3UPSC');
                    Runs = @(@('Recorder codec and file', "$nrBuild\Release\nr_rectest.exe", @()),
@@ -66,7 +67,9 @@ if ($List) { foreach ($n in $suites.Keys) { Write-Host ("{0,-10} when {1}" -f $n
 if(-not $ModelPath -and $env:LS_DIR){$candidate=Join-Path $env:LS_DIR 'nvngx_dlssnr.dll';if(Test-Path -LiteralPath $candidate){$ModelPath=$candidate}}
 if($ModelPath){
     $suites.nr.Runs += @(@('NR model lifecycle', "$root\addons\NeuralRendering\build\Release\neural_modeltest.exe", @($ModelPath)),
-                         @('Complete capture pipeline', "$root\addons\NeuralRendering\build\Release\neural_pipelinetest.exe", @($ModelPath)))
+                         @('Complete capture pipeline', "$root\addons\NeuralRendering\build\Release\neural_pipelinetest.exe", @($ModelPath)),
+                         @('Two-pass capture pipeline', "$root\addons\NeuralRendering\build\Release\neural_pipelinetest.exe", @($ModelPath,'--passes','2','--debug')),
+                         @('Three-pass capture pipeline', "$root\addons\NeuralRendering\build\Release\neural_pipelinetest.exe", @($ModelPath,'--passes','3','--debug')))
 }
 # which suites
 $chosen = @()

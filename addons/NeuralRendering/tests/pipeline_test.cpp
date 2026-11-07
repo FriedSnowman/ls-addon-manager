@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <d3d12sdklayers.h>
 #include <filesystem>
+#include <fstream>
 #include <future>
 #include <thread>
 using namespace neural;
@@ -34,13 +35,16 @@ int wmain(int argc, wchar_t **argv) {
     InstallExceptionDiagnostics();
     setvbuf(stdout, nullptr, _IONBF, 0);
     auto usage = [] {
-        puts("usage: neural_pipelinetest <model DLL> [--debug] [--preset 0|1|2|3]");
+        puts("usage: neural_pipelinetest <model DLL> [--debug] [--preset 0|1|2|3] [--passes 1..10] "
+             "[--capture-output file | --verify-output file]");
         return 2;
     };
     if (argc < 2)
         return usage();
     bool enableDebug = false;
     unsigned preset = 0;
+    unsigned passes = 1;
+    std::filesystem::path capturePath, verifyPath;
     for (int i = 2; i < argc; ++i) {
         if (!wcscmp(argv[i], L"--debug")) {
             enableDebug = true;
@@ -49,11 +53,24 @@ int wmain(int argc, wchar_t **argv) {
             if (value[0] < L'0' || value[0] > L'3' || value[1] != 0)
                 return usage();
             preset = unsigned(value[0] - L'0');
+        } else if (!wcscmp(argv[i], L"--passes") && i + 1 < argc) {
+            const auto value = argv[++i];
+            wchar_t *end = nullptr;
+            const auto count = wcstoul(value, &end, 10);
+            if (end == value || *end || count < 1 || count > PipelineSettings::MaxPasses)
+                return usage();
+            passes = unsigned(count);
+        } else if (!wcscmp(argv[i], L"--capture-output") && i + 1 < argc) {
+            capturePath = argv[++i];
+        } else if (!wcscmp(argv[i], L"--verify-output") && i + 1 < argc) {
+            verifyPath = argv[++i];
         } else {
             return usage();
         }
     }
-    printf("Model preset %u\n", preset);
+    if (!capturePath.empty() && !verifyPath.empty())
+        return usage();
+    printf("Model preset %u, passes %u\n", preset, passes);
     ComPtr<ID3D12Debug> debug;
     if (enableDebug) {
         Check(D3D12GetDebugInterface(IID_PPV_ARGS(&debug)), "Enable test debug layer");
@@ -61,6 +78,18 @@ int wmain(int argc, wchar_t **argv) {
     }
     std::unique_ptr<Pipeline> pipeline;
     try {
+        // Optional before/after regression evidence from the same model and GPU.
+        // Store the actual pixels, not a tolerance that could hide an image change.
+        std::ofstream captured;
+        std::ifstream reference;
+        if (!capturePath.empty()) {
+            captured.open(capturePath, std::ios::binary);
+            if (!captured) throw std::runtime_error("Cannot create output capture");
+        }
+        if (!verifyPath.empty()) {
+            reference.open(verifyPath, std::ios::binary);
+            if (!reference) throw std::runtime_error("Cannot open output reference");
+        }
         Gpu audit;
         audit.Initialize();
         D3D12_FEATURE_DATA_COMMAND_QUEUE_PRIORITY prioritySupport{D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -106,9 +135,12 @@ int wmain(int argc, wchar_t **argv) {
             settings.scalePercent = (scenario == 1 || scenario == 5) ? 50 : 100;
             settings.model.intensity = scenario == 0 ? 0 : 1;
             settings.model.preset = preset;
+            settings.passes = passes;
             pipeline = std::make_unique<Pipeline>();
             pipeline->Initialize(device.Get(), w, h, hdr ? Encoding::ScRgb : Encoding::Sdr709, settings);
             const auto priorities = pipeline->Metrics();
+            if (priorities.passes != passes)
+                throw std::runtime_error("Requested model chain was not initialized");
             const int expectedPriority = capturePriority > 0 && prioritySupport.PriorityForTypeIsSupported
                                              ? D3D12_COMMAND_QUEUE_PRIORITY_HIGH
                                              : D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
@@ -157,6 +189,18 @@ int wmain(int argc, wchar_t **argv) {
                 pipeline->Process(f, settings.composition);
                 accepted++;
                 const auto out = Read(device.Get(), context.Get(), output.Get());
+                if (captured.is_open()) {
+                    captured.write(reinterpret_cast<const char *>(out.data()), out.size());
+                    if (!captured) throw std::runtime_error("Cannot write output capture");
+                }
+                if (reference.is_open()) {
+                    std::vector<unsigned char> expected(out.size());
+                    reference.read(reinterpret_cast<char *>(expected.data()), expected.size());
+                    if (!reference || expected != out) {
+                        printf("Output mismatch: scenario %u frame %u\n", scenario, frame);
+                        throw std::runtime_error("Output differs from the pre-change reference");
+                    }
+                }
                 const auto unchanged = Read(device.Get(), context.Get(), original.Get());
                 if (unchanged != bytes)
                     throw std::runtime_error("Original capture was modified");
@@ -289,6 +333,16 @@ int wmain(int argc, wchar_t **argv) {
                     waitFor(2);
                 }
                 puts("PASS live Original -> Fast -> default model recreation");
+                if (passes > 1) {
+                    for (unsigned count : {1u, 3u, 2u, 1u}) {
+                        settings.passes = count;
+                        service.Configure(settings, true, true);
+                        waitFor(2);
+                        if (service.Snapshot().metrics.passes != count)
+                            throw std::runtime_error("Live pass-count switch did not rebuild the chain");
+                    }
+                    puts("PASS live 1 -> 3 -> 2 -> 1 pass recreation and retirement");
+                }
                 settings.modelPath = L"missing-user-model.dll";
                 service.Configure(settings, true, true);
                 auto disabled = std::async(std::launch::async, [&] { return process(2); });
@@ -301,6 +355,11 @@ int wmain(int argc, wchar_t **argv) {
                     throw std::runtime_error("Explicit disable did not release the failed capture");
                 puts("PASS explicit disable releases paused initialization and clears the error");
             }
+        }
+        if (reference.is_open()) {
+            if (reference.peek() != std::char_traits<char>::eof())
+                throw std::runtime_error("Output reference has unexpected trailing data");
+            puts("PASS all 108 output images match the reference byte-for-byte");
         }
         if (messages) {
             unsigned errors = 0;

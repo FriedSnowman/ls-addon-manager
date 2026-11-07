@@ -98,6 +98,7 @@ void Save() {
     Put("flowGrid", settings.flowGrid);
     Put("flowQuality", settings.flowQuality);
     Put("preset", settings.model.preset);
+    Put("passes", settings.passes);
     Put("style", settings.model.style);
     Put("intensity", settings.model.intensity);
     Put("localStructure", settings.model.localStructure);
@@ -167,6 +168,7 @@ void Status(bool force = false) {
     host->PublishMetric(Id, "callback_cpu_ms", lastCallbackMs.load(), "ms");
     host->PublishMetric(Id, "slot_wait_ms", m.slotWaitMs, "ms");
     host->PublishMetric(Id, "accepted", double(m.accepted), "frames");
+    host->PublishMetric(Id, "model_passes", m.passes, "passes");
 }
 bool Frame(const EamRealFrame &frame, void *) {
     static std::chrono::steady_clock::time_point last;
@@ -223,6 +225,7 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
         settings.flowGrid = 4;
     settings.flowQuality = unsigned(Number("flowQuality", 2, 1, 3));
     settings.model.preset = unsigned(Number("preset", 0, 0, 3));
+    settings.passes = unsigned(Number("passes", 1, 1, neural::PipelineSettings::MaxPasses));
     settings.model.style = unsigned(Number("style", 0, 0, 2));
     const neural::ModelSettings modelDefaults;
     settings.model.intensity = Number("intensity", modelDefaults.intensity, 0, 2);
@@ -267,7 +270,7 @@ EAM_EXPORT const char *GetAddonName() {
     return "DLSS Neural Rendering";
 }
 EAM_EXPORT const char *GetAddonVersion() {
-    return "1.0.2";
+    return "1.1.1";
 }
 EAM_EXPORT const char *GetAddonAuthor() {
     return "FriedSnowman";
@@ -330,6 +333,7 @@ EAM_EXPORT void AddonRenderSettings() {
     if (ImGui::Button("Restore defaults")) {
         settings.model = neural::ModelSettings{};
         settings.composition = neural::CompositionSettings{};
+        settings.passes = 1;
         changed = true;
         rebuild = true;
     }
@@ -348,7 +352,15 @@ EAM_EXPORT void AddonRenderSettings() {
     rebuild |= Slider("Local tone", &settings.model.localTone, 0, 2);
     rebuild |= Slider("Skin structure", &settings.model.skinStructure, -1, 2);
     ImGui::TextDisabled("Skin -1 follows local structure.");
-    rebuild |= ImGui::Checkbox("Automatic mask", &settings.model.autoMask);
+    rebuild |= ImGui::Checkbox("Automatic skin detection", &settings.model.autoMask);
+    ImGui::TextWrapped("Detects skin so Skin structure can adjust its detail separately.");
+    int passes = int(settings.passes);
+    if (ImGui::SliderInt("Multipass", &passes, 1, neural::PipelineSettings::MaxPasses,
+                         passes == 1 ? "Off" : "%d", ImGuiSliderFlags_AlwaysClamp)) {
+        settings.passes = unsigned(passes);
+        rebuild = true;
+    }
+    ImGui::TextWrapped("Do not use multipass other than to make bad memes.");
     if (ImGui::CollapsingHeader("Composition (advanced)")) {
         changed |= Slider("Detail", &settings.composition.detail, 0, 4);
         changed |= Slider("Colour", &settings.composition.colour, 0, 4);
@@ -393,6 +405,8 @@ EAM_EXPORT void AddonRenderSettings() {
     if (support && snapshot.failed)
         ImGui::TextWrapped("%s", snapshot.status.c_str());
     ImGui::Text("Capture %u x %u; model %u x %u", m.width, m.height, m.workingWidth, m.workingHeight);
+    if (snapshot.ready && m.passes > 1)
+        ImGui::Text("Multipass: %u passes; model timing includes the full chain", m.passes);
     ImGui::Text("NR GPU time %.2f ms; callback CPU %.2f ms", m.prepareMs + m.flowMs + m.modelMs + m.compositionMs,
                 lastCallbackMs.load());
     ImGui::TextWrapped("GPU: prepare %.2f / flow wait+convert %.2f / model %.2f / compose %.2f ms", m.prepareMs,

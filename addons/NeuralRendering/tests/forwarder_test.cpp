@@ -67,6 +67,19 @@ int wmain() {
         }
         puts("PASS compatible runtime and Original/Fast/default recreation");
 
+        auto first = start(model, 0);
+        auto second = start(model, 0);
+        auto third = start(model, 0);
+        Require(first && second && third && first != second && second != third && first != third,
+                "Passes must have distinct persistent features");
+        release(second);
+        Require(shutdown(nullptr) == 0 && unload() == 0, "Shared runtime retired with two live passes");
+        release(first);
+        Require(shutdown(nullptr) == 0 && unload() == 0, "Shared runtime retired with one live pass");
+        release(third);
+        Require(shutdown(nullptr) == 1 && unload() == 1, "Three-pass retirement failed");
+        puts("PASS independent pass handles and shared runtime retirement");
+
         const std::pair<const wchar_t *, const char *> invalid[] = {
             {L"missing-runtime-for-test.dll", "Cannot load NR model DLL"},
             {L"NeuralRendering_nvngx.dll", "NVSDK_NGX_D3D12_Init_Ext"},

@@ -147,13 +147,18 @@ void Model::Evaluate(Recording &rec, Resource &colour, Resource &depth, Resource
     NgxCheck(result, "Evaluate NR");
     output.UavBarrier(rec.list.Get());
 }
-bool Model::Shutdown() {
+bool Model::ReleaseFeature() {
     if (gpu_ && !gpu_->Wait(gpu_->LastSubmitted()))
         return false;
     if (feature_ && release_) {
         release_(feature_);
         feature_ = nullptr;
     }
+    return true;
+}
+bool Model::Shutdown() {
+    if (!ReleaseFeature())
+        return false;
     if (shutdownSnippet_ && gpu_ && shutdownSnippet_(gpu_->device.Get()) != 1)
         return false;
     if (params_ && destroyParams_) {

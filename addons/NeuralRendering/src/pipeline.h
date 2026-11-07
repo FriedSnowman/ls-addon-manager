@@ -7,17 +7,21 @@
 #include <d3d11_4.h>
 #include <eam/real_frame.h>
 #include <memory>
+#include <vector>
 
 namespace neural {
 struct PipelineSettings {
+    static constexpr unsigned MaxPasses = 10;
     ModelSettings model;
     CompositionSettings composition;
+    unsigned passes = 1;
     unsigned scalePercent = 100, flowGrid = 4, flowQuality = 2;
     std::wstring modelPath, forwarderPath, cachePath;
 };
 struct PipelineMetrics {
     uint64_t accepted = 0, cuts = 0, resets = 0;
     unsigned width = 0, height = 0, workingWidth = 0, workingHeight = 0;
+    unsigned passes = 1;
     int captureGpuPriority = 0, nrQueuePriority = 0;
     double slotWaitMs = 0, summaryWaitMs = 0, prepareMs = 0, flowMs = 0, modelMs = 0, compositionMs = 0;
     float sceneDistance = 0;
@@ -46,6 +50,7 @@ class Pipeline {
     struct Slot {
         Shared input, output;
         Resource proxy, keep, working, model, motion, summary, readback, timings;
+        Resource modelScratch; // Allocated only for multipass; working stays the resolve anchor.
         Recording prepare, finish;
         uint64_t consumed = 0;
         bool hasTimings = false;
@@ -63,6 +68,7 @@ class Pipeline {
     Composition composition_;
     OpticalFlow flow_;
     Model model_;
+    std::vector<std::unique_ptr<Model>> extraModels_;
     PipelineSettings settings_;
     PipelineMetrics metrics_;
     Encoding encoding_ = Encoding::Sdr709;
