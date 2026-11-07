@@ -1,5 +1,12 @@
 # Changelog
 
+## Build 3 (2026-11-07)
+
+- **Picture adjustments in DLSS Neural Rendering 1.2.0.** Exposure, contrast, midtones, shadows, highlights, saturation, vibrance, temperature, tint and sharpening adjust the finished DLSS5 image before Lossless Scaling. Find them in the addon's **Picture** section.
+- **Off by default, with no added GPU work while off or neutral.** Active adjustments replace the final copy shader without adding another image pass. All 108 disabled/neutral pipeline images match the Build 2 implementation byte-for-byte.
+- **Live controls with saved values.** Changes do not restart the model or reset its history. Turning Picture off keeps the sliders; Reset picture returns them to neutral. The original-image comparison bypasses Picture too.
+- **SDR and HDR support.** Tests cover linear-light exposure, HDR headroom, colour controls, bounded sharpening, live toggles and one-/two-pass pipelines, with no graphics validation errors.
+
 ## Local changes (2026-11-07)
 
 - **NR 1.1.1:** renamed the control to Multipass, moved it below Automatic skin detection, and extended the slider to Off / 2–10. Off preserves single-pass rendering. Replaced its explanation with “Do not use multipass other than to make bad memes.” Renamed Automatic mask to Automatic skin detection and explained its connection to Skin structure.
