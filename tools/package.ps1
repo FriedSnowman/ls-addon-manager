@@ -112,7 +112,7 @@ $bundle = "$dist\payload-$buildSlug.bin"
 if ($LASTEXITCODE -ne 0) { throw 'packing the installer files failed' }
 & cmake -S "$root\installer" -B $setupBuild "-DSETUP_PAYLOAD=$bundle" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Installer payload configure failed' }
-& cmake --build $setupBuild --config Release --target LSAddonManagerSetup --parallel $Jobs -- /nr:false 2>&1 | Select-String -Pattern ' error |warning C' | ForEach-Object { Write-Host $_.Line }
+& cmake --build $setupBuild --config Release --target LSAddonManagerSetup --parallel $Jobs -- /nr:false
 if ($LASTEXITCODE -ne 0) { throw 'Installer build failed; refusing stale Setup output.' }
 $setupExe = "$setupBuild\Release\LSAddonManagerSetup.exe"
 if (-not (Test-Path $setupExe)) { throw 'the Setup exe did not build' }

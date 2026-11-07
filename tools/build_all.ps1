@@ -30,7 +30,9 @@ foreach ($t in $targets) {
     if ($Only.Count -and ($Only -notcontains $t.Name)) { continue }
     if (-not (Test-Path "$($t.Dir)\CMakeCache.txt")) {   # first time: configure (fetches Dear ImGui and MinHook at pinned versions)
         Write-Host "[$($t.Name)] configuring"
-        & cmake -S $t.Source -B $t.Dir -G 'Visual Studio 17 2022' -A x64 2>&1 | Select-String -Pattern 'error|Error' | ForEach-Object { $_.Line }
+        # Keep native stderr separate: Windows PowerShell 5.1 turns redirected
+        # CMake warnings into terminating errors with ErrorActionPreference=Stop.
+        & cmake -S $t.Source -B $t.Dir -G 'Visual Studio 17 2022' -A x64
         if ($LASTEXITCODE -ne 0) { $failed++; continue }
     }
     $sourceEntry = Select-String -LiteralPath "$($t.Dir)\CMakeCache.txt" -Pattern '^CMAKE_HOME_DIRECTORY:INTERNAL=(.+)$'
@@ -38,7 +40,7 @@ foreach ($t in $targets) {
         throw "Build directory $($t.Dir) does not belong to $($t.Source)."
     }
     Write-Host "== $($t.Name)"
-    & cmake --build $t.Dir --config Release --parallel $Jobs @($t.Args) -- /nr:false 2>&1 | Select-String -Pattern 'error|warning C4|vcxproj ->' | ForEach-Object { $_.Line }
+    & cmake --build $t.Dir --config Release --parallel $Jobs @($t.Args) -- /nr:false
     if ($LASTEXITCODE -ne 0) { $failed++ }
 }
 if ($failed) { Write-Host "$failed target(s) failed"; exit 1 } else { Write-Host 'all built'; exit 0 }
