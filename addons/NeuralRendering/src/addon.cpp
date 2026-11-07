@@ -112,6 +112,9 @@ void Save() {
     Put("proxy", settings.composition.reversible);
     Put("reconstruction", settings.composition.reconstruction);
     Put("apply", settings.composition.apply);
+    Put("pictureEnabled", settings.picture.enabled);
+    for (const auto &c : neural::PictureControls)
+        Put(c.key, settings.picture.*(c.value));
     host->SetConfig(Id, "modelPath", modelPath);
     host->SaveConfig();
 }
@@ -240,6 +243,9 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
     settings.composition.reversible = unsigned(Number("proxy", 0, 0, 4));
     settings.composition.reconstruction = unsigned(Number("reconstruction", 1, 0, 1));
     settings.composition.apply = Number("apply", 1, 0, 1) != 0;
+    settings.picture.enabled = Number("pictureEnabled", 0, 0, 1) != 0;
+    for (const auto &c : neural::PictureControls)
+        settings.picture.*(c.value) = Number(c.key, c.neutral, c.low, c.high);
     service = std::make_unique<neural::Service>();
     if (!host->SetRealFrameCallback(Frame)) {
         service.reset();
@@ -270,7 +276,7 @@ EAM_EXPORT const char *GetAddonName() {
     return "DLSS Neural Rendering";
 }
 EAM_EXPORT const char *GetAddonVersion() {
-    return "1.1.1";
+    return "1.2.0";
 }
 EAM_EXPORT const char *GetAddonAuthor() {
     return "FriedSnowman";
@@ -361,6 +367,32 @@ EAM_EXPORT void AddonRenderSettings() {
         rebuild = true;
     }
     ImGui::TextWrapped("Do not use multipass other than to make bad memes.");
+    if (ImGui::CollapsingHeader("Picture")) {
+        changed |= ImGui::Checkbox("Enable picture adjustments", &settings.picture.enabled);
+        ImGui::TextWrapped("Adjusts the finished image after DLSS5 and before Lossless Scaling. "
+                           "Off or neutral adds no GPU work. Changes apply live.");
+        if (!settings.picture.enabled) ImGui::BeginDisabled();
+        for (const auto &c : neural::PictureControls) {
+            changed |= eam::ui::SliderFloat(c.label, &(settings.picture.*(c.value)), c.low, c.high,
+                                             c.format, ImGuiSliderFlags_AlwaysClamp, &c.neutral);
+            if (ImGui::IsItemHovered()) {
+                ImGui::BeginTooltip();
+                ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28);
+                ImGui::TextUnformatted(c.help);
+                ImGui::PopTextWrapPos();
+                ImGui::EndTooltip();
+            }
+        }
+        if (!settings.picture.enabled) ImGui::EndDisabled();
+        if (ImGui::Button("Reset picture")) {
+            const bool wasEnabled = settings.picture.enabled;
+            settings.picture = {};
+            settings.picture.enabled = wasEnabled;
+            changed = true;
+        }
+        if (!settings.composition.apply)
+            ImGui::TextWrapped("Showing the original: picture adjustments are also bypassed.");
+    }
     if (ImGui::CollapsingHeader("Composition (advanced)")) {
         changed |= Slider("Detail", &settings.composition.detail, 0, 4);
         changed |= Slider("Colour", &settings.composition.colour, 0, 4);

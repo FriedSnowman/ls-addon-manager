@@ -3,6 +3,7 @@
 #include "composition.h"
 #include "model.h"
 #include "optical_flow.h"
+#include "picture.h"
 #include <chrono>
 #include <d3d11_4.h>
 #include <eam/real_frame.h>
@@ -14,6 +15,7 @@ struct PipelineSettings {
     static constexpr unsigned MaxPasses = 10;
     ModelSettings model;
     CompositionSettings composition;
+    PictureSettings picture;
     unsigned passes = 1;
     unsigned scalePercent = 100, flowGrid = 4, flowQuality = 2;
     std::wstring modelPath, forwarderPath, cachePath;
@@ -32,7 +34,7 @@ struct PipelineMetrics {
 class Pipeline {
   public:
     void Initialize(ID3D11Device *, unsigned width, unsigned height, Encoding, const PipelineSettings &);
-    void Process(const EamRealFrame &, const CompositionSettings &);
+    void Process(const EamRealFrame &, const CompositionSettings &, const PictureSettings & = {});
     bool Retire();
     PipelineMetrics Metrics() const { return metrics_; }
     void Invalidate() {
@@ -66,6 +68,7 @@ class Pipeline {
     Resource depth_;
     Kernel scene_, guides_;
     Composition composition_;
+    Picture picture_;
     OpticalFlow flow_;
     Model model_;
     std::vector<std::unique_ptr<Model>> extraModels_;

@@ -2,7 +2,7 @@
 
 `DLSSNR02` is the new NVIDIA-only addon. It processes **original real captures before LSFG**:
 
-`capture -> original-image NVIDIA Optical Flow -> NR (1–10 passes) -> OptiScaler composition -> LSFG analysis/interpolation -> presentation`
+`capture -> original-image NVIDIA Optical Flow -> NR (1–10 passes) -> OptiScaler composition -> optional Picture adjustments -> LSFG analysis/interpolation -> presentation`
 
 It never enhances generated frames or reuses an earlier neural edit. AMD NR is absent. The independent DLSS, FSR and XeSS upscaler addons are preserved; they operate later, at the NIS stage.
 
@@ -55,6 +55,31 @@ Replace proxy modes decode the model image directly and bypass the normal compos
 Flow compares **current original to previous accepted original**. NVOFA S10.5 vectors are divided by 32 and scaled separately by workingWidth/captureWidth and workingHeight/captureHeight. NR receives working-pixel displacement with MV scale 1. Flow cost is diagnostic and does not attenuate vectors. This differs from OptiScaler's usual game-vector input; no numerical mapping to an undocumented LSFG flow texture is assumed.
 
 Shortfuse/RenoDX composition inspired upstream OptiScaler, but controls from other revisions are not automatically interchangeable. This build pins OptiScaler `973761621353b99bee3dc7d4bb27b117fef2644f`; the exact shader and licences ship with the corresponding source. The parity test compares against that revision, not an evolving upstream HEAD.
+
+## Picture
+
+**Picture > Enable picture adjustments** is off by default. It adjusts the finished DLSS5 image at capture resolution, before Lossless Scaling's scaling and frame generation. It is independent of the model and composition controls. Slider changes apply on the next capture without rebuilding the model or resetting its history.
+
+| Control | Range | Neutral |
+|---|---|---|
+| Exposure | -2 to +2 stops; +1 doubles linear light | 0 |
+| Contrast | -1 to +1; smooth luminance contrast around middle grey | 0 |
+| Midtones | -1 to +1; darken/brighten middle tones | 0 |
+| Shadows | -1 to +1; deepen/lift dark areas, keeping black | 0 |
+| Highlights | -1 to +1; lower/raise bright areas | 0 |
+| Saturation | 0 to 2; 0 is monochrome | 1 |
+| Vibrance | 0 to 1; preferentially boosts muted colours | 0 |
+| Temperature | -1 to +1; cooler/warmer relative balance, not Kelvin | 0 |
+| Tint | -1 to +1; greener/more magenta | 0 |
+| Sharpening | 0 to 1; local brightness bounds suppress halos | 0 |
+
+Turning Picture off preserves its values. **Reset picture** returns only these ten sliders to neutral, keeping the switch as it was. The model's **Restore defaults** does not reset Picture. **Apply model result** off still shows the exact original, bypassing Picture too, while NR continues processing.
+
+SDR is decoded from sRGB to linear light for exposure and colour adjustments and encoded again at output. Tone curves keep SDR black and white fixed; exposure at extremes can still clip SDR. Out-of-gamut SDR colour is reduced toward the same luminance. scRGB uses the existing reference-white value to locate tonal regions; it retains HDR values above 1 and signed colour channels, with only the FP16 storage bound at output. Saturation/vibrance operate around Rec.709 luminance; vibrance does not detect skin. Sharpening precedes grading, uses a five-sample cross and cannot move luminance beyond that neighbourhood's range. There is no temporal filtering, grain, HUD mask or image history in this stage. Highlights cannot recover detail already clipped in the input.
+
+The active shader **replaces the existing final D3D11 copy**: one dispatch, no extra image texture, copy or fence. Off, or enabled with all values neutral, uses the original copy shader without picture constant-buffer work. The picture shader and 48-byte constant buffer are created lazily on the first active frame and retained until the pipeline retires. A never-enabled pipeline allocates neither. Zero added GPU work while bypassed is checked separately from the active shader's cost. Existing NR GPU timing covers the D3D12 stages and excludes the D3D11 handoff (both its original copy and Picture variant).
+
+`neural_picturetest` runs the actual shader through D3D11 WARP with validation: exact bypasses and lazy resources, one-dispatch handoff, linear exposure, signed/HDR range, colour adjustments, monotonic extreme tone curves, sharpening bounds, alpha/source preservation and constant-buffer restoration. It needs the Windows graphics debug layer. `neural_pipelinetest <model> --picture --debug` adds real NVIDIA pipeline coverage, including live controls without history resets, apply-off comparison and optional `--passes 2`.
 
 ## Multipass
 

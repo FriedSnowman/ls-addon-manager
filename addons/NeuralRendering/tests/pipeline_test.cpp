@@ -35,19 +35,22 @@ int wmain(int argc, wchar_t **argv) {
     InstallExceptionDiagnostics();
     setvbuf(stdout, nullptr, _IONBF, 0);
     auto usage = [] {
-        puts("usage: neural_pipelinetest <model DLL> [--debug] [--preset 0|1|2|3] [--passes 1..10] "
+        puts("usage: neural_pipelinetest <model DLL> [--debug] [--picture] [--preset 0|1|2|3] [--passes 1..10] "
              "[--capture-output file | --verify-output file]");
         return 2;
     };
     if (argc < 2)
         return usage();
     bool enableDebug = false;
+    bool pictureMode = false;
     unsigned preset = 0;
     unsigned passes = 1;
     std::filesystem::path capturePath, verifyPath;
     for (int i = 2; i < argc; ++i) {
         if (!wcscmp(argv[i], L"--debug")) {
             enableDebug = true;
+        } else if (!wcscmp(argv[i], L"--picture")) {
+            pictureMode = true;
         } else if (!wcscmp(argv[i], L"--preset") && i + 1 < argc) {
             const auto value = argv[++i];
             if (value[0] < L'0' || value[0] > L'3' || value[1] != 0)
@@ -136,6 +139,13 @@ int wmain(int argc, wchar_t **argv) {
             settings.model.intensity = scenario == 0 ? 0 : 1;
             settings.model.preset = preset;
             settings.passes = passes;
+            if (pictureMode) {
+                settings.picture.enabled = true;
+                settings.picture.exposure = .25f; settings.picture.contrast = .2f;
+                settings.picture.midtones = .1f; settings.picture.shadows = .1f; settings.picture.highlights = -.1f;
+                settings.picture.saturation = 1.05f; settings.picture.vibrance = .1f;
+                settings.picture.temperature = .1f; settings.picture.tint = -.05f; settings.picture.sharpen = .2f;
+            }
             pipeline = std::make_unique<Pipeline>();
             pipeline->Initialize(device.Get(), w, h, hdr ? Encoding::ScRgb : Encoding::Sdr709, settings);
             const auto priorities = pipeline->Metrics();
@@ -186,7 +196,13 @@ int wmain(int argc, wchar_t **argv) {
                 f.encoding = hdr ? EamFrameEncoding::ScRgb : EamFrameEncoding::Sdr709;
                 f.sequence = frame + 1 + (frame >= 14 ? 3 : 0);
                 f.epoch = scenario + 1;
-                pipeline->Process(f, settings.composition);
+                auto picture = settings.picture;
+                if (!pictureMode) {
+                    // Both bypasses must reproduce the pre-change images, including saved nonneutral values while off.
+                    picture.enabled = frame % 2 != 0;
+                    picture.exposure = picture.enabled ? 0.f : 1.f;
+                }
+                pipeline->Process(f, settings.composition, picture);
                 accepted++;
                 const auto out = Read(device.Get(), context.Get(), output.Get());
                 if (captured.is_open()) {
@@ -204,7 +220,7 @@ int wmain(int argc, wchar_t **argv) {
                 const auto unchanged = Read(device.Get(), context.Get(), original.Get());
                 if (unchanged != bytes)
                     throw std::runtime_error("Original capture was modified");
-                if ((scenario == 0 || !settings.composition.apply) && out != bytes)
+                if (((scenario == 0 && !pictureMode) || !settings.composition.apply) && out != bytes)
                     throw std::runtime_error("Apply-off/intensity-zero identity failed");
                 if (hdr)
                     for (size_t p = 0; p < out.size(); p += 2)
@@ -259,7 +275,7 @@ int wmain(int argc, wchar_t **argv) {
                         f.sequence = 22 + phase * 6 + n;
                         f.epoch = 1;
                         if (phase == 1) pipeline->Invalidate();
-                        pipeline->Process(f, settings.composition);
+                        pipeline->Process(f, settings.composition, settings.picture);
                         summaryWait = std::max(summaryWait, pipeline->Metrics().summaryWaitMs);
                         slotWait = std::max(slotWait, pipeline->Metrics().slotWaitMs);
                     }
@@ -283,6 +299,7 @@ int wmain(int argc, wchar_t **argv) {
                 throw std::runtime_error("Pipeline retirement failed");
             pipeline.reset();
             if (scenario == 3) {
+                settings.picture = {};
                 Service service;
                 settings.modelPath = L"missing-user-model.dll";
                 service.Configure(settings, true, true);
@@ -319,6 +336,28 @@ int wmain(int argc, wchar_t **argv) {
                 settings.model.intensity = 0;
                 service.Configure(settings, true, true);
                 waitFor(1);
+                const auto neutral = Read(device.Get(), context.Get(), output.Get());
+                const auto beforePicture = service.Snapshot().metrics;
+                settings.picture.enabled = true;
+                settings.picture.exposure = .5f;
+                service.Configure(settings, true, false);
+                waitFor(1);
+                const auto afterPicture = service.Snapshot().metrics;
+                if (Read(device.Get(), context.Get(), output.Get()) == neutral ||
+                    afterPicture.accepted != beforePicture.accepted + 1 || afterPicture.resets != beforePicture.resets)
+                    throw std::runtime_error("Live picture change did not apply or restarted the model/history");
+                settings.picture.enabled = false;
+                service.Configure(settings, true, false);
+                waitFor(1);
+                if (Read(device.Get(), context.Get(), output.Get()) != neutral)
+                    throw std::runtime_error("Disabling picture did not restore the exact neutral image");
+                settings.picture.enabled = true;
+                settings.picture.exposure = 0;
+                service.Configure(settings, true, false);
+                waitFor(1);
+                if (Read(device.Get(), context.Get(), output.Get()) != neutral)
+                    throw std::runtime_error("Neutral picture did not restore the exact original copy");
+                puts("PASS live picture enable/disable/neutral without model recreation or history reset");
                 service.Configure(settings, false, false);
                 if (service.Snapshot().enabled)
                     throw std::runtime_error("Disable failed");

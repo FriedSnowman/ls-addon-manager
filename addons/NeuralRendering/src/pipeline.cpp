@@ -235,7 +235,7 @@ void Pipeline::ReadTimings(Slot &s) {
     s.timings.object->Unmap(0, &none);
     s.hasTimings = false;
 }
-void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &settings) {
+void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &settings, const PictureSettings &picture) {
     if (!initialized_)
         throw std::runtime_error("NR pipeline is not initialized");
     auto *ctx = static_cast<ID3D11DeviceContext *>(frame.context);
@@ -357,8 +357,12 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
     Check(context->Wait(complete11_.Get(), done), "Wait for enhanced current image");
     // Comparison keeps the manager's exact original copy, including negative scRGB
     // components that upstream composition deliberately clamps at its output.
-    if (settings.apply)
-        Copy(ctx, slot.output.srv.Get(), target.Get());
+    if (settings.apply) {
+        // Off/neutral uses the original copy shader, with no picture resources or extra GPU work.
+        if (!picture_.Apply(ctx, slot.output.srv.Get(), target.Get(), metrics_.width, metrics_.height,
+                            encoding_, settings.whiteNits, picture))
+            Copy(ctx, slot.output.srv.Get(), target.Get());
+    }
     Check(context->Signal(consumed11_.Get(), transfer), "Signal enhanced image consumed");
     slot.consumed = transfer;
     lastConsumed_ = transfer;

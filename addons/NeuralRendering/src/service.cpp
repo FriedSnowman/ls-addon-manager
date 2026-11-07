@@ -79,11 +79,12 @@ bool Service::Process(const EamRealFrame &frame) {
         }
         auto *pipeline = active_.get();
         const auto composition = settings_.composition;
+        const auto picture = settings_.picture;
         processing_ = true;
         lock.unlock();
         std::string error;
         try {
-            pipeline->Process(frame, composition);
+            pipeline->Process(frame, composition, picture);
         } catch (const std::exception &e) {
             error = e.what();
         }
