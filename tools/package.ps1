@@ -6,7 +6,13 @@
 #   powershell -File tools/package.ps1 [-Build 1]
 param(
     [ValidateRange(0, 65535)][int]$Build = 0,
-    [switch]$IncludeWip   # also package addons marked work in progress (none are now)
+    [switch]$IncludeWip,   # also package addons marked work in progress (none are now)
+    [string]$HostBuildDir = 'manager\build',
+    [string]$NeuralBuildDir = 'addons\NeuralRendering\build',
+    [string]$ScalerBuildDir = 'addons\Upscalers\build',
+    [string]$SetupBuildDir = 'installer\build_setup',
+    [ValidateRange(1, 256)][int]$Jobs = 2,
+    [ValidatePattern('^([A-Za-z0-9][A-Za-z0-9._-]*)?$')][string]$PackageSuffix = ''
 )
 $ErrorActionPreference = 'Stop'
 function RemoveUnder([string]$Path,[string]$Parent) {
@@ -16,6 +22,14 @@ function RemoveUnder([string]$Path,[string]$Parent) {
     if(Test-Path -LiteralPath $absolute){Remove-Item -LiteralPath $absolute -Recurse -Force}
 }
 $root = Split-Path $PSScriptRoot -Parent
+function BuildPath([string]$path) {
+    if (-not [IO.Path]::IsPathRooted($path)) { $path = Join-Path $root $path }
+    [IO.Path]::GetFullPath($path)
+}
+$HostBuildDir = BuildPath $HostBuildDir
+$NeuralBuildDir = BuildPath $NeuralBuildDir
+$ScalerBuildDir = BuildPath $ScalerBuildDir
+$SetupBuildDir = BuildPath $SetupBuildDir
 $buildMatch = Select-String -Path "$root\manager\sdk\include\eam\version.h" -Pattern '^#define EAM_BUILD_NUMBER ([1-9][0-9]*)$'
 if (-not $buildMatch) { throw 'Set EAM_BUILD_NUMBER in manager/sdk/include/eam/version.h before packaging.' }
 $sourceBuild = [int]$buildMatch.Matches[0].Groups[1].Value
@@ -24,8 +38,9 @@ if ($Build -eq 0) { $Build = $sourceBuild }
 if ($Build -ne $sourceBuild) { throw "Requested Build $Build does not match source Build $sourceBuild. Update EAM_BUILD_NUMBER before packaging." }
 $Version = "Build $Build"
 $buildSlug = "build-$Build"
+if ($PackageSuffix) { $buildSlug += "-$PackageSuffix" }
 # Always build locally; downloaded or stale release artifacts are not a fallback.
-& powershell -NoProfile -File "$PSScriptRoot\build_all.ps1" -Only host,neural,scalers
+& "$PSScriptRoot\build_all.ps1" -Only host,neural,scalers -HostBuildDir $HostBuildDir -NeuralBuildDir $NeuralBuildDir -ScalerBuildDir $ScalerBuildDir -Jobs $Jobs
 if ($LASTEXITCODE -ne 0) { throw 'Local build failed; refusing to package existing artifacts.' }
 
 $name = "LSAddonManager-$buildSlug-x64"
@@ -35,24 +50,24 @@ RemoveUnder $stage $dist
 New-Item -ItemType Directory -Force "$stage\addons" | Out-Null
 
 function Need($path, $what) { if (-not (Test-Path $path)) { throw "missing build output: $what ($path)" } }
-Need "$root\manager\build\Release\Lossless.dll" 'the manager'
-Copy-Item "$root\manager\build\Release\Lossless.dll" $stage
+Need "$HostBuildDir\Release\Lossless.dll" 'the manager'
+Copy-Item "$HostBuildDir\Release\Lossless.dll" $stage
 Copy-Item "$root\manager\manager-icon.ico", "$root\manager\manager-icon.png" $stage
 
-& "$PSScriptRoot\package_neural_source.ps1" -Destination "$root\build\NeuralRendering-source.zip"
+& "$PSScriptRoot\package_neural_source.ps1" -Destination "$root\build\NeuralRendering-source.zip" -NeuralBuildDir $NeuralBuildDir
 
 $addons = @(
-    @{ Id = 'DLSSNR02'; Dir = "$root\addons\NeuralRendering"; Bin = "$root\addons\NeuralRendering\build\Release";
+    @{ Id = 'DLSSNR02'; Dir = "$root\addons\NeuralRendering"; Bin = "$NeuralBuildDir\Release";
        Files = @('DLSSNR02.dll','NeuralRendering_nvngx.dll');
        Extra = @{ 'NOTICE.md' = "$root\addons\NeuralRendering\NOTICE.md"; 'README.md' = "$root\addons\NeuralRendering\README.md";
                   'NeuralRendering-source.zip' = "$root\build\NeuralRendering-source.zip" } },
     # DLSS Upscaler (a preview since 0.9.1: its addon.json keeps it off until switched on): built from the same sources; its addon.json lives
     # in products\DLSS4DLAA, and NVIDIA's DLSS runtime ships in its dlss folder
-    @{ Id = 'DLSS4DLAA'; Dir = "$root\addons\Upscalers\products\DLSS4DLAA"; Bin = "$root\addons\Upscalers\build\Release"; Files = @('DLSS4DLAA.dll');
+    @{ Id = 'DLSS4DLAA'; Dir = "$root\addons\Upscalers\products\DLSS4DLAA"; Bin = "$ScalerBuildDir\Release"; Files = @('DLSS4DLAA.dll');
        Extra = @{ 'NVIDIA-LICENSE.txt' = "$root\addons\Upscalers\external\ngx\LICENSE.txt"; 'LICENSE.txt' = "$root\addons\Upscalers\LICENSE";
                   'dlss\nvngx_dlss.dll' = "$root\addons\Upscalers\external\ngx\bin\nvngx_dlss.dll" } },
     # FSR Upscaler: the same sources again; AMD's FidelityFX runtime (MIT, signed by AMD) ships in its fsr folder (tools\fetch_ffx_sdk.ps1)
-    @{ Id = 'FSR3UPSC'; Dir = "$root\addons\Upscalers\products\FSR3UPSC"; Bin = "$root\addons\Upscalers\build\Release"; Files = @('FSR3UPSC.dll');
+    @{ Id = 'FSR3UPSC'; Dir = "$root\addons\Upscalers\products\FSR3UPSC"; Bin = "$ScalerBuildDir\Release"; Files = @('FSR3UPSC.dll');
        Extra = @{ 'AMD-FidelityFX-LICENSE.txt' = "$root\addons\Upscalers\third_party\ffx\LICENSE.txt"; 'LICENSE.txt' = "$root\addons\Upscalers\LICENSE";
                   'fsr\amd_fidelityfx_dx12.dll' = "$root\addons\Upscalers\external\ffx\bin\amd_fidelityfx_dx12.dll";
                   # the second choice in the manager's Runtimes list: FSR 4.1.1b, OptiScaler's build (tools\fetch_fsr4.ps1)
@@ -61,7 +76,7 @@ $addons = @(
                   'runtimes\FSR\0dd77d9c\LICENSE.txt' = "$root\addons\Upscalers\third_party\ffx4\LICENSE.txt" } },
     # XeSS Upscaler: the same sources again; Intel's XeSS runtime (Intel Simplified Software License, signed by Intel) ships in its xess folder,
     # with Intel's licence next to it, as that licence asks (tools\fetch_xess_sdk.ps1)
-    @{ Id = 'XESSUPSC'; Dir = "$root\addons\Upscalers\products\XESSUPSC"; Bin = "$root\addons\Upscalers\build\Release"; Files = @('XESSUPSC.dll');
+    @{ Id = 'XESSUPSC'; Dir = "$root\addons\Upscalers\products\XESSUPSC"; Bin = "$ScalerBuildDir\Release"; Files = @('XESSUPSC.dll');
        Extra = @{ 'Intel-XeSS-LICENSE.txt' = "$root\addons\Upscalers\external\xess\LICENSE.txt"; 'LICENSE.txt' = "$root\addons\Upscalers\LICENSE";
                   'xess\libxess.dll' = "$root\addons\Upscalers\external\xess\bin\libxess.dll" } }
 )
@@ -82,7 +97,7 @@ foreach ($a in $addons) {
 
 # The single-file installer: the files above (only the ones that get installed) are packed into a bundle that becomes a resource of Setup.exe.
 # It is built in its own folder (installer\build_setup), so the test build of the installer, which carries no files, stays as the tests expect.
-$setupBuild = "$root\installer\build_setup"
+$setupBuild = $SetupBuildDir
 $payloadDir = "$dist\payload-$buildSlug"
 RemoveUnder $payloadDir $dist
 New-Item -ItemType Directory -Force $payloadDir | Out-Null
@@ -90,14 +105,14 @@ Copy-Item "$stage\Lossless.dll", "$stage\manager-icon.ico", "$stage\manager-icon
 Copy-Item "$stage\addons" "$payloadDir\addons" -Recurse
 & cmake -S "$root\installer" -B $setupBuild -G 'Visual Studio 17 2022' -A x64 | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Installer configure failed' }
-& cmake --build $setupBuild --config Release --target pack_payload | Out-Null
+& cmake --build $setupBuild --config Release --target pack_payload fake_original --parallel $Jobs -- /nr:false | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'the installer packer did not build' }
 $bundle = "$dist\payload-$buildSlug.bin"
 & "$setupBuild\Release\pack_payload.exe" $payloadDir $bundle
 if ($LASTEXITCODE -ne 0) { throw 'packing the installer files failed' }
 & cmake -S "$root\installer" -B $setupBuild "-DSETUP_PAYLOAD=$bundle" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Installer payload configure failed' }
-& cmake --build $setupBuild --config Release --target LSAddonManagerSetup 2>&1 | Select-String -Pattern ' error |warning C' | ForEach-Object { Write-Host $_.Line }
+& cmake --build $setupBuild --config Release --target LSAddonManagerSetup --parallel $Jobs -- /nr:false 2>&1 | Select-String -Pattern ' error |warning C' | ForEach-Object { Write-Host $_.Line }
 if ($LASTEXITCODE -ne 0) { throw 'Installer build failed; refusing stale Setup output.' }
 $setupExe = "$setupBuild\Release\LSAddonManagerSetup.exe"
 if (-not (Test-Path $setupExe)) { throw 'the Setup exe did not build' }
@@ -110,24 +125,21 @@ $vlog = "$check\version.log"
 $p = Start-Process $setupExe -ArgumentList '--version', '--no-remember', '--log', "`"$vlog`"" -PassThru -Wait -WindowStyle Hidden
 $said = if (Test-Path $vlog) { (Get-Content $vlog -Raw).Trim() } else { '' }
 if ($p.ExitCode -ne 0 -or $said -ne "payload $Version") { throw "the Setup exe reports '$said' (exit $($p.ExitCode)), expected 'payload $Version'" }
-$fakeOriginal = "$root\installer\build\Release\fake_original.dll"
-if (Test-Path $fakeOriginal) {
-    $fake = "$check\ls"
-    New-Item -ItemType Directory $fake | Out-Null
-    Copy-Item "$env:SystemRoot\System32\cmd.exe" "$fake\LosslessScaling.exe"
-    Copy-Item $fakeOriginal "$fake\Lossless.dll"
-    $ilog = "$check\install.log"
-    $p = Start-Process $setupExe -ArgumentList '--silent', 'install', '--folder', "`"$fake`"", '--no-remember', '--log', "`"$ilog`"" -PassThru -Wait -WindowStyle Hidden
-    if ($p.ExitCode -ne 0) { throw "the Setup exe could not install into a test folder: $(Get-Content $ilog -Raw)" }
-    $bad = @(Get-ChildItem $payloadDir -Recurse -File | Where-Object {
-        $rel = $_.FullName.Substring($payloadDir.Length + 1)
-        (Get-FileHash $_.FullName).Hash -ne (Get-FileHash "$fake\$rel" -ErrorAction SilentlyContinue).Hash })
-    if ($bad.Count) { throw "the Setup exe installed files that differ from the package: $($bad.Name -join ', ')" }
-    if ((Get-FileHash "$fake\Lossless_original.dll").Hash -ne (Get-FileHash $fakeOriginal).Hash) { throw 'the Setup exe did not keep the original Lossless.dll' }
-    Write-Host "  Setup exe checked: reports $Version and installs $((Get-ChildItem $payloadDir -Recurse -File).Count) files byte for byte into a test folder"
-} else {
-    Write-Host '  (Setup exe installed-files check skipped: build the installer tests first to get the stand-in Lossless.dll)'
-}
+$fakeOriginal = "$setupBuild\Release\fake_original.dll"
+Need $fakeOriginal 'installer test fixture'
+$fake = "$check\ls"
+New-Item -ItemType Directory $fake | Out-Null
+Copy-Item "$env:SystemRoot\System32\cmd.exe" "$fake\LosslessScaling.exe"
+Copy-Item $fakeOriginal "$fake\Lossless.dll"
+$ilog = "$check\install.log"
+$p = Start-Process $setupExe -ArgumentList '--silent', 'install', '--folder', "`"$fake`"", '--no-remember', '--log', "`"$ilog`"" -PassThru -Wait -WindowStyle Hidden
+if ($p.ExitCode -ne 0) { throw "the Setup exe could not install into a test folder: $(Get-Content $ilog -Raw)" }
+$bad = @(Get-ChildItem $payloadDir -Recurse -File | Where-Object {
+    $rel = $_.FullName.Substring($payloadDir.Length + 1)
+    (Get-FileHash $_.FullName).Hash -ne (Get-FileHash "$fake\$rel" -ErrorAction SilentlyContinue).Hash })
+if ($bad.Count) { throw "the Setup exe installed files that differ from the package: $($bad.Name -join ', ')" }
+if ((Get-FileHash "$fake\Lossless_original.dll").Hash -ne (Get-FileHash $fakeOriginal).Hash) { throw 'the Setup exe did not keep the original Lossless.dll' }
+Write-Host "  Setup exe checked: reports $Version and installs $((Get-ChildItem $payloadDir -Recurse -File).Count) files byte for byte into a test folder"
 # --extract, for installing by hand: the same files, byte for byte, into a new folder
 $ex = "$check\extract"
 $elog = "$check\extract.log"
@@ -139,6 +151,8 @@ if ($bad.Count -or @(Get-ChildItem $ex -Recurse -File).Count -ne $want.Count) { 
 Write-Host "  Setup exe checked: --extract writes the $($want.Count) files byte for byte"
 RemoveUnder $check $env:TEMP
 Copy-Item $setupExe "$stage\LSAddonManagerSetup.exe"
+$setupHash = (Get-FileHash -LiteralPath "$stage\LSAddonManagerSetup.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+"$setupHash  LSAddonManagerSetup.exe" | Set-Content -LiteralPath "$stage\LSAddonManagerSetup.exe.sha256" -Encoding ascii
 RemoveUnder $payloadDir $dist
 # the files are inside Setup: not in the zip a second time
 foreach($file in 'Lossless.dll','manager-icon.ico','manager-icon.png','addons'){RemoveUnder (Join-Path $stage $file) $stage}
@@ -174,6 +188,8 @@ Get-ChildItem $stage -Recurse -File | ForEach-Object {
 }
 $archive.Dispose()
 $fileStream.Dispose()
+$zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+"$zipHash  $name.zip" | Set-Content -LiteralPath "$zip.sha256" -Encoding ascii
 Write-Host "package: $zip"
 Write-Host "  addons included: $($included -join ', ')"
 if ($skipped.Count) { Write-Host "  addons NOT included (not built): $($skipped -join ', ')" }

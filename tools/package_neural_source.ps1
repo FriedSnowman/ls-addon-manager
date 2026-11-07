@@ -1,12 +1,13 @@
 # Corresponding source for the GPL NR addon, including every statically linked ImGui source.
-param([string]$Destination, [string]$ImGuiSource)
+param([string]$Destination, [string]$ImGuiSource, [string]$NeuralBuildDir = 'addons\NeuralRendering\build')
 $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent))
 if(-not $Destination){$Destination=Join-Path $root 'build\NeuralRendering-source.zip'}
+if(-not [IO.Path]::IsPathRooted($NeuralBuildDir)){$NeuralBuildDir=Join-Path $root $NeuralBuildDir}
 if(-not $ImGuiSource){
-    $cache=Join-Path $root 'addons\NeuralRendering\build\CMakeCache.txt'
+    $cache=Join-Path $NeuralBuildDir 'CMakeCache.txt'
     if(Test-Path -LiteralPath $cache){$entry=Select-String -LiteralPath $cache -Pattern '^FETCHCONTENT_SOURCE_DIR_IMGUI:PATH=(.+)$';if($entry){$ImGuiSource=$entry.Matches[0].Groups[1].Value}}
-    if(-not $ImGuiSource){$ImGuiSource=Join-Path $root 'addons\NeuralRendering\build\_deps\imgui-src'}
+    if(-not $ImGuiSource){$ImGuiSource=Join-Path $NeuralBuildDir '_deps\imgui-src'}
 }
 if(-not(Test-Path -LiteralPath (Join-Path $ImGuiSource 'imgui.cpp'))){throw 'Build the NR addon first, or specify -ImGuiSource for its pinned ImGui sources.'}
 Add-Type -AssemblyName System.IO.Compression
