@@ -367,7 +367,9 @@ Releases are numbered **Build 1, Build 2, Build 3, ...**. Set `EAM_BUILD_NUMBER`
 
 Use `tools/package.ps1` for local installers too. It supports alternate build directories, serial builds, and a package suffix, and creates the EXE, ZIP and checksums after verifying installation and extraction. See the [installer build commands](tools/README.md#building-an-installer).
 
-Pushing a tag such as `build-1` runs the [release workflow](.github/workflows/release.yml). The tag number must match `EAM_BUILD_NUMBER` in that commit. After the tests and installer checks pass, it creates a GitHub release named **Build 1** with `LSAddonManager-build-1-x64.zip` and its SHA-256 checksum. The ZIP includes the installer, all four addons, required upscaler runtimes, licences and corresponding NR source; the DLSS5 model DLL is not included. If the release already exists, the workflow uploads the assets there. To retry a failed build, rerun the workflow from the Actions tab.
+Pushing a tag such as `build-2` runs the [release workflow](.github/workflows/release.yml). First set `EAM_BUILD_NUMBER` to 2 and commit that change, then tag that commit. After the tests and installer checks pass, it creates a GitHub release named **Build 2** with `LSAddonManager-build-2-x64.zip` and its SHA-256 checksum. The ZIP includes the installer, all four addons, required upscaler runtimes, licences and corresponding NR source; the DLSS5 model DLL is not included. If the release already exists, the workflow uploads the assets there.
+
+The **build** workflow runs fast smoke tests on branch pushes and pull requests. The **release** workflow runs independently on tag pushes, repeats those tests, then compiles, packages and verifies the installer before publishing. It does not consume the build workflow's output. A transient failure can be retried from the Actions tab. A tag/version mismatch requires correcting the source and tagging the corrected commit; rerunning the unchanged tag cannot fix it.
 
 ~~For the manager and Neural Rendering only, follow the local build guide and run `tools/build_local_nr.ps1`.~~ That build script is retired.
 

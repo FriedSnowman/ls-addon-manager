@@ -36,8 +36,15 @@ jobs:
           }
           $number = $Matches[1]
           $source = Select-String -LiteralPath 'manager/sdk/include/eam/version.h' -Pattern '^#define EAM_BUILD_NUMBER ([1-9][0-9]*)$'
-          if (-not $source -or $number -ne $source.Matches[0].Groups[1].Value -or [long]$number -gt 65535) {
-            throw 'The release tag must match EAM_BUILD_NUMBER in manager/sdk/include/eam/version.h.'
+          if (-not $source) {
+            throw 'EAM_BUILD_NUMBER is missing or invalid in manager/sdk/include/eam/version.h.'
+          }
+          if ([decimal]$number -gt 65535) {
+            throw "Release tag $env:RELEASE_TAG exceeds the maximum build number 65535."
+          }
+          $sourceNumber = $source.Matches[0].Groups[1].Value
+          if ($number -ne $sourceNumber) {
+            throw "Release tag $env:RELEASE_TAG requests Build $number, but this commit declares Build $sourceNumber. Update EAM_BUILD_NUMBER in manager/sdk/include/eam/version.h before tagging the release. Rerunning this unchanged tag will fail again."
           }
           "number=$number" >> $env:GITHUB_OUTPUT
           "archive=dist/LSAddonManager-build-$number-x64.zip" >> $env:GITHUB_OUTPUT
