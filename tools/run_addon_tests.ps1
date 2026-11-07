@@ -48,8 +48,9 @@ $suites = [ordered]@{
                    Build = @('installer', 'setup_core', 'setup_cli', 'pack_payload', 'LSAddonManagerSetup');
                    Script = "$root\installer\tests\setup_exe_test.ps1" }
     nr        = @{ When = '^addons/NeuralRendering/|^manager/sdk/|^manager/src/core/real_frame';
-                   Build = @('neural','DLSSNR02','neural_forwardertest','neural_flowtest','neural_compositiontest','neural_modeltest','neural_pipelinetest','neural_multipasstest','neural_picturetest');
-                   Runs = @(@('NR runtime compatibility and model selection', "$root\addons\NeuralRendering\build\Release\neural_forwardertest.exe", @()),
+                   Build = @('neural','DLSSNR02','neural_statustest','neural_forwardertest','neural_flowtest','neural_compositiontest','neural_modeltest','neural_pipelinetest','neural_multipasstest','neural_picturetest');
+                   Runs = @(@('NR blocked capture diagnostics', "$root\addons\NeuralRendering\build\Release\neural_statustest.exe", @()),
+                            @('NR runtime compatibility and model selection', "$root\addons\NeuralRendering\build\Release\neural_forwardertest.exe", @()),
                             @('NVIDIA independent optical flow', "$root\addons\NeuralRendering\build\Release\neural_flowtest.exe", @()),
                             @('OptiScaler composition parity', "$root\addons\NeuralRendering\build\Release\neural_compositiontest.exe", @()),
                             @('Multipass histories and failure retirement', "$root\addons\NeuralRendering\build\Release\neural_multipasstest.exe", @()),

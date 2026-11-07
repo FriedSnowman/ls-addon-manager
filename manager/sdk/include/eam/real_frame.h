@@ -4,7 +4,8 @@
 enum class EamFrameEncoding : uint32_t { Sdr709 = 0, ScRgb = 1 };
 enum class EamFrameSupport : uint32_t {
     Waiting, Ready, UnsupportedCapture, UnsupportedFrameGeneration,
-    UnsupportedScaler, UnrecognizedShader, UnsupportedTexture, SettingsChanging, UnsupportedRuntime
+    UnsupportedScaler, UnrecognizedShader, UnsupportedTexture, SettingsChanging, UnsupportedRuntime,
+    HookUnavailable, CallbackFailed
 };
 struct EamRealFrame {
     uint32_t size = sizeof(EamRealFrame);

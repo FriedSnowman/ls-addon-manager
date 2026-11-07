@@ -42,6 +42,10 @@ HRESULT WINAPI OnCreateDevice(IDXGIAdapter* adapter, D3D_DRIVER_TYPE type, HMODU
     if (SUCCEEDED(hr) && device && *device && context && *context) {
         LOG_INFO("D3D11Hook", "Lossless Scaling made a D3D11 device (%p, context %p, feature level %x)", *device, *context, level ? (unsigned)*level : 0u);
         Attach(*device, *context);
+    } else if (FAILED(hr)) {
+        char reason[128];snprintf(reason,sizeof reason,"LS D3D11 device creation failed (0x%08X)",unsigned(hr));
+        RealFrameHook::HookFailed(reason);
+        LOG_ERROR("D3D11Hook", "%s", reason);
     }
     return hr;
 }
@@ -117,15 +121,16 @@ void Initialize(eam::HostImpl* host) {
     if (g_importPatched) return;
     const HMODULE lossless = GetModuleHandleW(L"Lossless_original.dll");
     RealFrameHook::VerifyRuntime(lossless);
-    if (!lossless) { LOG_ERROR("D3D11Hook", "Lossless_original.dll is not loaded"); return; }
+    if (!lossless) { RealFrameHook::HookFailed("Lossless_original.dll is not loaded"); LOG_ERROR("D3D11Hook", "Lossless_original.dll is not loaded"); return; }
     HMODULE d3d11 = GetModuleHandleW(L"d3d11.dll");
     if (!d3d11) d3d11 = LoadLibraryW(L"d3d11.dll");
     g_realCreateDevice = d3d11 ? reinterpret_cast<CreateDeviceFn>(GetProcAddress(d3d11, "D3D11CreateDevice")) : nullptr;
-    if (!g_realCreateDevice) { LOG_ERROR("D3D11Hook", "d3d11.dll's D3D11CreateDevice was not found"); return; }
+    if (!g_realCreateDevice) { RealFrameHook::HookFailed("D3D11CreateDevice is unavailable"); LOG_ERROR("D3D11Hook", "d3d11.dll's D3D11CreateDevice was not found"); return; }
     // The slot holds the delay-load stub until the first call; ours calls the real function directly, so the stub is never needed.
     void** const slot = eam::hooks::DelayImportSlot(lossless, "d3d11.dll", "D3D11CreateDevice");
     if (!slot || !eam::hooks::SwapSlot(slot, (void*)&OnCreateDevice)) {
         LOG_ERROR("D3D11Hook", "Lossless_original.dll's delay import of D3D11CreateDevice was not found or could not be patched: its device will not be seen");
+        RealFrameHook::HookFailed("Could not attach to LS device creation");
         return;
     }
     g_importPatched = true;
@@ -135,8 +140,8 @@ void Initialize(eam::HostImpl* host) {
 int InstallDispatchHooks() {
     if (g_hooked) return g_hooked;
     const std::vector<void*> targets = FindDispatchImplementations();
-    if (targets.empty()) { LOG_ERROR("D3D11Hook", "No Dispatch implementation found: dispatch callbacks will not run"); return 0; }
-    if (!eam::hooks::Begin()) { LOG_ERROR("D3D11Hook", "MinHook could not start: dispatch callbacks will not run"); return 0; }
+    if (targets.empty()) { RealFrameHook::HookFailed("No compute Dispatch implementation found"); LOG_ERROR("D3D11Hook", "No Dispatch implementation found: dispatch callbacks will not run"); return 0; }
+    if (!eam::hooks::Begin()) { RealFrameHook::HookFailed("MinHook initialization failed"); LOG_ERROR("D3D11Hook", "MinHook could not start: dispatch callbacks will not run"); return 0; }
     for (void* target : targets) {
         if (g_hooked == kMaxHooks) break;
         Hooked& h = g_hooks[g_hooked];
@@ -145,7 +150,7 @@ int InstallDispatchHooks() {
         h.target = target;
         ++g_hooked;
     }
-    if (!g_hooked) { eam::hooks::End(); LOG_ERROR("D3D11Hook", "The Dispatch implementations could not be hooked: dispatch callbacks will not run"); return 0; }
+    if (!g_hooked) { RealFrameHook::HookFailed("Could not hook compute Dispatch"); eam::hooks::End(); LOG_ERROR("D3D11Hook", "The Dispatch implementations could not be hooked: dispatch callbacks will not run"); return 0; }
     LOG_INFO("D3D11Hook", "Hooked %d of %zu Dispatch implementations", g_hooked, targets.size());
     return g_hooked;
 }
@@ -160,8 +165,9 @@ void Shutdown() {
 void Attach(ID3D11Device* device, ID3D11DeviceContext* context) {
     eam::HostImpl* const host = g_host.load(std::memory_order_acquire);
     if (!host) return;
-    if (!ShaderIdentity::Attach(device)) LOG_WARN("D3D11Hook", "Compute shader identities unavailable on this device; required capture transforms will pause");
+    if (!ShaderIdentity::Attach(device)) { RealFrameHook::HookFailed("Compute shader identification hook failed"); LOG_WARN("D3D11Hook", "Compute shader identities unavailable on this device; required capture transforms will pause"); }
     void* const before = host->GetD3D11Device();
+    if (!before) RealFrameHook::ObserveDevice(device);
     host->SetD3D11Device(device, context);
     if (!IsLossless(context)) g_lsContexts[g_nextContext.fetch_add(1) % kContexts].store(context, std::memory_order_release);
     if (!before) g_dispatches.store(0, std::memory_order_relaxed);

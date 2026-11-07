@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "service.h"
+#include "status_reporter.h"
+#include "diagnostic_text.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -7,6 +9,7 @@
 #include <commdlg.h>
 #include <cstdio>
 #include <eam/addon_sdk.h>
+#include <eam/real_frame_status.h>
 #include <eam/widgets.h>
 #include <filesystem>
 namespace {
@@ -16,8 +19,11 @@ std::unique_ptr<neural::Service> service;
 neural::PipelineSettings settings;
 bool enabled = true, rebuildPending = false;
 char modelPath[32768]{};
-std::atomic<ULONGLONG> lastStatus{0};
+neural::StatusReporter reporter;
+std::atomic<ULONGLONG> lastCaptureAt{0};
 std::atomic<double> lastCallbackMs{0};
+std::atomic<double> lastIntervalMs{0};
+std::string startupError;
 // Render-thread-only samples. Report periodically so a gameplay session can be
 // diagnosed without a screenshot or a Present hook changing the render path.
 struct FrameDiagnostics {
@@ -124,44 +130,57 @@ void Configure(bool rebuild) {
     host->RequireRealFrameProcessing(enabled);
 }
 const char *Support(EamFrameSupport s) {
-    switch (s) {
-    case EamFrameSupport::Ready:
-        return nullptr;
-    case EamFrameSupport::Waiting:
-        return "Waiting for a real capture";
-    case EamFrameSupport::UnsupportedCapture:
-        return "Capture paused: disable NR, then select WGC capture in Lossless Scaling";
-    case EamFrameSupport::UnsupportedFrameGeneration:
-        return "Capture paused: disable NR, then select LSFG 3 or turn frame generation off";
-    case EamFrameSupport::UnsupportedScaler:
-        return "Capture paused: disable NR, then select Scaling Off or NIS with FG off";
-    case EamFrameSupport::UnrecognizedShader:
-        return "Capture paused: unrecognized LS shader; disable NR to continue";
-    case EamFrameSupport::UnsupportedTexture:
-        return "Capture paused: unsupported texture; disable NR and use SDR or scRGB";
-    case EamFrameSupport::SettingsChanging:
-        return "Lossless Scaling settings are changing";
-    case EamFrameSupport::UnsupportedRuntime:
-        return "Capture paused: unsupported Lossless Scaling build; disable NR to continue";
-    default:
-        return "Capture unavailable";
-    }
+    return EamSupportText(s);
 }
-void Status(bool force = false) {
-    if (!host || !service)
+void Status() {
+    if (!host)
         return;
-    const ULONGLONG now = GetTickCount64();
-    if (!force && now - lastStatus.load() < 500)
+    if (!startupError.empty()) {
+        host->SetStatus(Id, startupError.c_str(), 3);
         return;
-    lastStatus = now;
+    }
+    if (!service) return;
     const auto snapshot = service->Snapshot();
-    const char *support = Support(host->GetRealFrameSupport());
-    const char *message = !snapshot.enabled ? "Disabled"
-                          : snapshot.failed ? snapshot.status.c_str()
-                          : support         ? support
-                                            : snapshot.status.c_str();
-    host->SetStatus(Id, message, snapshot.failed ? 3 : snapshot.ready && !support ? 1 : 0);
+    const auto state = host->GetRealFrameSupport();
+    const char *support = Support(state);
+    const bool blockedProfile = support && state != EamFrameSupport::Waiting && state != EamFrameSupport::SettingsChanging;
+    const std::string failure = snapshot.status.substr(0, snapshot.status.find("; processing paused."));
+    std::string message = !snapshot.enabled ? "Disabled; original frames allowed"
+                          : blockedProfile ? support
+                          : snapshot.failed ? "Capture paused: " + failure + ". " + neural::FailureGuidance(snapshot.status) + ". Disable NR to continue"
+                          : support ? support : snapshot.status;
+    int level = !snapshot.enabled ? 0 : blockedProfile ? 2 : snapshot.failed ? 3 : support ? 0 : snapshot.ready ? 1 : 0;
+    const auto captureAt = lastCaptureAt.load();
+    const double quiet = captureAt ? double(GetTickCount64() - captureAt) / 1000 : 0;
+    if (snapshot.enabled && !snapshot.failed && !support) {
+        if (snapshot.stage != neural::Stage::Idle && (!snapshot.ready || snapshot.stageSeconds >= 3)) {
+            char age[32];snprintf(age,sizeof age," (%.1f s)",snapshot.stageSeconds);
+            message = std::string("Capture waiting: ") + neural::StageName(snapshot.stage) + age;
+            if (snapshot.stageSeconds >= 3) { message += "; if it stays here, disable NR or restart LS"; level=2; }
+        } else if (snapshot.ready && quiet >= 3) {
+            char age[32];snprintf(age,sizeof age,"%.0f s",quiet);
+            message = std::string("No new captures for ") + age + "; scaling may be stopped, paused or the source unavailable";
+            level = 0; // Stopping/minimizing scaling is normal; absence alone is not a failure.
+        }
+    }
     const auto &m = snapshot.metrics;
+    const double interval = lastIntervalMs.load();
+    const bool liveFrames = snapshot.enabled && snapshot.ready && !snapshot.failed && !support && quiet < 3;
+    char stats[512];
+    snprintf(stats,sizeof stats,"Capture %ux%u -> NR %ux%u | %llu processed | %.1f capture fps%s | last NR GPU %.2f ms | callback CPU %.2f ms | slot/summary wait %.2f/%.2f ms | %u pass(es) | %llu cuts/%llu resets",
+        m.width,m.height,m.workingWidth,m.workingHeight,m.accepted,liveFrames&&interval>0?1000/interval:0,
+        liveFrames?"":" (waiting/off)",m.prepareMs+m.flowMs+m.modelMs+m.compositionMs,lastCallbackMs.load(),m.slotWaitMs,m.summaryWaitMs,m.passes,m.cuts,m.resets);
+    // Log transitions, including failures before the first callback returns.
+    static std::string previous;
+    std::string transition = !snapshot.enabled ? "Disabled" : blockedProfile ? support : snapshot.failed ? snapshot.status : support ? support : snapshot.status;
+    if (snapshot.enabled && !snapshot.failed && !support) {
+        if (snapshot.stage != neural::Stage::Idle && snapshot.stageSeconds >= 3) transition += neural::StageName(snapshot.stage);
+        else if (snapshot.ready && quiet >= 3) transition += " (no new captures)";
+    }
+    if (transition != previous) { host->Log(level>=2?EAM_LOG_WARN:EAM_LOG_INFO, message.c_str()); previous=transition; }
+    message += "\n";message += stats;
+    if (blockedProfile && snapshot.failed) message += "\nPrevious pipeline error: " + snapshot.status;
+    host->SetStatus(Id, message.c_str(), level);
     host->PublishMetric(Id, "prepare_ms", m.prepareMs, "ms");
     host->PublishMetric(Id, "flow_ms", m.flowMs, "ms");
     host->PublishMetric(Id, "model_ms", m.modelMs, "ms");
@@ -185,12 +204,13 @@ bool Frame(const EamRealFrame &frame, void *) {
         host->PublishMetric(Id, "frame_ms", interval, "ms");
     last = now;
     epoch = frame.epoch;
+    lastCaptureAt = GetTickCount64();
+    lastIntervalMs = interval;
     const bool result = service && service->Process(frame);
     const double cpuMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - now).count();
     lastCallbackMs = cpuMs;
     if (host && service)
         diagnostics.Record(frame.epoch, interval, cpuMs);
-    Status();
     return result;
 }
 bool Slider(const char *label, float *value, float low, float high) {
@@ -203,8 +223,11 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
                                  user);
     eam::ui::InitAddonImGui();
     host = supplied;
+    startupError.clear();
+    lastCaptureAt=0;lastIntervalMs=0;lastCallbackMs=0;
     if (host->GetHostVersion() < 0x010400) {
-        host->SetStatus(Id, "Manager API 1.4 or newer is required", 3);
+        startupError="Manager API 1.4 or newer is required; install the matching manager and NR addon";
+        reporter.Start(Status);
         return;
     }
     HMODULE module = nullptr;
@@ -249,22 +272,24 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
     service = std::make_unique<neural::Service>();
     if (!host->SetRealFrameCallback(Frame)) {
         service.reset();
-        host->SetStatus(Id, "Another addon owns real-frame processing", 3);
+        startupError="Another addon owns real-frame processing; disable the conflicting addon and reload NR";
+        reporter.Start(Status);
         host->Log(EAM_LOG_ERROR, "NR could not acquire the real-frame stage");
         return;
     }
     Configure(true);
     host->Log(EAM_LOG_INFO, "DLSS NR started: original capture -> NVIDIA flow -> NR -> composition -> LSFG");
-    Status(true);
+    reporter.Start(Status);
 }
 EAM_EXPORT void AddonShutdown() {
+    reporter.Stop();
     if (host) {
         if (service) {
             service->Configure(settings, false, false);
             host->RequireRealFrameProcessing(false);
+            host->SetRealFrameCallback(nullptr);
+            service.reset();
         }
-        host->SetRealFrameCallback(nullptr);
-        service.reset();
         host->SetStatus(Id, "", 0);
     }
     host = nullptr;
@@ -428,14 +453,15 @@ EAM_EXPORT void AddonRenderSettings() {
         Configure(true);
         rebuildPending = false;
     }
-    Status(true);
     const auto snapshot = service->Snapshot();
     const auto &m = snapshot.metrics;
     eam::ui::SectionLabel("Pipeline status");
     const char *support = Support(host->GetRealFrameSupport());
-    ImGui::TextWrapped("%s", support ? support : snapshot.status.c_str());
-    if (support && snapshot.failed)
+    ImGui::TextWrapped("%s", !snapshot.enabled ? "Disabled; original frames allowed" : support ? support : snapshot.status.c_str());
+    if (snapshot.enabled && support && snapshot.failed)
         ImGui::TextWrapped("%s", snapshot.status.c_str());
+    if (snapshot.enabled && !snapshot.failed && snapshot.stage != neural::Stage::Idle)
+        ImGui::TextWrapped("%s (%.1f s)", neural::StageName(snapshot.stage), snapshot.stageSeconds);
     ImGui::Text("Capture %u x %u; model %u x %u", m.width, m.height, m.workingWidth, m.workingHeight);
     if (snapshot.ready && m.passes > 1)
         ImGui::Text("Multipass: %u passes; model timing includes the full chain", m.passes);

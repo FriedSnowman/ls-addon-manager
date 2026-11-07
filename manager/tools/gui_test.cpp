@@ -103,7 +103,19 @@ static void PureChecks() {
     Check("status: product, build and counts", base == EAM_PRODUCT_SHORT "   |   " EAM_VERSION_STRING "   |   3 addons, 1 on", base);
     Check("status: one addon is singular", StatusCounts(1, 0).find("   |   1 addon, 0 on") != std::string::npos);
     Check("status: none is plural", StatusCounts(0, 0).find("   |   0 addons, 0 on") != std::string::npos);
-    Check("status: a live status is added after the counts", WithLiveStatus("A", "Neural Rendering", "12 ms") == "A   |   Neural Rendering: 12 ms" && WithLiveStatus("A", "x", "") == "A");
+    Check("status: a live reason precedes counts", WithLiveStatus("A", "Neural Rendering", "12 ms") == "Neural Rendering: 12 ms   |   A" && WithLiveStatus("A", "x", "") == "A");
+    RealFrameHook::Diagnostics capture;capture.configured=true;capture.capture=0;capture.fg=1;capture.runtimeVersion="9.9.9";capture.runtimeChecked=true;
+    Check("status: actual runtime and unsupported DXGI are identifiable", CaptureSummary(capture).find("LS 9.9.9 (unverified) | DXGI")!=std::string::npos);
+    Check("status: idle is not diagnosed as a hook failure", CaptureObservation(capture,1000).find("may be idle")!=std::string::npos);
+    capture.dispatches=10;
+    Check("status: unmatched capture differs from idle", CaptureObservation(capture,1000).find("no supported real capture matched")!=std::string::npos);
+    capture.captures=2;capture.lastCapture=500;capture.width=640;capture.height=480;
+    Check("status: capture freshness and size", CaptureObservation(capture,1000).find("0.5 s ago | texture 640x480")!=std::string::npos);
+    SystemStats::Snapshot machine;machine.cpuName="Test CPU";
+    GpuStats::Snapshot gpu;gpu.ok=true;gpu.ageSeconds=0;gpu.name="GPU B";gpu.deviceCount=2;
+    capture.adapter="GPU A";
+    const auto hardware=MachineSummary(capture,machine,gpu);
+    Check("status: multiple GPU readings are not attributed to the LS adapter", hardware.find("LS GPU: GPU A")!=std::string::npos&&hardware.find("CPU: Test CPU")!=std::string::npos&&hardware.find("not necessarily the LS GPU")!=std::string::npos);
 
     const std::wstring tip = tray::TipText(L"");
     Check("tray tip: the product name and what a click does", tip == std::wstring(EAM_PRODUCT_SHORT_W) + L": click to open or close");

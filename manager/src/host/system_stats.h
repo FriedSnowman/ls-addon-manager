@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <string>
 
 namespace eam {
 
@@ -11,6 +12,7 @@ public:
         bool ok = false;
         double cpuPercent = 0;               // all cores, since the sample before (0 on the first)
         uint64_t ramUsedMB = 0, ramTotalMB = 0;
+        std::string cpuName;
     };
     static SystemStats& Instance();
     Snapshot Get();                          // a fresh sample when the last is a second old

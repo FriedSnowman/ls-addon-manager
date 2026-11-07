@@ -4,6 +4,7 @@
 #include "model.h"
 #include "optical_flow.h"
 #include "picture.h"
+#include "progress.h"
 #include <chrono>
 #include <d3d11_4.h>
 #include <eam/real_frame.h>
@@ -33,6 +34,7 @@ struct PipelineMetrics {
 // epoch alive until Process returns, while status/configuration remain accessible.
 class Pipeline {
   public:
+    void SetProgress(Progress* progress) { progress_ = progress; }
     void Initialize(ID3D11Device *, unsigned width, unsigned height, Encoding, const PipelineSettings &);
     void Process(const EamRealFrame &, const CompositionSettings &, const PictureSettings & = {});
     bool Retire();
@@ -43,6 +45,8 @@ class Pipeline {
     }
 
   private:
+    Progress* progress_ = nullptr;
+    void Mark(Stage stage) { if (progress_) progress_->Set(stage); }
     struct Shared {
         Resource texture;
         ComPtr<ID3D11Texture2D> texture11;

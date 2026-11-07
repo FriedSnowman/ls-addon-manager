@@ -41,6 +41,7 @@
 #include "src/host/gpu_stats.h"
 #include "eam/widgets.h"
 #include "eam/addon_sdk.h"
+#include "eam/real_frame_status.h"
 
 using namespace eam;
 
@@ -53,10 +54,15 @@ std::vector<AddonInfo>& AddonManager::GetAddons() { static std::vector<AddonInfo
 static void Shell(const char* active, const std::string& status, const std::function<void()>& body) {
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-    ImGui::Begin("##Main", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+    const auto padding=ImGui::GetStyle().WindowPadding;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,ImVec2(padding.x,0));
+    ImGui::Begin("##Main", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::PopStyleVar();
+    ImGui::SetCursorPosY(padding.y);
     widgets::HeaderBar();
     ImGui::Dummy(ImVec2(0, 4));
-    ImGui::BeginChild("##content", ImVec2(0, -widgets::StatusBarHeight() - 2.0f), false, ImGuiWindowFlags_NoBackground);
+    const float contentHeight=ImGui::GetContentRegionAvail().y-widgets::StatusBarHeight()-ImGui::GetStyle().ItemSpacing.y;
+    ImGui::BeginChild("##content", ImVec2(0, contentHeight>1?contentHeight:1), false, ImGuiWindowFlags_NoBackground);
     if (ImGui::BeginTabBar("##MainTabs")) {
         for (const char* t : { "Addons", "Features", "Performance", "Settings", "Logs", "About" }) {
             ImGuiTabItemFlags f = (std::string(t) == active) ? ImGuiTabItemFlags_SetSelected : 0;
@@ -107,7 +113,9 @@ int main(int argc, char** argv) {
     char* heightEnv = nullptr; size_t heightLen = 0; _dupenv_s(&heightEnv, &heightLen, "EAM_PREVIEW_HEIGHT");
     const int logicalHeight = heightEnv ? std::clamp(atoi(heightEnv), 600, 1600) : 740;
     free(heightEnv);
-    const int W = (int)(1100 * scale), H = (int)(logicalHeight * scale);
+    char* widthEnv=nullptr;size_t widthLen=0;_dupenv_s(&widthEnv,&widthLen,"EAM_PREVIEW_WIDTH");
+    const int logicalWidth=widthEnv?std::clamp(atoi(widthEnv),640,2000):1100;free(widthEnv);
+    const int W = (int)(logicalWidth * scale), H = (int)(logicalHeight * scale);
     if (!shot.Init(W, H)) { printf("device init failed\n"); return 1; }
 
     // EAM_PREVIEW_CLEAN=1 draws the tidy scene used for the README screenshots: no toast, only the first addon on, no error chips.
@@ -425,6 +433,32 @@ int main(int argc, char** argv) {
     }
 
     for(const auto& loaded:loadedPanels){if(loaded.second)loaded.second();FreeLibrary(loaded.first);}
+    // Fixed diagnostic examples, using the production footer at the requested DPI.
+    for(const auto state:{EamFrameSupport::UnsupportedCapture,EamFrameSupport::UnsupportedRuntime,EamFrameSupport::Ready}) {
+        widgets::StatusBarInfo info;
+        info.reason=state==EamFrameSupport::Ready?"NR: Running before LSFG; every capture processed":std::string("NR: ")+EamSupportText(state);
+        info.level=state==EamFrameSupport::Ready?1:2;
+        RealFrameHook::Diagnostics capture;capture.configured=true;capture.runtimeChecked=true;capture.runtimeVerified=state!=EamFrameSupport::UnsupportedRuntime;
+        capture.runtimeVersion=capture.runtimeVerified?"3.2.2.0":"9.9.9.0";capture.capture=state==EamFrameSupport::UnsupportedCapture?0:1;capture.fg=1;
+        capture.adapter="NVIDIA GeForce RTX 5080";
+        SystemStats::Snapshot machine;machine.ok=true;machine.cpuName="AMD Ryzen 7 9800X3D";machine.cpuPercent=23;machine.ramUsedMB=18841;machine.ramTotalMB=32703;
+        GpuStats::Snapshot gpu;gpu.ok=true;gpu.ageSeconds=0;gpu.name=capture.adapter;gpu.driver="616.92";gpu.utilGpu=86;gpu.vramUsedMB=12000;gpu.vramTotalMB=16384;
+        info.stats=state==EamFrameSupport::Ready?"Capture 3840x2160 -> NR 1920x1080 | 246 processed | 60.0 capture fps | NR GPU 8.20 ms | callback CPU 1.10 ms":window::CaptureSummary(capture);
+        info.hardware=window::MachineSummary(capture,machine,gpu);
+        info.details=window::CaptureSummary(capture);
+        shot.Frame([&] {
+            ImGui::SetNextWindowPos(ImVec2(0,0));ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+            const auto padding=ImGui::GetStyle().WindowPadding;
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,ImVec2(padding.x,0));
+            ImGui::Begin("##diagnostic_preview",nullptr,ImGuiWindowFlags_NoDecoration|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);
+            ImGui::PopStyleVar();ImGui::SetCursorPosY(padding.y);
+            widgets::HeaderBar();ImGui::TextWrapped("Neural Rendering diagnostics remain visible on every tab, even while the first capture is paused.");
+            ImGui::SetCursorPosY(ImGui::GetWindowHeight()-widgets::StatusBarHeight(info.level));
+            widgets::StatusBar(info);ImGui::End();
+        },3);
+        const auto name=state==EamFrameSupport::Ready?"running":state==EamFrameSupport::UnsupportedCapture?"dxgi":"version";
+        shot.Save((out+"/preview_status_"+name+".bmp").c_str());
+    }
     shot.Shutdown();
     printf("wrote previews to %s\n", out.c_str());
     return 0;

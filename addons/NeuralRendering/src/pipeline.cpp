@@ -111,6 +111,7 @@ void Pipeline::SharedFence(ComPtr<ID3D11Fence> &f11, ComPtr<ID3D12Fence> &f12) {
     Check(result, "Open capture fence");
 }
 void Pipeline::Initialize(ID3D11Device *device, unsigned w, unsigned h, Encoding encoding, const PipelineSettings &s) {
+    Mark(Stage::Resources);
     settings_ = s;
     encoding_ = encoding;
     if (s.scalePercent < 25 || s.scalePercent > 100 || s.flowQuality < 1 || s.flowQuality > 3 ||
@@ -166,6 +167,7 @@ void Pipeline::Initialize(ID3D11Device *device, unsigned w, unsigned h, Encoding
     scene_.Initialize(gpu_.device.Get(), g_scene_change, sizeof(g_scene_change));
     guides_.Initialize(gpu_.device.Get(), g_initialize_guides, sizeof(g_initialize_guides));
     const NV_OF_PERF_LEVEL levels[] = {NV_OF_PERF_LEVEL_SLOW, NV_OF_PERF_LEVEL_MEDIUM, NV_OF_PERF_LEVEL_FAST};
+    Mark(Stage::FlowInit);
     flow_.Initialize(gpu_, w, h, s.flowGrid, levels[s.flowQuality - 1]);
     auto &rec = slots_[0].prepare;
     rec.Begin(gpu_.fence.Get());
@@ -177,12 +179,14 @@ void Pipeline::Initialize(ID3D11Device *device, unsigned w, unsigned h, Encoding
     depth_.Transition(rec.list.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     // Submit initialization even if feature creation throws after recording partial GPU work.
     try {
+        Mark(Stage::ModelInit);
         model_.Initialize(gpu_, rec, s.forwarderPath, s.modelPath, s.cachePath, ww, wh, s.model);
     } catch (...) {
         gpu_.Submit(rec);
         throw;
     }
     gpu_.Submit(rec);
+    Mark(Stage::ModelInitWait);
     if (!gpu_.Wait(rec.completion, INFINITE))
         throw std::runtime_error("Model initialization did not retire");
     // OptiScaler's independent-history chain: one persistent feature per pass.
@@ -194,6 +198,7 @@ void Pipeline::Initialize(ID3D11Device *device, unsigned w, unsigned h, Encoding
         auto profile = s.model;
         profile.localTone = 0; // PreSR-Multipass default: avoid compounding local tone.
         try {
+            Mark(Stage::ModelInit);
             extraModels_.back()->Initialize(gpu_, rec, s.forwarderPath, s.modelPath, s.cachePath, ww, wh, profile);
         } catch (const std::exception &e) {
             gpu_.Submit(rec);
@@ -203,11 +208,13 @@ void Pipeline::Initialize(ID3D11Device *device, unsigned w, unsigned h, Encoding
             throw;
         }
         gpu_.Submit(rec);
+        Mark(Stage::ModelInitWait);
         if (!gpu_.Wait(rec.completion, INFINITE))
             throw std::runtime_error("Additional model initialization did not retire");
     }
     metrics_.passes = s.passes;
     initialized_ = true;
+    Mark(Stage::Idle);
 }
 void Pipeline::Copy(ID3D11DeviceContext *ctx, ID3D11ShaderResourceView *src, ID3D11UnorderedAccessView *dst) {
     ctx->CSSetShader(bridge_.Get(), nullptr, 0);
@@ -236,6 +243,7 @@ void Pipeline::ReadTimings(Slot &s) {
     s.hasTimings = false;
 }
 void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &settings, const PictureSettings &picture) {
+    Mark(Stage::FrameSlot);
     if (!initialized_)
         throw std::runtime_error("NR pipeline is not initialized");
     auto *ctx = static_cast<ID3D11DeviceContext *>(frame.context);
@@ -269,6 +277,7 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
     }
     auto &slot = slots_[index];
+    Mark(Stage::Prepare);
     cursor_ = (index + 1) % 3;
     ReadTimings(slot);
     const uint64_t now = GetTickCount64();
@@ -312,6 +321,7 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
     metrics_.summaryWaitMs = 0;
     if (!reset) {
         const auto start = std::chrono::steady_clock::now();
+        Mark(Stage::Summary);
         const bool complete = gpu_.Wait(ready, INFINITE);
         metrics_.summaryWaitMs =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
@@ -329,11 +339,13 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
         if (reset)
             ++metrics_.cuts;
     }
+    Mark(Stage::Flow);
     flow_.Execute(gpu_, index, previous_ < 0 ? unsigned(index) : unsigned(previous_), reset, ready);
     auto &finish = slot.finish;
     finish.Begin(gpu_.fence.Get());
     flow_.Convert(gpu_, finish, slot.motion, reset);
     finish.list->EndQuery(queries_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query + 2);
+    Mark(Stage::Model);
     model_.Evaluate(finish, slot.working, depth_, slot.motion, slot.model, reset);
     Resource *result = &slot.model;
     for (size_t pass = 0; pass < extraModels_.size(); ++pass) {
@@ -347,6 +359,7 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
         result = next;
     }
     finish.list->EndQuery(queries_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query + 3);
+    Mark(Stage::Compose);
     composition_.Resolve(gpu_, finish, slot.working, *result, slot.keep, slot.output.texture, encoding_, settings);
     slot.output.texture.Transition(finish.list.Get(), D3D12_RESOURCE_STATE_COMMON);
     finish.list->EndQuery(queries_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query + 4);
@@ -354,6 +367,7 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
     const uint64_t done = gpu_.Submit(finish);
     slot.hasTimings = true;
     // Only publish the D3D11 wait after the exact current output and its signal exist.
+    Mark(Stage::Handoff);
     Check(context->Wait(complete11_.Get(), done), "Wait for enhanced current image");
     // Comparison keeps the manager's exact original copy, including negative scRGB
     // components that upstream composition deliberately clamps at its output.
@@ -374,6 +388,7 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
     ++metrics_.accepted;
     if (reset)
         ++metrics_.resets;
+    Mark(Stage::Idle);
 }
 bool Pipeline::Retire() {
     if (!gpu_.device || !gpu_.fence)

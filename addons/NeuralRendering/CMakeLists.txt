@@ -84,6 +84,11 @@ if(NEURAL_BUILD_ADDON)
     target_include_directories(DLSSNR02 PRIVATE ${imgui_SOURCE_DIR})
     target_link_libraries(DLSSNR02 PRIVATE neural_pipeline comdlg32)
     add_dependencies(DLSSNR02 neural_forwarder)
+    add_executable(neural_statustest tests/status_test.cpp
+        ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp
+        ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
+    target_include_directories(neural_statustest PRIVATE ${imgui_SOURCE_DIR} src ../../manager/sdk/include)
+    add_dependencies(neural_statustest DLSSNR02)
     set_target_properties(DLSSNR02 PROPERTIES PREFIX "" OUTPUT_NAME "DLSSNR02")
     target_compile_options(DLSSNR02 PRIVATE $<$<CONFIG:Release>:/Zi>)
     target_link_options(DLSSNR02 PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF /MAP /PDBALTPATH:$<TARGET_PDB_FILE_NAME:DLSSNR02>>)

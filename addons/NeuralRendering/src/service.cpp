@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "service.h"
+#include <algorithm>
 namespace neural {
 namespace {
 void ModuleAnchor() {}
@@ -21,9 +22,19 @@ void Service::Configure(const PipelineSettings &settings, bool enabled, bool reb
     if (rebuild || enabled_ != enabled) {
         ++revision_;
         failed_ = false;
+        if (!poisoned_) {
+            snapshot_.failed = false;
+            snapshot_.ready = false;
+            snapshot_.status = "Waiting for capture to apply NR settings";
+        }
     }
     enabled_ = enabled;
     snapshot_.enabled = enabled;
+    if (enabled && poisoned_) {
+        snapshot_.failed = true;
+        snapshot_.ready = false;
+        snapshot_.status = "GPU retirement failed; restart Lossless Scaling before retrying";
+    }
     if (!enabled) {
         desired_.run = false;
         desired_.serial = ++serial_;
@@ -36,7 +47,11 @@ void Service::Configure(const PipelineSettings &settings, bool enabled, bool reb
 }
 ServiceSnapshot Service::Snapshot() {
     std::lock_guard<std::mutex> lock(mutex_);
-    return snapshot_;
+    auto snapshot = snapshot_;
+    const auto p = progress_.value.load(std::memory_order_relaxed);
+    snapshot.stage = Stage(p & 255);
+    snapshot.stageSeconds = p ? double(GetTickCount64() - (p >> 8)) / 1000 : 0;
+    return snapshot;
 }
 bool Service::Process(const EamRealFrame &frame) {
     std::unique_lock<std::mutex> lock(mutex_);
@@ -65,6 +80,11 @@ bool Service::Process(const EamRealFrame &frame) {
             desired_ = {device, frame.width, frame.height, encoding, frame.epoch, revision_, ++serial_, true, settings_};
             pending_ = true;
             snapshot_.metrics = {};
+            snapshot_.metrics.width = frame.width;
+            snapshot_.metrics.height = frame.height;
+            snapshot_.metrics.workingWidth = std::max(1u, frame.width * settings_.scalePercent / 100);
+            snapshot_.metrics.workingHeight = std::max(1u, frame.height * settings_.scalePercent / 100);
+            snapshot_.metrics.passes = settings_.passes;
             failed_ = snapshot_.failed = false;
             snapshot_.ready = false;
             snapshot_.status = "Preparing NVIDIA pipeline; capture is waiting";
@@ -108,8 +128,10 @@ bool Service::Process(const EamRealFrame &frame) {
 bool Service::Retire(std::unique_ptr<Pipeline> &p) {
     if (!p)
         return true;
+    progress_.Set(Stage::Retiring);
     if (p->Retire()) {
         p.reset();
+        progress_.Set(Stage::Idle);
         return true;
     }
     // Preserve the complete object graph, queues, allocators, fences and registrations.
@@ -148,6 +170,7 @@ void Service::Worker() {
         if (!build)
             continue;
         auto created = std::make_unique<Pipeline>();
+        created->SetProgress(&progress_);
         std::string error;
         try {
             created->Initialize(request.device.Get(), request.width, request.height, request.encoding,

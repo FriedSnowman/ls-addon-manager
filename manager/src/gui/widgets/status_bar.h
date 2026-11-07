@@ -4,10 +4,16 @@
 namespace eam {
 namespace widgets {
 
-// A slim bar along the bottom of the window with status text in a muted colour. Call it at
-// the end of the window, after the content child, and reserve StatusBarHeight() for it.
+// One line normally; warnings/errors expand to a two-line reason plus diagnostics.
+// Reserve StatusBarHeight(info.level) using the same snapshot passed to StatusBar.
+struct StatusBarInfo {
+    std::string reason, stats, hardware, details;
+    int level = 0;
+};
+void StatusBar(const StatusBarInfo& info);
 void StatusBar(const std::string& left);
-float StatusBarHeight();
+float StatusBarHeight(int level = 0);
+float DrawnStatusBarHeight(); // for positioning toasts above this frame's footer
 
 } // namespace widgets
 } // namespace eam

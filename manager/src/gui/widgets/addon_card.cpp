@@ -133,7 +133,7 @@ bool AddonCard(AddonInfo& addon, int index, bool isSelected, bool* toggled) {
     if (const Chip chip = ChipFor(addon); chip.text) { second = chip.text; secondColour = chip.colour; }
     else if (!live.text.empty() && addon.enabled) { second = live.text; secondColour = U(LiveColour(live.level)); }
     else second = addon.GetDisplayAuthor();
-    std::string shown = second;   // cut to fit, with an ellipsis
+    std::string shown = second.substr(0, second.find('\n'));   // the complete diagnostics remain in the tooltip
     const float room = textRight - textLeft;
     while (shown.size() > 4 && ImGui::GetFont()->CalcTextSizeA(smallSize, FLT_MAX, 0.0f, shown.c_str()).x > room) shown = shown.substr(0, shown.size() - 5) + "...";
     draw->AddText(ImGui::GetFont(), smallSize, ImVec2(textLeft, lineY), secondColour, shown.c_str(), nullptr, 0.0f, &clip);

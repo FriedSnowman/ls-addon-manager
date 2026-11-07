@@ -177,11 +177,13 @@ bool HostImpl::InvokeRealFrame(const EamRealFrame& frame) {
     if (!m_realHook.callback) return false;
     bool applied = false;
     if (!CallReal(m_realHook.callback, frame, m_realHook.owner, &applied)) {
+        RealFrameHook::CallbackFailed();
         LOG_ERROR("Host", "Real-frame transform faulted; required processing is paused until disabled");
         while (RealFrameRequired()) Sleep(25);
         m_realHook = {}; m_realModule.store(nullptr); m_realCount.store(0, std::memory_order_release);
         return false;
     }
+    if (!applied && RealFrameRequired()) RealFrameHook::CallbackFailed();
     while (!applied && RealFrameRequired()) Sleep(25);
     return applied;
 }

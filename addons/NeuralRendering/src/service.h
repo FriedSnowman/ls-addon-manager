@@ -9,6 +9,8 @@ struct ServiceSnapshot {
     std::string status;
     PipelineMetrics metrics;
     bool ready = false, failed = false, enabled = false;
+    Stage stage = Stage::Idle;
+    double stageSeconds = 0;
 };
 class Service {
   public:
@@ -36,6 +38,7 @@ class Service {
     Request desired_;
     std::unique_ptr<Pipeline> active_;
     ServiceSnapshot snapshot_;
+    Progress progress_;
     void Worker();
     bool Retire(std::unique_ptr<Pipeline> &);
 };

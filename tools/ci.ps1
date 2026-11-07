@@ -75,7 +75,8 @@ Run 'Setup exe, silent mode' 'powershell' @('-NoProfile', '-File', "$root\instal
 
 Section 'the independent NR addon (no proprietary model or SDK needed)'
 Configure "$root\addons\NeuralRendering" "$root\addons\NeuralRendering\build"
-Build "$root\addons\NeuralRendering\build" @('DLSSNR02','neural_forwardertest','neural_flowtest','neural_compositiontest','neural_modeltest','neural_pipelinetest','neural_multipasstest','neural_picturetest')
+Build "$root\addons\NeuralRendering\build" @('DLSSNR02','neural_statustest','neural_forwardertest','neural_flowtest','neural_compositiontest','neural_modeltest','neural_pipelinetest','neural_multipasstest','neural_picturetest')
+Run 'NR blocked capture diagnostics' "$root\addons\NeuralRendering\build\Release\neural_statustest.exe"
 Run 'NR runtime compatibility and model selection' "$root\addons\NeuralRendering\build\Release\neural_forwardertest.exe"
 
 Section 'the sample addon, built as its README says'

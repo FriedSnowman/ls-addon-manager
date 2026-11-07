@@ -93,6 +93,52 @@ On RTX 5080 with model 310.9.16.0, the one-pass build matched all 108 pre-change
 
 ## Timing, resets and failures
 
+### Diagnosing a black screen or missing enhancement
+
+The manager footer uses one line during normal operation, including idle/disabled states and brief settings changes. Warnings and errors expand it to show the current reason and recovery action first, then capture/NR measurements and system information. Content scrolls above the footer; the outer window does not add a second scrollbar. **Details** expands the unabridged diagnostics in either layout; **Copy** copies them for a bug report. Long rows show an ellipsis. The NR status refreshes twice per second independently of capture callbacks and the Settings tab, including while the first capture is blocked. Status transitions are written to `logs/LSAddonManager.log`. A blocked first frame must not leave the old “Waiting for a real capture” message hiding its error.
+
+The version message names **supported LS 3.2.2.0**, not an automatically discovered “latest” version. The existing original-DLL hash check remains authoritative; even a DLL with the same version resource can be an unverified build. Update the pinned hash and supported-version text together when validating a new LS release.
+
+| Scenario / edge case | What the status means and what to do |
+|---|---|
+| DXGI or another capture API | Capture is paused. Disable NR, select **WGC**, then restart scaling. The profile is diagnosed as soon as LS applies settings, before a capture callback succeeds. |
+| Unsupported LS DLL, changed build, stale original DLL, or unreadable hash | Version may differ; use supported **3.2.2.0** and repair the manager installation. Details show the detected original-DLL version and verified/unverified state. A matching version string alone does not pass the check. |
+| LSFG other than 3 | Disable NR and select LSFG 3 or FG Off, then restart scaling. |
+| FG Off with a scaler other than Off/NIS | Disable NR and select Scaling Off or NIS. Other scalers with FG on are not rejected by this rule. |
+| Settings still being applied | Wait for LS; if it stays there, disable NR and restart scaling. A transition is not reported as a model failure. |
+| Scaling not started; stopped, minimized, paused, or source not producing captures | Waiting/no new captures. After a quiet interval the status stops claiming current capture fps. These conditions cannot be distinguished reliably by the hook alone. |
+| Compute dispatches arrive but no supported capture matches | The hook is active but has not recognized the real-frame stage. Check WGC/profile and restart scaling. This is different from receiving no dispatches at all. |
+| Missing original LS DLL/device-creation entry point, import patch failure, MinHook/Dispatch hook failure, or shader-identification hook failure | Capture hook unavailable. The existing hook reports its failure; restart LS, repair the manager, and inspect Details/Logs. No extra hook probes are run. |
+| LS D3D11 device creation fails | Reports the original HRESULT. A subsequently observed working device clears this transient device-creation error. |
+| Shader has no recorded identity | Capture pauses with a shader-identification explanation. Restart LS and inspect hook installation; the addon does not guess an unrecognized shader's role. |
+| HDR flag/format mismatch, direct PQ/HDR10, multisampled/array texture, invalid size/mips | Unsupported capture texture; Details retain dimensions, format, HDR flag, samples, array size and mip count. Disable NR and use SDR/scRGB. |
+| Missing capture output/scaler input, non-mip-zero view, or unexpected dispatch shape | Reports the specific handoff/view mismatch. Restart scaling using the supported profile; report persistent failures with copied diagnostics. |
+| Capture handoff allocation/view creation fails | Reports HRESULT and asks to reduce capture size/check VRAM. This is distinguished from an unsupported image format. |
+| Addon not loaded, faulted, incompatible host API, or missing dependency | The manager shows the loader's error even when no addon reporter exists. Install matching manager/addon files or restart when the loader says a restart is required. |
+| Another addon owns real-frame processing | Disable the conflicting addon and reload NR. A failed registration does not unregister another owner's callback. |
+| No NVIDIA capture adapter / LS selected an integrated or other GPU | Select a compatible NVIDIA GPU for LS. The observed LS adapter is shown separately from the existing GPU-0 load sampler. |
+| D3D12, shared-resource or shared-fence setup fails | Reports the failing operation and HRESULT; check the selected GPU/driver and restart LS. No speculative Windows settings changes are prescribed. |
+| NVIDIA Optical Flow driver/API unavailable or incomplete; session/capability/format/resource setup fails | Reports the original optical-flow error/code; check GPU/driver support and update the driver if appropriate. |
+| Flow grid unsupported | Select the default 4-pixel grid and retry; a driver rejecting that default still reports its error. |
+| Capture outside optical-flow dimension limits | Reduce the game/capture resolution. NR Working resolution does **not** shrink optical flow's original capture input. |
+| Missing user model | Select `nvngx_dlssnr.dll` with Browse. No model is downloaded automatically. |
+| Missing addon forwarder | Repair/reinstall the matching addon package. |
+| NGX core missing/unloadable, missing model exports, model init/create failure, unsupported parameter ABI, or parameter round-trip failure | Check the selected model and NVIDIA driver. Retry initialization or select a compatible model; keep the exact error/code in a report. |
+| Invalid saved model/pipeline settings | Restore NR defaults and retry. Unknown internal errors retain their original text and suggest copying diagnostics rather than guessing a cause. |
+| GPU/system allocation failure | Reduce capture/working resolution and disable Multipass. An allocation HRESULT does not prove VRAM exhaustion; both system and GPU allocations can fail. |
+| Long initialization, pipeline retirement, free-slot wait, scene-summary wait, optical flow, model evaluation, composition, or LS handoff | Shows the observed operation and elapsed seconds. After three seconds it warns that capture is waiting. It does not declare a timeout/device crash or automatically bypass NR. |
+| Model evaluation or an additional multipass initialization/evaluation fails | Pauses with the exact error (and pass number when supplied). Retry or disable; no partial/fewer-pass result is selected. |
+| Device removed/hung/reset or failed safe retirement | Restart LS. Failed retirement stays fatal across toggling/retry because the old GPU objects cannot safely be reused. |
+| Callback faults or returns false while still required | Manager reports the callback failure even though the callback cannot publish its own error. Disable NR and restart LS. |
+| Resize, capture restart, model/working-size/flow change, sequence gap, or scene cut | Expected reinitialization/history resets, with fresh dimensions and per-epoch counters. Old initialization errors clear when a valid retry is requested. |
+| NR disabled / Apply model result off / neutral picture controls | Disabling NR permits originals. Apply-off still runs NR and can still block; it is a comparison mode. Neutral Picture controls do not imply NR is disabled. |
+| GPU sampler unavailable/stale, multiple GPUs, unknown CPU or driver | Show unavailable/unknown rather than inventing readings. GPU-0 utilization/VRAM is explicitly identified and may not belong to the LS adapter. Missing telemetry does not prevent NR. |
+| Black pixels despite advancing captures and successful processing | The status cannot establish why the image is black: source content, protected capture, wrong target, another overlay/addon, display/HDR configuration, and driver behavior remain possibilities. Compare with NR disabled and collect diagnostics; no pixel scans, process inventory, overlay detection or invasive compatibility checks are added. |
+
+Capture fps measures callback arrival, not game FPS or displayed/generated FPS. GPU timings are the last completed samples and are not a live measurement during a stall; zero initially means no completed sample. Counts are per pipeline epoch. CPU identity is cached from CPUID, the observed LS GPU/Windows driver comes from DXGI, and NVIDIA driver/load/VRAM uses the existing NVML sampler. Static metadata is not polled through WMI, external commands, registry scans, network requests, or new driver hooks.
+
+`neural_statustest` loads the actual addon with a fake host and no GPU/model. It covers unsupported profiles, status refresh without Settings/capture completion, a blocked first-frame failure, old manager APIs, ownership conflicts, and reporter shutdown. Manager GUI tests cover reason ordering, capture observations and multiple-GPU attribution; offscreen previews cover DXGI, runtime mismatch and running states.
+
 Three slots retain images, allocators, descriptors and fences until both APIs finish using them. Initialization and retirement run on a worker. Every capture waits for a free slot and the consuming LSFG work waits on the exact current enhanced image. GPU or VRAM contention reduces throughput and can stall the image; it never selects an original or an older neural edit. There is one processing policy, with no overload mode or automatic quality reduction. Capture also waits for initialization and reconfiguration.
 
 Automatic cut detection reads an eight-byte GPU summary of 1,024 original-image samples. It uses histogram and colour-change thresholds and waits for the current GPU summary without a frame deadline. GPU failures produce an explicit paused error. Hard cuts, sequence gaps, resize/device changes, reconfiguration and long gaps reset temporal state. This conservative heuristic cannot match game-provided scene metadata and can miss similar-histogram or gradual cuts. No production CPU frame/vector copy occurs.
