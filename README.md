@@ -363,7 +363,7 @@ The standalone upscalers retain their NIS hook and worker-based evaluation. The 
 
 Visual Studio 2022 (Desktop C++) and CMake 3.20+. Dear ImGui and MinHook are fetched at pinned versions on first configure.
 
-Releases are numbered **Build 1, Build 2, Build 3, ...**. Set `EAM_BUILD_NUMBER` in [`version.h`](manager/sdk/include/eam/version.h) for the next release; the manager, installer and package name use that number. Rebuilding keeps the same number. `tools/package.ps1 -Build 1` builds and packages Build 1, and refuses a number that differs from the source.
+Releases are numbered **Build 1, Build 2, Build 3, Build 4, ...**. Set `EAM_BUILD_NUMBER` in [`version.h`](manager/sdk/include/eam/version.h) for the next release; the manager, installer and package name use that number. Rebuilding keeps the same number. `tools/package.ps1 -Build 4` builds and packages Build 4, and refuses a number that differs from the source.
 
 Use `tools/package.ps1` for local installers too. It supports alternate build directories, serial builds, and a package suffix, and creates the EXE, ZIP and checksums after verifying installation and extraction. See the [installer build commands](tools/README.md#building-an-installer).
 

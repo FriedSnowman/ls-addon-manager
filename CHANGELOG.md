@@ -1,5 +1,11 @@
 # Changelog
 
+## Build 4 (2026-11-08)
+
+- **Black-screen diagnostics stay live in DLSS Neural Rendering 1.2.1.** NR reports unsupported capture profiles (including DXGI), runtime mismatches, initialization/processing failures and long waits even when the first capture is blocked and Settings is closed. Errors include a recovery action and status changes enter the manager log.
+- **Status footer expands for warnings and errors.** Normal operation uses one line. Problems show the reason first, followed by capture/NR sizes, processed counts, timings, capture settings and cached CPU/GPU/driver information. Details and Copy preserve long diagnostics. The content area reserves the footer's actual height, avoiding a second window scrollbar. Multi-GPU load readings identify the sampled GPU; stale/idle capture readings do not claim a current frame rate.
+- **Documented failure and edge cases** in the NR guide, with blocked-callback regression tests. Diagnostics use existing observations and standard metadata APIs; no new capture probes or compatibility scans.
+
 ## Build 3 (2026-11-07)
 
 - **Picture adjustments in DLSS Neural Rendering 1.2.0.** Exposure, contrast, midtones, shadows, highlights, saturation, vibrance, temperature, tint and sharpening adjust the finished DLSS5 image before Lossless Scaling. Find them in the addon's **Picture** section.

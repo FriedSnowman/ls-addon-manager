@@ -11,7 +11,7 @@
 
 // Increment once per release: Build 1, Build 2, ... (not on every compilation).
 // Windows file resources store the corresponding numeric version as 1.0.<build>.0.
-#define EAM_BUILD_NUMBER 3
+#define EAM_BUILD_NUMBER 4
 #define EAM_STRINGIFY_IMPL(value) #value
 #define EAM_STRINGIFY(value) EAM_STRINGIFY_IMPL(value)
 #define EAM_VERSION_STRING "Build " EAM_STRINGIFY(EAM_BUILD_NUMBER)

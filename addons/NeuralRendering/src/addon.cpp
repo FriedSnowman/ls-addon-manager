@@ -301,7 +301,7 @@ EAM_EXPORT const char *GetAddonName() {
     return "DLSS Neural Rendering";
 }
 EAM_EXPORT const char *GetAddonVersion() {
-    return "1.2.0";
+    return "1.2.1";
 }
 EAM_EXPORT const char *GetAddonAuthor() {
     return "FriedSnowman";
