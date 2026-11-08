@@ -1,5 +1,9 @@
 # Changelog
 
+## Build 5 (2026-11-08)
+
+- **Stronger Picture controls in NR 1.2.2.** Sharpening now reaches 4, with progressively relaxed halo suppression above 1. Exposure expands to +/-4 stops; contrast, midtones, shadows, highlights, temperature and tint to +/-2; saturation to 4; vibrance to -1 through 2. Existing settings retain their response, defaults remain neutral, and off/neutral still uses the original GPU copy path.
+
 ## Build 4 (2026-11-08)
 
 - **Black-screen diagnostics stay live in DLSS Neural Rendering 1.2.1.** NR reports unsupported capture profiles (including DXGI), runtime mismatches, initialization/processing failures and long waits even when the first capture is blocked and Settings is closed. Errors include a recovery action and status changes enter the manager log.
