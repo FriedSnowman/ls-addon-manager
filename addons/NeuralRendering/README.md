@@ -62,20 +62,22 @@ Shortfuse/RenoDX composition inspired upstream OptiScaler, but controls from oth
 
 | Control | Range | Neutral |
 |---|---|---|
-| Exposure | -2 to +2 stops; +1 doubles linear light | 0 |
-| Contrast | -1 to +1; smooth luminance contrast around middle grey | 0 |
-| Midtones | -1 to +1; darken/brighten middle tones | 0 |
-| Shadows | -1 to +1; deepen/lift dark areas, keeping black | 0 |
-| Highlights | -1 to +1; lower/raise bright areas | 0 |
-| Saturation | 0 to 2; 0 is monochrome | 1 |
-| Vibrance | 0 to 1; preferentially boosts muted colours | 0 |
-| Temperature | -1 to +1; cooler/warmer relative balance, not Kelvin | 0 |
-| Tint | -1 to +1; greener/more magenta | 0 |
-| Sharpening | 0 to 1; local brightness bounds suppress halos | 0 |
+| Exposure | -4 to +4 stops; +1 doubles linear light | 0 |
+| Contrast | -2 to +2; smooth luminance contrast around middle grey | 0 |
+| Midtones | -2 to +2; darken/brighten middle tones | 0 |
+| Shadows | -2 to +2; deepen/lift dark areas, keeping black | 0 |
+| Highlights | -2 to +2; lower/raise bright areas | 0 |
+| Saturation | 0 to 4; 0 is monochrome | 1 |
+| Vibrance | -1 to +2; preferentially boosts muted colours; negative values mute them | 0 |
+| Temperature | -2 to +2; cooler/warmer relative balance, not Kelvin | 0 |
+| Tint | -2 to +2; greener/more magenta | 0 |
+| Sharpening | 0 to 4; 0–1 suppresses halos, above 1 allows stronger edge overshoot | 0 |
 
 Turning Picture off preserves its values. **Reset picture** returns only these ten sliders to neutral, keeping the switch as it was. The model's **Restore defaults** does not reset Picture. **Apply model result** off still shows the exact original, bypassing Picture too, while NR continues processing.
 
-SDR is decoded from sRGB to linear light for exposure and colour adjustments and encoded again at output. Tone curves keep SDR black and white fixed; exposure at extremes can still clip SDR. Out-of-gamut SDR colour is reduced toward the same luminance. scRGB uses the existing reference-white value to locate tonal regions; it retains HDR values above 1 and signed colour channels, with only the FP16 storage bound at output. Saturation/vibrance operate around Rec.709 luminance; vibrance does not detect skin. Sharpening precedes grading, uses a five-sample cross and cannot move luminance beyond that neighbourhood's range. There is no temporal filtering, grain, HUD mask or image history in this stage. Highlights cannot recover detail already clipped in the input.
+SDR is decoded from sRGB to linear light for exposure and colour adjustments and encoded again at output. Tone curves keep SDR black and white fixed; exposure at extremes can still clip SDR. Out-of-gamut SDR colour is reduced toward the same luminance. scRGB uses the existing reference-white value to locate tonal regions; it retains HDR values above 1 and signed colour channels, with only the FP16 storage bound at output. Saturation/vibrance operate around Rec.709 luminance; vibrance does not detect skin. Sharpening precedes grading and uses a five-sample cross. Up to 1 it stays inside the neighbourhood's luminance range; above 1 it progressively permits overshoot, reaching 75% of that range at 4, with a maximum 8x luminance gain. Strong settings intentionally allow halos and amplified noise. There is no temporal filtering, grain, HUD mask or image history in this stage. Highlights cannot recover detail already clipped in the input.
+
+NR 1.2.2 expands these ranges without rescaling existing settings or changing defaults. Contrast and midtones beyond +/-1 extend their original curves with a second monotonic stage, avoiding inverted gradients. `neural_picturetest --capture-output <file>` and `--verify-output <file>` compare 100 SDR/HDR images at settings within the original ranges between builds.
 
 The active shader **replaces the existing final D3D11 copy**: one dispatch, no extra image texture, copy or fence. Off, or enabled with all values neutral, uses the original copy shader without picture constant-buffer work. The picture shader and 48-byte constant buffer are created lazily on the first active frame and retained until the pipeline retires. A never-enabled pipeline allocates neither. Zero added GPU work while bypassed is checked separately from the active shader's cost. Existing NR GPU timing covers the D3D12 stages and excludes the D3D11 handoff (both its original copy and Picture variant).
 

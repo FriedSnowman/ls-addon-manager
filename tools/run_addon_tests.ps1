@@ -71,6 +71,7 @@ if($ModelPath){
     $suites.nr.Runs += @(@('NR model lifecycle', "$root\addons\NeuralRendering\build\Release\neural_modeltest.exe", @($ModelPath)),
                          @('Complete capture pipeline', "$root\addons\NeuralRendering\build\Release\neural_pipelinetest.exe", @($ModelPath)),
                          @('Picture controls through capture', "$root\addons\NeuralRendering\build\Release\neural_pipelinetest.exe", @($ModelPath,'--picture','--debug')),
+                         @('Extended Picture limits through capture', "$root\addons\NeuralRendering\build\Release\neural_pipelinetest.exe", @($ModelPath,'--picture-strong','--debug')),
                          @('Two-pass capture pipeline', "$root\addons\NeuralRendering\build\Release\neural_pipelinetest.exe", @($ModelPath,'--passes','2','--debug')),
                          @('Three-pass capture pipeline', "$root\addons\NeuralRendering\build\Release\neural_pipelinetest.exe", @($ModelPath,'--passes','3','--debug')))
 }

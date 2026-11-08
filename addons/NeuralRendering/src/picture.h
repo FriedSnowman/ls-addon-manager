@@ -20,27 +20,27 @@ struct PictureControl {
     const char *format, *help;
 };
 inline constexpr PictureControl PictureControls[] = {
-    {"pictureExposure", "Exposure", &PictureSettings::exposure, -2, 2, 0, "%+.2f stops",
+    {"pictureExposure", "Exposure", &PictureSettings::exposure, -4, 4, 0, "%+.2f stops",
      "Overall light level. +1 stop doubles the light; -1 halves it. Strong adjustments can clip SDR whites."},
-    {"pictureContrast", "Contrast", &PictureSettings::contrast, -1, 1, 0, "%+.2f",
+    {"pictureContrast", "Contrast", &PictureSettings::contrast, -2, 2, 0, "%+.2f",
      "Separates light and dark around middle grey. Negative values soften contrast."},
-    {"pictureMidtones", "Midtones", &PictureSettings::midtones, -1, 1, 0, "%+.2f",
+    {"pictureMidtones", "Midtones", &PictureSettings::midtones, -2, 2, 0, "%+.2f",
      "Brightens or darkens the middle tones, with less effect on deep shadows and bright highlights."},
-    {"pictureShadows", "Shadows", &PictureSettings::shadows, -1, 1, 0, "%+.2f",
+    {"pictureShadows", "Shadows", &PictureSettings::shadows, -2, 2, 0, "%+.2f",
      "Lifts or deepens dark areas. Pure black stays black."},
-    {"pictureHighlights", "Highlights", &PictureSettings::highlights, -1, 1, 0, "%+.2f",
+    {"pictureHighlights", "Highlights", &PictureSettings::highlights, -2, 2, 0, "%+.2f",
      "Raises or lowers bright areas. Cannot recover detail already clipped in the source."},
-    {"pictureSaturation", "Saturation", &PictureSettings::saturation, 0, 2, 1, "%.2f",
+    {"pictureSaturation", "Saturation", &PictureSettings::saturation, 0, 4, 1, "%.2f",
      "Overall colour strength. 1 is unchanged; 0 is monochrome."},
-    {"pictureVibrance", "Vibrance", &PictureSettings::vibrance, 0, 1, 0, "%.2f",
-     "Boosts muted colours more than already vivid colours. This does not detect skin."},
-    {"pictureTemperature", "Temperature", &PictureSettings::temperature, -1, 1, 0, "%+.2f",
+    {"pictureVibrance", "Vibrance", &PictureSettings::vibrance, -1, 2, 0, "%+.2f",
+     "Boosts muted colours more than already vivid colours. Negative values mute them. This does not detect skin."},
+    {"pictureTemperature", "Temperature", &PictureSettings::temperature, -2, 2, 0, "%+.2f",
      "Relative colour balance: negative is cooler, positive is warmer."},
-    {"pictureTint", "Tint", &PictureSettings::tint, -1, 1, 0, "%+.2f",
+    {"pictureTint", "Tint", &PictureSettings::tint, -2, 2, 0, "%+.2f",
      "Relative colour balance: negative is greener, positive is more magenta."},
-    {"pictureSharpen", "Sharpening", &PictureSettings::sharpen, 0, 1, 0, "%.2f",
-     "Sharpens at capture resolution with local brightness limits to suppress halos. Later scaling also "
-     "affects sharpness."}};
+    {"pictureSharpen", "Sharpening", &PictureSettings::sharpen, 0, 4, 0, "%.2f",
+     "Sharpens at capture resolution. 0 to 1 suppresses halos; above 1 allows increasingly strong edge overshoot. "
+     "High values can amplify noise and halos. Later scaling also affects sharpness."}};
 inline PictureSettings PictureSettings::Bounded() const {
     auto result = *this;
     for (const auto &c : PictureControls) {

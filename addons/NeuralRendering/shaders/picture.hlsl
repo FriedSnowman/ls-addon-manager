@@ -37,8 +37,16 @@ float3 Tone(float3 rgb) {
     float t = original - pivot;
     // Each stage is monotonic over its complete slider range. Bounded changes in stops
     // keep HDR highlights finite and avoid a hard contrast clip.
-    t += 1.5 * Contrast * t / (2 + abs(t));
-    t += Midtones * exp2(-.5 * t * t);
+    // Beyond +/-1, continue with a second monotonic stage instead of multiplying
+    // the slope until it reverses. The original range retains its exact curve.
+    float contrastFirst = clamp(Contrast, -1, 1);
+    t += 1.5 * contrastFirst * t / (2 + abs(t));
+    [branch] if (abs(Contrast) > 1)
+        t += 1.5 * (Contrast - contrastFirst) * t / (2 + abs(t));
+    float midtonesFirst = clamp(Midtones, -1, 1);
+    t += midtonesFirst * exp2(-.5 * t * t);
+    [branch] if (abs(Midtones) > 1)
+        t += (Midtones - midtonesFirst) * exp2(-.5 * t * t);
     t += 1.5 * Shadows / (1 + exp2(clamp(t + 1, -80, 80)));
     t += 1.5 * Highlights / (1 + exp2(clamp(2 - t, -80, 80)));
     float output = exp2(clamp(t + pivot, -80, 80));
@@ -59,8 +67,16 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         float west = NeighbourLuma(int2(id.xy) + int2(-1,0), int2(w,h));
         float lo = min(c, min(min(n,s), min(e,west)));
         float hi = max(c, max(max(n,s), max(e,west)));
+        // Keep the existing 0..1 behavior. Higher settings deliberately allow
+        // ringing: up to 75% of the local range at 4, with bounded luminance gain.
+        [branch] if (Sharpen > 1) {
+            float overshoot = .25 * (Sharpen - 1) * (hi - lo);
+            lo = max(0, lo - overshoot);
+            hi += overshoot;
+        }
         float sharpened = clamp(c + Sharpen * (c - .25 * (n+s+e+west)), lo, hi);
-        if (c > 1e-6) rgb *= clamp(sharpened / c, .5, 2);
+        float gainLimit = Sharpen > 1 ? 2 * Sharpen : 2;
+        if (c > 1e-6) rgb *= clamp(sharpened / c, 1 / gainLimit, gainLimit);
     }
     rgb = Tone(rgb * Gain);
     float y = dot(rgb, Luma);

@@ -35,7 +35,8 @@ int wmain(int argc, wchar_t **argv) {
     InstallExceptionDiagnostics();
     setvbuf(stdout, nullptr, _IONBF, 0);
     auto usage = [] {
-        puts("usage: neural_pipelinetest <model DLL> [--debug] [--picture] [--preset 0|1|2|3] [--passes 1..10] "
+        puts("usage: neural_pipelinetest <model DLL> [--debug] [--picture | --picture-strong] "
+             "[--preset 0|1|2|3] [--passes 1..10] "
              "[--capture-output file | --verify-output file]");
         return 2;
     };
@@ -43,6 +44,7 @@ int wmain(int argc, wchar_t **argv) {
         return usage();
     bool enableDebug = false;
     bool pictureMode = false;
+    bool pictureStrong = false;
     unsigned preset = 0;
     unsigned passes = 1;
     std::filesystem::path capturePath, verifyPath;
@@ -51,6 +53,8 @@ int wmain(int argc, wchar_t **argv) {
             enableDebug = true;
         } else if (!wcscmp(argv[i], L"--picture")) {
             pictureMode = true;
+        } else if (!wcscmp(argv[i], L"--picture-strong")) {
+            pictureMode = pictureStrong = true;
         } else if (!wcscmp(argv[i], L"--preset") && i + 1 < argc) {
             const auto value = argv[++i];
             if (value[0] < L'0' || value[0] > L'3' || value[1] != 0)
@@ -145,6 +149,9 @@ int wmain(int argc, wchar_t **argv) {
                 settings.picture.midtones = .1f; settings.picture.shadows = .1f; settings.picture.highlights = -.1f;
                 settings.picture.saturation = 1.05f; settings.picture.vibrance = .1f;
                 settings.picture.temperature = .1f; settings.picture.tint = -.05f; settings.picture.sharpen = .2f;
+                if (pictureStrong)
+                    for (const auto &control : PictureControls)
+                        settings.picture.*(control.value) = (scenario & 1) ? control.high : control.low;
             }
             pipeline = std::make_unique<Pipeline>();
             pipeline->Initialize(device.Get(), w, h, hdr ? Encoding::ScRgb : Encoding::Sdr709, settings);

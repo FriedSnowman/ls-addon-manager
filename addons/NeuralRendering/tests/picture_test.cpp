@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <d3d11sdklayers.h>
+#include <fstream>
 #include <limits>
 #include <vector>
 using namespace neural;
@@ -131,8 +132,59 @@ struct Test {
 };
 std::vector<Pixel> Flat(Pixel pixel) { return std::vector<Pixel>(W * H, pixel); }
 } // namespace
-int main() {
+int main(int argc, char **argv) {
     try {
+        // Optional regression capture for the original slider ranges. Keep these samples
+        // independent of the current limits so expanding a slider cannot move an existing look.
+        if (argc != 1 &&
+            (argc != 3 || (strcmp(argv[1], "--capture-output") && strcmp(argv[1], "--verify-output"))))
+            throw std::runtime_error(
+                "usage: neural_picturetest [--capture-output file | --verify-output file]");
+        if (argc == 3) {
+            Test test;
+            const bool capture = !strcmp(argv[1], "--capture-output");
+            std::fstream file(argv[2],
+                              std::ios::binary | (capture ? std::ios::out | std::ios::trunc : std::ios::in));
+            Require(bool(file), "Cannot open picture regression file");
+            unsigned samples = 0;
+            for (bool hdr : {false, true}) {
+                std::vector<Pixel> pattern(W * H);
+                for (unsigned y = 0; y < H; ++y)
+                    for (unsigned x = 0; x < W; ++x) {
+                        const float scale = hdr ? 4.f : 1.f;
+                        pattern[y * W + x] = {scale * float(x % 37) / 37, scale * float(x % 19) / 19,
+                                              scale * float((x + y) % 11) / 11, .375f};
+                    }
+                // Original low/high endpoints, including the old sharpening strength of 1.
+                const float low[] = {-2, -1, -1, -1, -1, 0, 0, -1, -1, 0};
+                const float high[] = {2, 1, 1, 1, 1, 2, 1, 1, 1, 1};
+                for (unsigned control = 0; control < std::size(PictureControls); ++control)
+                    for (unsigned step = 0; step < 5; ++step) {
+                        PictureSettings settings;
+                        settings.enabled = true;
+                        settings.*(PictureControls[control].value) =
+                            low[control] + (high[control] - low[control]) * step / 4;
+                        const auto result =
+                            test.Run(pattern, settings, hdr ? Encoding::ScRgb : Encoding::Sdr709, 203);
+                        const auto bytes = result.size() * sizeof(Pixel);
+                        if (capture)
+                            file.write(reinterpret_cast<const char *>(result.data()), bytes);
+                        else {
+                            std::vector<Pixel> reference(result.size());
+                            file.read(reinterpret_cast<char *>(reference.data()), bytes);
+                            Require(bool(file) && !memcmp(result.data(), reference.data(), bytes),
+                                    "An existing Picture setting changed its output");
+                        }
+                        Require(bool(file), "Picture regression file I/O failed");
+                        ++samples;
+                    }
+            }
+            if (!capture)
+                Require(file.peek() == std::char_traits<char>::eof(), "Unused picture regression data");
+            test.Validate();
+            printf("PASS %u original-range SDR/HDR images %s\n", samples,
+                   capture ? "captured" : "match byte-for-byte");
+        }
         Test test;
         PictureSettings s;
         auto input = Flat({-.125f, 2.f, 8.f, .375f});
@@ -162,7 +214,7 @@ int main() {
                     "HDR exposure is not in stops or clipped signed/high values");
         s.exposure = 20;
         out = test.Run(input, s, Encoding::ScRgb);
-        Require(Near(out[0][2], 32), "Exposure bounds were not enforced");
+        Require(Near(out[0][2], 128), "Exposure bounds were not enforced");
         s.exposure = 1;
         input = Flat({.25f, .25f, .25f, .375f});
         out = test.Run(input, s, Encoding::Sdr709);
@@ -206,16 +258,19 @@ int main() {
             std::vector<Pixel> ramp(W * H);
             for (unsigned y = 0; y < H; ++y)
                 for (unsigned x = 0; x < W; ++x) {
-                    float v = float(x) / (W - 1) * (hdr ? 16.f : 1.f);
+                    // Cover deep shadows through bright HDR values, even when the wider
+                    // controls deliberately pull ordinary highlights below reference white.
+                    float v =
+                        hdr ? (x ? std::exp2(-12.f + 20.f * (x - 1) / (W - 2)) : 0.f) : float(x) / (W - 1);
                     ramp[y * W + x] = {v, v, v, .375f};
                 }
             for (unsigned mask = 0; mask < 16; ++mask) {
                 s = {};
                 s.enabled = true;
-                s.contrast = (mask & 1) ? 1.f : -1.f;
-                s.midtones = (mask & 2) ? 1.f : -1.f;
-                s.shadows = (mask & 4) ? 1.f : -1.f;
-                s.highlights = (mask & 8) ? 1.f : -1.f;
+                s.contrast = (mask & 1) ? 2.f : -2.f;
+                s.midtones = (mask & 2) ? 2.f : -2.f;
+                s.shadows = (mask & 4) ? 2.f : -2.f;
+                s.highlights = (mask & 8) ? 2.f : -2.f;
                 out = test.Run(ramp, s, hdr ? Encoding::ScRgb : Encoding::Sdr709);
                 Require(Near(out.front()[0], 0), "Tone lifted pure black");
                 for (unsigned x = 1; x < W; ++x)
@@ -272,6 +327,58 @@ int main() {
         Require(Near(out.front()[0], .1f) && Near(out.back()[0], .9f),
                 "Sharpening changed a flat area or image border");
         puts("PASS sharpening changes blurred detail without overshoot, flat-field shifts or border seams");
+
+        const auto gentle = out;
+        s.sharpen = 4;
+        out = test.Run(input, s, Encoding::ScRgb, 80, true);
+        Require(std::abs(out[127][0] - input[127][0]) > 2 * std::abs(gentle[127][0] - input[127][0]),
+                "Extended sharpening is not materially stronger on a blurred edge");
+        // A hard edge was held entirely unchanged by the old local-range clamp.
+        for (unsigned y = 0; y < H; ++y)
+            for (unsigned x = 0; x < W; ++x) {
+                const float v = x < 128 ? .1f : .9f;
+                input[y * W + x] = {v, v, v, .375f};
+            }
+        float previousEdge = 0;
+        for (float strength : {1.f, 1.01f, 2.f, 3.f, 4.f}) {
+            s.sharpen = strength;
+            out = test.Run(input, s, Encoding::ScRgb);
+            const float edge = out[128][0] - out[127][0];
+            Require(edge > previousEdge, "Sharpening plateaus above the old limit");
+            Require(out[128][0] <= 1.5f + 1e-5f && out[127][0] >= 0,
+                    "Extended sharpening exceeded its bounded overshoot");
+            Require(Near(out.front()[0], .1f) && Near(out.back()[0], .9f),
+                    "Extended sharpening changed a flat area or image border");
+            previousEdge = edge;
+        }
+        out = test.Run(input, s, Encoding::Sdr709);
+        Require(out[127][0] < .1f && out[128][0] > .9f, "SDR sharpening lost the extended response");
+        puts("PASS sharpening 1..4 increases edge contrast with controlled overshoot and unchanged flat "
+             "areas");
+
+        // Every extended control must do visible work beyond its previous endpoint.
+        input = Flat({.12f, .18f, .26f, .375f});
+        const float oldHigh[] = {2, 1, 1, 1, 1, 2, 1, 1, 1};
+        for (unsigned i = 0; i < std::size(oldHigh); ++i) {
+            s = {};
+            s.enabled = true;
+            const auto &control = PictureControls[i];
+            s.*(control.value) = oldHigh[i];
+            const auto before = test.Run(input, s, Encoding::ScRgb);
+            s.*(control.value) = control.high;
+            out = test.Run(input, s, Encoding::ScRgb);
+            float distance = 0;
+            for (unsigned channel = 0; channel < 3; ++channel)
+                distance += std::abs(out[0][channel] - before[0][channel]);
+            Require(distance > 1e-4f, "An extended colour/tone slider still stops at its old endpoint");
+        }
+        s = {};
+        s.enabled = true;
+        s.vibrance = -1;
+        out = test.Run(input, s, Encoding::ScRgb);
+        Require(out[0][2] - out[0][0] < input[0][2] - input[0][0] && Near(Y(out[0]), Y(input[0])),
+                "Negative vibrance did not mute colours at constant luminance");
+        puts("PASS expanded tone/colour ranges exceed previous endpoints; negative vibrance mutes colour");
 
         for (unsigned combination = 0; combination < 32; ++combination) {
             s = {};
