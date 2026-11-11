@@ -17,6 +17,13 @@ enable_language(RC)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Opt-in release checks; the controller and parser also run against offline fixtures.
+add_library(eam_updates STATIC src/update/update_check.cpp src/update/github_release.cpp)
+target_link_libraries(eam_updates PRIVATE winhttp)
+add_executable(eam_updatetest EXCLUDE_FROM_ALL tools/update_test.cpp)
+target_link_libraries(eam_updatetest PRIVATE eam_updates)
+target_include_directories(eam_updatetest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
 # Define UNICODE for Windows GUI API
 add_definitions(-DUNICODE -D_UNICODE)
 
@@ -102,6 +109,7 @@ set(GUI_SOURCES
     src/gui/tabs/tab_about.cpp
     src/gui/widgets/toggle_switch.cpp
     src/gui/widgets/toast.cpp
+    src/gui/widgets/update_notice.cpp
     src/gui/widgets/addon_card.cpp
     src/gui/widgets/runtime_list.cpp
     src/gui/widgets/status_bar.cpp
@@ -153,6 +161,7 @@ target_include_directories(Lossless PRIVATE
 )
 
 target_link_libraries(Lossless
+    eam_updates
     d3d11
     dxgi
     d3dcompiler
@@ -173,6 +182,7 @@ add_executable(eam_uipreview EXCLUDE_FROM_ALL
     src/gui/gui_style.cpp
     src/gui/widgets/toggle_switch.cpp
     src/gui/widgets/toast.cpp
+    src/gui/widgets/update_notice.cpp
     src/gui/widgets/addon_card.cpp
     src/gui/widgets/runtime_list.cpp
     src/gui/widgets/status_bar.cpp
@@ -217,7 +227,17 @@ target_include_directories(eam_uipreview PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include
     ${minhook_SOURCE_DIR}/include
 )
-target_link_libraries(eam_uipreview d3d11 dxgi d3dcompiler bcrypt minhook)
+target_link_libraries(eam_uipreview d3d11 dxgi d3dcompiler bcrypt minhook eam_updates)
+
+# Real consent/settings controls, fake networking, offscreen rendering.
+add_executable(eam_updateuitest EXCLUDE_FROM_ALL tools/update_ui_test.cpp
+    src/gui/widgets/update_notice.cpp src/gui/gui_style.cpp src/config/config_manager.cpp src/log/logger.cpp
+    ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_dx11.cpp)
+target_include_directories(eam_updateuitest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include
+    ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+target_link_libraries(eam_updateuitest PRIVATE eam_updates d3d11 d3dcompiler)
 
 # Offline test of installing addons from a folder / zip / dll: cmake --build . --config Release --target eam_installtest
 add_executable(eam_installtest EXCLUDE_FROM_ALL tools/install_test.cpp src/addon/addon_install.cpp src/host/metrics.cpp src/host/gpu_stats.cpp src/config/settings_backup.cpp src/diag/diagnostics.cpp)
@@ -275,7 +295,7 @@ add_executable(eam_guitest EXCLUDE_FROM_ALL tools/gui_test.cpp
     src/core/d3d11_hook.cpp src/core/shader_identity.cpp src/core/real_frame_hook.cpp src/core/shader_hook.cpp
     ${GUI_SOURCES} ${IMGUI_SOURCES})
 target_include_directories(eam_guitest PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party ${minhook_SOURCE_DIR}/include)
-target_link_libraries(eam_guitest d3d11 dxgi d3dcompiler bcrypt minhook)
+target_link_libraries(eam_guitest d3d11 dxgi d3dcompiler bcrypt minhook eam_updates)
 
 add_executable(eam_runtimetest EXCLUDE_FROM_ALL tools/runtime_test.cpp src/addon/runtime_files.cpp src/addon/file_hash.cpp src/config/config_manager.cpp src/log/logger.cpp)
 target_include_directories(eam_runtimetest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party)

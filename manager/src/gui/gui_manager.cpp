@@ -4,6 +4,7 @@
 #include "icon_loader.h"
 #include "tabs/tab_addons.h"
 #include "widgets/toast.h"
+#include "widgets/update_notice.h"
 #include "window/chrome.h"
 #include "window/dpi.h"
 #include "window/hotkey.h"
@@ -222,6 +223,7 @@ DWORD WINAPI GuiManager::GuiThread(LPVOID /*lpParam*/) {
         set(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     auto& cfg = ConfigManager::Instance();
     if (g.beforeAddons) g.beforeAddons();
+    widgets::InitializeUpdateCheck(updates::Instance());
 
     // Load addons in the GUI thread to avoid the loader lock. Settings > "Auto-load addons on startup": when off, addons wait for "Load now".
     if (g.manager) {
@@ -266,7 +268,8 @@ DWORD WINAPI GuiManager::GuiThread(LPVOID /*lpParam*/) {
     g.trayTries = 0;
     EnsureTrayIcon(hwnd);
     GuiManager::ApplyHotkey();     // registers the hotkey and puts it in the tray tip
-    if (cfg.GlobalGetOr<bool>("ui", "open_on_start", true)) {
+    // A previously hidden window must still show the first consent prompt.
+    if (cfg.GlobalGetOr<bool>("ui", "open_on_start", true) || updates::Instance().GetPolicy() == updates::Policy::Ask) {
         ShowWindow(hwnd, place.maximized ? SW_SHOWMAXIMIZED : SW_SHOWDEFAULT);
         UpdateWindow(hwnd);
     } else {
@@ -345,6 +348,7 @@ DWORD WINAPI GuiManager::GuiThread(LPVOID /*lpParam*/) {
     }
 
     KillTimer(hwnd, kTrayTimer);
+    updates::Instance().SetPolicy(updates::Policy::Disabled);
     GpuStats::Instance().Shutdown();
     PersistPlacement();
     window::hotkey::Remove(hwnd);

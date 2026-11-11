@@ -10,6 +10,7 @@
 #include "../widgets/file_dialog.h"
 #include "../widgets/toast.h"
 #include "../widgets/tooltip.h"
+#include "../widgets/update_notice.h"
 #include "../gui_manager.h"
 #include "imgui.h"
 #include "eam/widgets.h"
@@ -90,6 +91,10 @@ static bool s_askImport = false;
 void RenderTabSettings(AddonManager* manager) {
     auto& config = ConfigManager::Instance();
     ImGui::Dummy(ImVec2(0, S(4)));
+
+    // ---- Updates
+    widgets::RenderUpdateSettings(updates::Instance());
+    ImGui::Dummy(ImVec2(0, S(16)));
 
     // ---- Backup and restore
     eam::ui::SectionLabel("Backup and restore (save and load your settings)");

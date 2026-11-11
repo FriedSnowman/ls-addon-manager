@@ -3,7 +3,6 @@
 ![Build 1 manager UI preview with DLSS5 enabled](docs/images/build-1-manager.png)
 
 - **Completely new DLSS5 implementation**
-- Removed the update check (the app is completely offline)
 - Bug fixes
 - It's blue because I like blue
 
@@ -269,7 +268,7 @@ Built into the manager, on its Features tab, all off until switched on:
 | **Addons** | The addon list with a switch, icon and live status for each, the Runtimes list, and the chosen addon's settings |
 | **Features** | ReShade input passthrough, Windowed mode and Lossless Scaling overrides |
 | **Performance** | Frame times, addon cost, GPU load, power, clocks, temperature, memory, and what is limiting you |
-| **Settings** | Backup and restore, interface size, start-up and hotkey, log detail, the diagnostics file |
+| **Settings** | Automatic update checks, backup and restore, interface size, start-up and hotkey, log detail, the diagnostics file |
 | **Logs** | The last 10,000 log entries, filtered by level |
 | **About** | What comes with it, usage tips, credits, and notes for addon authors |
 
@@ -302,7 +301,9 @@ clashes in your game, change it in the addon's *Compare and hotkeys* section.
 
 ## Updates
 
-This fork has no release polling, download worker, update prompts, or automatic installer handoff. Old update settings are inert. To change versions, review the new source and build it locally. The local installer's explicit install, repair and uninstall operations remain available.
+On first startup, the manager asks whether to automatically check GitHub for updates. Your choice is saved and can be changed under **Settings → Updates**.
+
+When enabled, it checks the latest published release through GitHub's public API once each startup, in the background. No GitHub account or token is needed. A newer build shows **Update available (Build 99)** at the bottom of the window. If the release uses a different version format, the banner simply says **Update available**. **Download** opens the [latest release](https://github.com/FriedSnowman/ls-addon-manager/releases/latest) in your browser; install the update yourself using the instructions under [Install](#install). Network failures leave startup unaffected and are retried next startup.
 
 ## If something goes wrong
 

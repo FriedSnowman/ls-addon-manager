@@ -12,6 +12,7 @@
 #include "src/gui/gui_manager.h"
 #include "src/host/host_impl.h"
 #include "src/log/logger.h"
+#include "src/update/update_check.h"
 #include "eam/version.h"
 #include <windows.h>
 #include <cstdio>
@@ -147,7 +148,7 @@ int wmain(int argc, wchar_t** argv) {
     cfg.GlobalSet("ui", "hotkey_vk", (int)VK_F9);         // an F-key the real manager (F12) is unlikely to be holding
     cfg.GlobalSet("ui", "hide_hint_shown", true);         // no tray balloon from the test
     cfg.GlobalSet(nullptr, "auto_load", false);
-    cfg.GlobalSet("updates", "check", false);   // the update check is on by default: this test must not touch the internet
+    if (mode != L"consent") cfg.GlobalSet("updates", "check", false); // declined, except when testing the first-start prompt
     if (scaled) cfg.GlobalSet("ui", "scale_percent", 150);
     if (place) cfg.GlobalSet("ui", "window", nlohmann::json{ {"x", 210}, {"y", 130}, {"w", 900}, {"h", 600}, {"maximized", false} });
     GuiManager::StartGuiThread(&mgr);
@@ -155,6 +156,14 @@ int wmain(int argc, wchar_t** argv) {
     if (!WaitFor(WindowThere, 20000)) { printf("FAIL  the manager window was not created within 20 s (is there a GPU?)\n"); return 2; }
     HWND hwnd = Find();
     Check("the window exists", hwnd != nullptr);
+
+    if (mode == L"consent") {
+        Check("unconfigured updates show consent even when open-on-start is off", WaitFor(WinVisibleNow, 20000));
+        Check("consent starts offline", updates::Instance().GetPolicy() == updates::Policy::Ask && updates::Instance().Get().status == updates::Status::Idle);
+        SendMessageW(hwnd, WM_DESTROY, 0, 0);
+        Check("consent window shuts down", WaitFor(WindowGone, 5000));
+        return g_failed ? 1 : 0;
+    }
 
     wchar_t title[128] = {};
     GetWindowTextW(hwnd, title, 128);
