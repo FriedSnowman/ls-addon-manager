@@ -24,6 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          ref: ${{ github.ref }}
           persist-credentials: false
           fetch-depth: 0 # include annotated tag objects for release notes
 
