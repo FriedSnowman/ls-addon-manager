@@ -12,6 +12,13 @@ enable_language(RC)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Opt-in release checks; the controller and parser also run against offline fixtures.
+add_library(eam_updates STATIC src/update/update_check.cpp src/update/github_release.cpp)
+target_link_libraries(eam_updates PRIVATE winhttp)
+add_executable(eam_updatetest EXCLUDE_FROM_ALL tools/update_test.cpp)
+target_link_libraries(eam_updatetest PRIVATE eam_updates)
+target_include_directories(eam_updatetest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
 # Define UNICODE for Windows GUI API
 add_definitions(-DUNICODE -D_UNICODE)
 
