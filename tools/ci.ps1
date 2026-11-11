@@ -61,10 +61,12 @@ if (-not $Full) {
 
 Section 'the manager and its tests'
 Configure "$root\manager" "$root\manager\build"
-Build "$root\manager\build" @('Lossless', 'eam_installtest', 'eam_coretest', 'eam_sampletest')
+Build "$root\manager\build" @('Lossless', 'eam_installtest', 'eam_coretest', 'eam_sampletest', 'eam_updatetest', 'eam_updateuitest')
 Run 'addon install' "$root\manager\build\Release\eam_installtest.exe"
 Run 'addon handling' "$root\manager\build\Release\eam_coretest.exe"
 Run 'sample addon' "$root\manager\build\Release\eam_sampletest.exe"
+Run 'update check (offline)' "$root\manager\build\Release\eam_updatetest.exe"
+Run 'update consent and settings (offline)' "$root\manager\build\Release\eam_updateuitest.exe" @("$logs\update-ui")
 
 Section 'the installer'
 Configure "$root\installer" "$root\installer\build"

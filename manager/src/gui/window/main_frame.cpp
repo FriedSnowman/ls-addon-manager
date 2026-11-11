@@ -8,6 +8,7 @@
 #include "../tabs/tab_settings.h"
 #include "../widgets/status_bar.h"
 #include "../widgets/header_bar.h"
+#include "../widgets/update_notice.h"
 #include "../../addon/addon_manager.h"
 #include "../../host/metrics.h"
 #include "eam/real_frame_status.h"
@@ -99,12 +100,17 @@ void RenderMainFrame(AddonManager* manager, bool& bringAddonsForward) {
     widgets::HeaderBar();
     ImGui::Dummy(ImVec2(0, 4));
     const auto status=BuildStatusLine(manager);
-    const float contentHeight=ImGui::GetContentRegionAvail().y-widgets::StatusBarHeight(status.level)-ImGui::GetStyle().ItemSpacing.y;
+    const auto update = updates::Instance().Get();
+    const float updateHeight = widgets::UpdateBannerHeight(update);
+    const float contentHeight=ImGui::GetContentRegionAvail().y-widgets::StatusBarHeight(status.level)-ImGui::GetStyle().ItemSpacing.y
+        - (updateHeight > 0 ? updateHeight + ImGui::GetStyle().ItemSpacing.y : 0);
     ImGui::BeginChild("##content", ImVec2(0, contentHeight>1?contentHeight:1), false, ImGuiWindowFlags_NoBackground);
     RenderTabs(manager, bringAddonsForward);
     ImGui::EndChild();
 
+    widgets::RenderUpdateBanner(update);
     widgets::StatusBar(status);
+    widgets::RenderUpdateConsent(updates::Instance());
     ImGui::End();
 }
 

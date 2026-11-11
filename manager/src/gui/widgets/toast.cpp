@@ -1,5 +1,6 @@
 #include "toast.h"
 #include "status_bar.h"
+#include "update_notice.h"
 #include <algorithm>
 #include "../gui_scale.h"
 #include "eam/widgets.h"
@@ -58,7 +59,7 @@ void ToastRender() {
 
     // Bottom right, the newest lowest, just above the status bar: clear of the tabs and of the page's own controls at the top. Long messages
     // wrap rather than run past the window's edge.
-    float bottom = screen.y - DrawnStatusBarHeight() - S(10.0f);
+    float bottom = screen.y - DrawnStatusBarHeight() - DrawnUpdateBannerHeight() - S(10.0f);
     const float wrap = std::min(screen.x * 0.7f, S(520.0f));
     ImFont* const font = ImGui::GetFont();
     const float fontSize = ImGui::GetFontSize();
