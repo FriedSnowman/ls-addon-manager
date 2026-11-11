@@ -43,7 +43,7 @@ std::string CaptureObservation(const RealFrameHook::Diagnostics& d,uint64_t now)
     if(!d.captureError.empty())return d.captureError;
     if(!d.configured)return "No applied capture profile observed; start scaling a game";
     if(!d.dispatches)return "No LS compute dispatch observed; scaling may be idle or capture has not started";
-    if(!d.captures)return "LS compute dispatches observed, but no supported real capture matched; restart scaling with WGC and a supported profile";
+    if(!d.captures)return std::to_string(d.dispatches)+" LS compute dispatches observed | no neural capture callbacks recorded";
     char text[200];snprintf(text,sizeof text,"%llu LS dispatches, %llu capture callbacks | last capture %.1f s ago | texture %ux%u, DXGI format %u",
         d.dispatches,d.captures,d.lastCapture&&now>=d.lastCapture?double(now-d.lastCapture)/1000:0,d.width,d.height,d.format);
     return text;

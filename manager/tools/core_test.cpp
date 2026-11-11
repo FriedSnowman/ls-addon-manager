@@ -645,10 +645,14 @@ static void TestDispatchHook() {
     h.SetPreDispatchCallback(CountPre, &seen);
     h.SetPostDispatchCallback(CountPost, &seen);
     ctx->CSSetShader(cs, nullptr, 0);
+    RealFrameHook::SetSettings(1,1,3,true);
     ctx->Dispatch(1, 1, 1);
     Check("a Dispatch on its context runs the pre- and post-dispatch callbacks once each", seen.pre == 1 && seen.post == 1, std::to_string(seen.pre) + "/" + std::to_string(seen.post));
     Check("...and during them the dispatching context and the bound compute shader are known", seen.ctx == ctx && cs && seen.shader == cs);
     Check("outside a dispatch there is no dispatching context", D3D11Hook::DispatchingContext() == nullptr && D3D11Hook::GetCurrentComputeShader() == nullptr);
+    const auto standalone = RealFrameHook::GetDiagnostics();
+    Check("standalone upscaler dispatches are observed without registering an NR transform",
+          !h.HasRealFrameCallback() && standalone.dispatches == 1 && standalone.lastDispatch && standalone.captures == 0);
     ID3D11Multithread* mt = nullptr;
     if (SUCCEEDED(ctx->QueryInterface(IID_PPV_ARGS(&mt)))) { mt->SetMultithreadProtected(TRUE); mt->Release(); }
     ctx->CSSetShader(cs, nullptr, 0);

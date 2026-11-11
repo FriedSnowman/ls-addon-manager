@@ -187,15 +187,6 @@ std::string FocusExe(uint32_t* clientW = nullptr, uint32_t* clientH = nullptr) {
 
 void ForgetPair() { SafeReleasePair(); g_pairStep = 0; }
 void OnPresent(IDXGISwapChain* sc, UINT sync, UINT flags) {
-    if (g_off && g_host->GetHostVersion() >= 0x010000) {   // switched off: keep saying so (a status that is not refreshed goes stale)
-        static uint64_t saidAt = 0;
-        const uint64_t now = GetTickCount64();
-        if (now - saidAt >= 1000) {
-            saidAt = now;
-            std::string why; { std::lock_guard<std::mutex> lock(g_textMutex); why = g_offReason; }
-            g_host->SetStatus(kAddonId, ("Switched off: " + why).c_str(), 3);
-        }
-    }
     if (g_off || !sc) return;
     if (kScalerAddon) {
         ScalerPresentGuarded(sc);
@@ -226,9 +217,9 @@ std::string PassText(const DispatchSig& sig) {
     return text;
 }
 
-void ForgetFramePath() { std::lock_guard<std::mutex> lock(g_frameMutex); g_tap.Reset(); ResetNisPass(); ForgetPair(); screenshot::Forget(); }
+void ForgetFramePath() { std::lock_guard<std::mutex> lock(g_frameMutex); g_tap.Reset(); ResetNisPass(); ResetStatusObservations(); ForgetPair(); screenshot::Forget(); }
 void OnDeviceEvent(uint32_t id, const void*, uint32_t, void*) {
-    { std::lock_guard<std::mutex> lock(g_frameMutex); g_tap.Reset(); ResetNisPass(); ForgetPair(); screenshot::Forget(); }
+    { std::lock_guard<std::mutex> lock(g_frameMutex); g_tap.Reset(); ResetNisPass(); ResetStatusObservations(); ForgetPair(); screenshot::Forget(); }
     if (id == EAM_EVENT_D3D11_DEVICE_CHANGED) return;
     auto* const dev = static_cast<ID3D11Device*>(g_host->GetD3D11Device());
     { std::lock_guard<std::mutex> lock(g_textMutex); g_cardDrivesDisplay = false; g_cardName = "?"; }
@@ -268,6 +259,7 @@ void SetScalerBlocked(const std::string& why) {
     std::lock_guard<std::mutex> lock(g_textMutex);
     if (why != g_scalerBlocked && !why.empty()) Log("%s upscaler: %s", kUpscalerName, why.c_str());
     g_scalerBlocked = why;
+    if (!why.empty()) SetStatus(why, 2);
 }
 // the game's frame time, from one real frame to the next (frame generation's capture pass), for the log and the Performance tab
 int64_t g_lastTapQpc = 0;
@@ -348,7 +340,7 @@ void StartEngineFor(const LUID& card) {   // the engine's own device only: safe 
         const bool ok = g_sr.Init(card, g_addonDir, dir, [](const char* m) { Log("%s", m); }, backend);
         QueryPerformanceCounter(&b);
         Log("%s upscaler: engine %s in %.0f ms, on a thread of its own", kUpscalerName, ok ? "started" : "failed", (b.QuadPart - a.QuadPart) * 1000.0 / f.QuadPart);
-        SetStatus(ok ? std::string(kUpscalerName) + " ready" : g_sr.LastError());
+        SetStatus(ok ? std::string(kUpscalerName) + " ready; waiting for the first completed frame" : g_sr.LastError(), ok ? 0 : 3);
         g_srStarting = false;
     }).detach();
 }
@@ -433,6 +425,7 @@ bool ScalerPass(ID3D11DeviceContext* ctx, uint32_t x, uint32_t y, uint32_t z) {
         return false;
     }
     ++g_nisSeen; ++g_nisSinceTap;
+    ObserveScalerPass(true);
     screenshot::Tick(ctx);
     if (g_pairStep == 3) {   // NIS's half is taken right after its own dispatch: still waiting at the next NIS pass, it never came
         Log("before / after pair: NIS's picture was not taken (its pass did not run); only the upscaled one was saved");
@@ -538,9 +531,9 @@ bool ScalerPass(ID3D11DeviceContext* ctx, uint32_t x, uint32_t y, uint32_t z) {
                         else { g_pairStep = 0; Log("before / after pair: the upscaled picture could not be copied"); }
                     } else if (++g_pairWaited > 240) { g_pairStep = 0; Log("before / after pair not taken: the upscaler is not replacing NIS"); }
                 }
-                if (!replaced && g_sr.IsFailed()) SetStatus(g_sr.LastError());
                 ++g_linkTries;
-                if (!replaced && g_link.LastRefusedFormat())
+                if (!replaced && g_sr.IsFailed()) SetStatus(g_sr.LastError(), 3);
+                else if (!replaced && g_link.LastRefusedFormat())
                     SetScalerBlocked("this game's frames are in a format the upscalers cannot take (the Logs tab names it), so NIS stays. Please report it.");
                 else if (replaced || g_upscaled) SetScalerBlocked("");
                 else if (g_linkTries > 240 && (handoff == static_cast<int>(ScalerLink::Handoff::Late) || handoff == static_cast<int>(ScalerLink::Handoff::Wait)))
@@ -574,10 +567,9 @@ bool ScalerPass(ID3D11DeviceContext* ctx, uint32_t x, uint32_t y, uint32_t z) {
         char text[160];
         if (replaced) {
             snprintf(text, sizeof text, "%s %ux%u -> %ux%u, %.1f ms", kUpscalerName, g_scaleInW.load(), g_scaleInH.load(), g_scaleOutW.load(), g_scaleOutH.load(), g_sr.GpuMs());
-            g_host->SetStatus(kAddonId, text, 1);
             if (g_host->GetHostVersion() >= 0x010000) g_host->PublishMetric(kAddonId, kXessScaler ? "xess_ms" : kFsrScaler ? "fsr_ms" : "dlss_ms", g_sr.GpuMs(), "ms");
-            SetStatus(text);
-        } else if (g_compare.load() == 2) g_host->SetStatus(kAddonId, "Showing Lossless Scaling's NIS (Before / after)", 0);
+            SetStatus(text, 1);
+        } else if (g_compare.load() == 2) SetStatus("Showing Lossless Scaling's NIS (Before / after)");
     }
     if (replaced && (g_upscaled == 1 || g_upscaled % 3000 == 0))
         Log("%s scaler: %llu frames upscaled, NIS passes seen %llu, %u per real frame, %s %.2f ms", kUpscalerName, (unsigned long long)g_upscaled,
@@ -676,6 +668,7 @@ void OnPostPass(uint32_t, uint32_t, uint32_t, void*) {
 }
 
 bool OnPass(uint32_t x, uint32_t y, uint32_t z, void*) {
+    if (!t_ownWork) ObserveScalerPass(false);
     auto* ctx = static_cast<ID3D11DeviceContext*>(g_host ? g_host->GetDispatchingContext() : nullptr);
     return !t_ownWork && !g_off && ctx ? ScalerGuarded(ctx, x, y, z) : false;
 }
@@ -710,7 +703,7 @@ void SaveRecording() {
     if (!on) {   // each addon has its own recorder: say which one is off, not "nothing recorded" (the owner had it on in another addon)
         const std::string name = std::string(kUpscalerName) + " Upscaler";
         Log("recorder: nothing saved: the recorder is off in %s (tick \"Keep the last few seconds ready to save\" in its panel; each addon has its own)", name.c_str());
-        if (g_host) g_host->SetStatus(kAddonId, ("Nothing saved: the recorder is off in " + name + " (each addon has its own)").c_str(), 2);
+        SetStatus("Nothing saved: the recorder is off in " + name + " (each addon has its own)", 2);
         return;
     }
     if (!g_recorder.Save(RecordFolder(), game)) Log("recorder: nothing saved (%s)", g_recorder.GetStatus().saving ? "a save is running" : "nothing recorded yet");

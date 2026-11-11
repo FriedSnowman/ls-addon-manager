@@ -141,8 +141,10 @@ Diagnostics GetDiagnostics() {
 }
 void Before(eam::HostImpl* host,ID3D11DeviceContext* ctx,UINT x,UINT y,UINT z) {
     state.candidate.Reset();state.savedView.Reset();state.replace=false;
-    if(!host->HasRealFrameCallback())return;
+    // Dispatch observation is also used by standalone upscalers. Only the
+    // transform itself depends on an NR callback being registered.
     ++dispatches;lastDispatch=GetTickCount64();
+    if(!host->HasRealFrameCallback())return;
     uint64_t config=0;
     for (;;) {
         config=settings.load();

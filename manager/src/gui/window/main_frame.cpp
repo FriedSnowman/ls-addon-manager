@@ -47,7 +47,7 @@ widgets::StatusBarInfo BuildStatusLine(AddonManager* manager) {
         hardware=MachineSummary(capture,SystemStats::Instance().Get(),GpuStats::Instance().Get());
     }
     if(live.addon=="DLSSNR02"&&live.text.rfind("Disabled",0)!=0&&info.level<2&&RealFrameHook::Support()==EamFrameSupport::Waiting&&capture.dispatches&&capture.captures==0&&now-capture.settingsAt>=3000) {
-        info.reason="NR: "+CaptureObservation(capture,now);info.level=2;
+        info.reason="NR: "+CaptureObservation(capture,now)+"; restart scaling with WGC and a supported profile";info.level=2;
     }
     if(live.addon=="DLSSNR02"&&live.text.rfind("Disabled",0)!=0&&info.level<2&&RealFrameHook::Support()==EamFrameSupport::SettingsChanging&&capture.settingsAt&&now-capture.settingsAt>=3000)
         info.level=2;

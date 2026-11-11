@@ -48,14 +48,16 @@ extern std::atomic<bool> g_showHud;         // outline the protected areas on sc
 
 extern std::mutex g_textMutex;
 extern std::string g_encodingText;   // what the frames hold (hdr.h), for the panel
-extern std::string g_status, g_offReason, g_frameText, g_cardName, g_tappedDeviceText, g_focusExe;
+extern std::string g_offReason, g_frameText, g_cardName, g_tappedDeviceText, g_focusExe;
 extern std::string g_scalerGame;   // the upscalers: the game whose settings are in use (under g_settingsMutex; empty until one had focus)
 extern bool g_cardDrivesDisplay;
 extern uint64_t g_runs, g_otherPasses, g_lsPresents, g_composed, g_lastDelta;
 extern double g_lastModelMs, g_avgModelMs, g_lastRunMs, g_lastOffset;
 
-void SetStatus(const std::string& text);
+void SetStatus(const std::string& text, int level = 0);
 std::string Status();
+void ObserveScalerPass(bool nis);
+void ResetStatusObservations();
 void SwitchOff(const std::string& why);   // stays off until switched on again (or the watchdog's pause is over)
 void SwitchOn();                           // by hand, from the panel
 

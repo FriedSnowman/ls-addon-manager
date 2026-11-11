@@ -108,7 +108,7 @@ static void PureChecks() {
     Check("status: actual runtime and unsupported DXGI are identifiable", CaptureSummary(capture).find("LS 9.9.9 (unverified) | DXGI")!=std::string::npos);
     Check("status: idle is not diagnosed as a hook failure", CaptureObservation(capture,1000).find("may be idle")!=std::string::npos);
     capture.dispatches=10;
-    Check("status: unmatched capture differs from idle", CaptureObservation(capture,1000).find("no supported real capture matched")!=std::string::npos);
+    Check("status: standalone dispatches do not claim idle or require NR", CaptureObservation(capture,1000)=="10 LS compute dispatches observed | no neural capture callbacks recorded");
     capture.captures=2;capture.lastCapture=500;capture.width=640;capture.height=480;
     Check("status: capture freshness and size", CaptureObservation(capture,1000).find("0.5 s ago | texture 640x480")!=std::string::npos);
     SystemStats::Snapshot machine;machine.cpuName="Test CPU";

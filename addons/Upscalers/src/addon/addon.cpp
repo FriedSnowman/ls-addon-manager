@@ -2,6 +2,7 @@
 #include "addon/log.h"
 #include "addon/present_hook.h"
 #include "addon/screenshot.h"
+#include "addon/live_status.h"
 #include "imgui.h"
 #include <eam/widgets.h>
 #include <windows.h>
@@ -25,21 +26,31 @@ std::atomic<bool> g_showHud{ false };
 std::mutex g_textMutex;
 std::string g_scalerGame;
 std::string g_encodingText = "SDR";
-std::string g_status = "waiting for game frames: start scaling a game in Lossless Scaling", g_offReason, g_frameText, g_cardName, g_tappedDeviceText = "none yet", g_focusExe;
+std::string g_offReason, g_frameText, g_cardName, g_tappedDeviceText = "none yet", g_focusExe;
 bool g_cardDrivesDisplay = false;
 uint64_t g_runs = 0, g_otherPasses = 0, g_lsPresents = 0, g_composed = 0, g_lastDelta = 0;
 double g_lastModelMs = 0, g_avgModelMs = 0, g_lastRunMs = 0, g_lastOffset = 0;
 
-void SetStatus(const std::string& text) { std::lock_guard<std::mutex> lock(g_textMutex); g_status = text; }
-std::string Status() { std::lock_guard<std::mutex> lock(g_textMutex); return g_status; }
+namespace { LiveStatus g_liveStatus; }
+void SetStatus(const std::string& text, int level) {
+    if (!g_off || level == 3) g_liveStatus.Set(text, level);
+}
+std::string Status() { return g_liveStatus.Snapshot(GetTickCount64()).text; }
+void ObserveScalerPass(bool nis) {
+    if (nis) g_liveStatus.Nis(GetTickCount64());
+    else g_liveStatus.Dispatch(GetTickCount64());
+}
+void ResetStatusObservations() { g_liveStatus.ResetObservations(); }
 
 void SwitchOff(const std::string& why) {
     g_off = true;
     { std::lock_guard<std::mutex> lock(g_textMutex); g_offReason = why; }
+    SetStatus("Switched off: " + why, 3);
     Log("DISABLED: %s", why.c_str());
 }
 void SwitchOn() {
     g_off = false;
+    SetStatus("Waiting for game frames: start scaling with NIS in Lossless Scaling");
 }
 
 void ApplyTapRoles() {
@@ -130,9 +141,11 @@ int OnStartFault(EXCEPTION_POINTERS* e) {
 EAM_EXPORT void AddonInitialize(IHost* host, ImGuiContext* ctx, void* allocFunc, void* freeFunc, void* userData) {
     __try { Start(host, ctx, allocFunc, freeFunc, userData); }
     __except (OnStartFault(GetExceptionInformation())) {}
+    if (g_host && g_host->GetHostVersion() >= 0x010000) g_liveStatus.Start(g_host, kAddonId);
 }
 
 EAM_EXPORT void AddonShutdown() {
+    g_liveStatus.Stop();   // no publication can outlive the host or addon
     Log("shutting down");
     g_off = true;
     // First let go of Lossless Scaling: no pass or device event reaches the addon while it tears down. (The upscaler's teardown used to come
@@ -152,6 +165,7 @@ EAM_EXPORT void AddonShutdown() {
     { std::lock_guard<std::mutex> lock(g_settingsMutex); config = g_config; looks = g_looks; }
     SaveSettings(g_host, kAddonId, config, looks);
     CloseLog();
+    if (g_host && g_host->GetHostVersion() >= 0x010000) g_host->SetStatus(kAddonId, "", 0);
     g_host = nullptr;
 }
 

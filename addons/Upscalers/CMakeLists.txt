@@ -112,6 +112,9 @@ add_executable(nr_nistest tools/nis_test.cpp src/addon/nis_pass.cpp)
 target_include_directories(nr_nistest PRIVATE src ../../manager/sdk/include)
 target_link_libraries(nr_nistest PRIVATE d3d11 d3dcompiler)
 
+add_executable(nr_statustest tools/status_test.cpp)
+target_include_directories(nr_statustest PRIVATE src ../../manager/sdk/include)
+
 # ---- offline test of the settings and looks (the table, looks as text and back, the settings file through a stand-in host)
 add_executable(nr_rectest tools/record_test.cpp src/addon/lsrec.cpp)
 target_include_directories(nr_rectest PRIVATE src)
