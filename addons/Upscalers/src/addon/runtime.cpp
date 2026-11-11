@@ -409,6 +409,9 @@ bool ScalerPass(ID3D11DeviceContext* ctx, uint32_t x, uint32_t y, uint32_t z) {
     StartStallMonitor();
     const PassTimer passTimer;
     std::lock_guard<std::mutex> lock(g_frameMutex);
+    // Feature creation can fail asynchronously after Init reported ready. A
+    // failed engine is no longer ready, so the ready-only branch cannot report it.
+    if (!g_srStarting && g_sr.IsFailed()) SetStatus(g_sr.LastError(), 3);
     g_passStep = "in the pass";
     TapDecision d;
     g_tap.Observe(ctx, x, y, z, d);   // the flow and the real frames (nothing is handed to a model here)

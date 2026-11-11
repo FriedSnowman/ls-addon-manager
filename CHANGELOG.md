@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Standalone upscalers identify the actual SDR/HDR NIS shader.** DLSS, FSR and XeSS no longer mistake leftover NIS textures on LSFG passes for scaling work or discard a pending viewport readback. Requires manager API 1.3 or newer; the verified shader identities are for LS 3.2.2.0.
+- **Upscaler diagnostics stay visible without a completed frame.** Startup, missing NIS passes, runtime errors and stopped capture are reported independently of the Settings panel and rendering. LS dispatch counts work with Neural Rendering disabled.
+- **Neural Rendering controls:** typed slider values respect their limits. Automatic skin detection enables the separate Skin structure slider; legacy negative skin values migrate once to the saved Local structure value.
+
 ## Build 5 (2026-11-08)
 
 - **Stronger Picture controls in NR 1.2.2.** Sharpening now reaches 4, with progressively relaxed halo suppression above 1. Exposure expands to +/-4 stops; contrast, midtones, shadows, highlights, temperature and tint to +/-2; saturation to 4; vibrance to -1 through 2. Existing settings retain their response, defaults remain neutral, and off/neutral still uses the original GPU copy path.
