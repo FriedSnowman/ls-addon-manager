@@ -242,11 +242,12 @@ draws what no upscaler can put back. The [upscalers' guide](addons/Upscalers/doc
 
 ### Built-in features
 
-Built into the manager, on its Features tab, both off until switched on:
+Built into the manager, on its Features tab, all off until switched on:
 
 - **ReShade input passthrough:** mouse and keyboard reach a ReShade overlay while Lossless Scaling scales the game. **Home** turns it on and off.
 - **Windowed mode and second monitor:** a virtual display the size of your game window, so Lossless Scaling works with a windowed game or on a second
   monitor, with split-screen and side-by-side options. Switching it on needs a restart of Lossless Scaling.
+- **Lossless Scaling overrides:** place the FPS counter in the top left, top right, bottom left or bottom right corner. Changes apply immediately and are saved. Enable **Draw FPS** in Lossless Scaling to show the counter.
 
 ## The manager
 
@@ -266,7 +267,7 @@ Built into the manager, on its Features tab, both off until switched on:
 | Tab | What is on it |
 |-----|--------------|
 | **Addons** | The addon list with a switch, icon and live status for each, the Runtimes list, and the chosen addon's settings |
-| **Features** | ReShade input passthrough and Windowed mode |
+| **Features** | ReShade input passthrough, Windowed mode and Lossless Scaling overrides |
 | **Performance** | Frame times, addon cost, GPU load, power, clocks, temperature, memory, and what is limiting you |
 | **Settings** | Backup and restore, interface size, start-up and hotkey, log detail, the diagnostics file |
 | **Logs** | The last 10,000 log entries, filtered by level |

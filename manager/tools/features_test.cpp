@@ -213,9 +213,9 @@ int main(int argc, char** argv) {
     }
 
     printf("== the list of features\n");
-    Check("two features are built in", features::Count() == 2 && IndexOfFeature("ReShadePassthrough") == 0 && IndexOfFeature("WindowedMode") == 1);
+    Check("three features are built in", features::Count() == 3 && IndexOfFeature("ReShadePassthrough") == 0 && IndexOfFeature("WindowedMode") == 1 && IndexOfFeature("LosslessScalingOverrides") == 2);
     Check("the retired standalone addons are recognised by folder name", features::IsRetiredAddonId("LSP-ReShade") && features::IsRetiredAddonId("LSP-Windowed") && !features::IsRetiredAddonId("DLSS5NR01"));
-    Check("a feature is off until switched on", !features::IsOn(0) && !features::IsOn(1));
+    Check("a feature is off until switched on", !features::IsOn(0) && !features::IsOn(1) && !features::IsOn(2));
     features::SetOn(0, true);
     Check("switching one on is saved under the feature's id", ConfigManager::Instance().IsAddonEnabled("ReShadePassthrough", false));
     features::SetOn(0, false);

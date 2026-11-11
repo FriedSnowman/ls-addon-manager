@@ -61,6 +61,9 @@ GPU load, power and temperature come from NVIDIA's driver library, so they only 
 **Windowed mode or ReShade passthrough does nothing.**
 Both are switched off until you turn them on in the *Features* tab. Windowed mode's virtual display has to exist before Lossless Scaling starts, so restart Lossless Scaling after switching it on.
 
+**Can I move Lossless Scaling's FPS counter?**
+Turn on *Features → Lossless Scaling overrides*, then choose **Top left**, **Top right**, **Bottom left** or **Bottom right** under *FPS counter location*. Keep **Draw FPS** enabled in Lossless Scaling. The selection is saved and applies immediately while scaling; switching the override off restores Lossless Scaling's own placement.
+
 ## DLSS 5 Neural Rendering
 
 **Where do I get `nvngx_dlssnr.dll`?**

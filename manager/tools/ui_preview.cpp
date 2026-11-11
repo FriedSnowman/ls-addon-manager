@@ -30,6 +30,7 @@
 #include "src/gui/tabs/tab_about.h"
 #include "src/gui/tabs/tab_features.h"
 #include "src/config/config_manager.h"
+#include "src/features/scaling_overrides.h"
 #include "src/gui/tabs/tab_logs.h"
 #include "src/log/logger.h"
 #include "eam/version.h"
@@ -413,6 +414,14 @@ int main(int argc, char** argv) {
         cfg.SetAddonEnabled("WindowedMode", !clean);
         shot.Frame([&] { Shell("Features", status, [&] { RenderTabFeatures(); }); }, 12);
         shot.Save((out + "/preview_features.bmp").c_str());
+        cfg.SetAddonEnabled("ReShadePassthrough", false);
+        cfg.SetAddonEnabled("WindowedMode", false);
+        cfg.SetAddonEnabled(features::scaling::kId, true);
+        features::scaling::InstallHooks(GetModuleHandleW(nullptr));
+        features::scaling::Start();
+        shot.Frame([&] { Shell("Features", status, [&] { RenderTabFeatures(); }); }, 12);
+        shot.Save((out + "/preview_scaling_overrides.bmp").c_str());
+        features::scaling::Stop();
     }
 
     // 3b. About tab (the real one)

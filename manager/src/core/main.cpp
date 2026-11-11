@@ -9,6 +9,7 @@
 #include "../config/config_manager.h"
 #include "../event/event_system.h"
 #include "../features/features.h"
+#include "../features/scaling_overrides.h"
 #include "../host/host_impl.h"
 #include "../log/logger.h"
 #include "../gui/gui_manager.h"
@@ -101,7 +102,10 @@ bool Manager::Start() {
     D3D11Hook::Initialize(host.get());
     eam::features::Start();
     // The window thread hooks Dispatch first (that needs D3D), then loads the addons, then opens the window.
-    eam::GuiManager::StartGuiThread(addons.get(), [] { D3D11Hook::InstallDispatchHooks(); });
+    eam::GuiManager::StartGuiThread(addons.get(), [lossless] {
+        D3D11Hook::InstallDispatchHooks();
+        eam::features::scaling::InstallHooks(lossless);
+    });
     return true;
 }
 

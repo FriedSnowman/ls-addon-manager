@@ -9,7 +9,7 @@
 # Suites:
 #   core       eam_coretest (addon handling, settings, host interface, the frozen 1.0 interface, hooks) and eam_installtest (installing addons,
 #              backups, diagnostics); also the exit with the GPU sampler running
-#   features   eam_featurestest: ReShade passthrough and Windowed mode (switched on and off at start-up), and the exit with its watcher running
+#   features   ReShade passthrough, Windowed mode, watcher shutdown and offscreen FPS counter placement/persistence
 #   sample     eam_sampletest: examples\SampleAddon loaded, started and drawn by the real manager
 #   gui        eam_guitest: the manager window, three times (defaults, a saved placement, interface size 150 %)
 #   installer  the Setup program's core and its file bundle, on fake Lossless Scaling folders
@@ -26,10 +26,12 @@ $suites = [ordered]@{
                    Build = @('manager', 'Lossless', 'eam_coretest', 'eam_installtest');
                    Runs = @(@('core (addon handling, host, hooks)', "$mgr\eam_coretest.exe", @()), @('exit with the GPU sampler running', "$mgr\eam_coretest.exe", @('abrupt-gpu')),
                             @('install (addons, backups, diagnostics)', "$mgr\eam_installtest.exe", @())) }
-    features  = @{ When = '^manager/src/(features|core|config)/|^manager/CMakeLists|^manager/tools/features_test';
-                   Build = @('manager', 'eam_featurestest');
+    features  = @{ When = '^manager/src/(features|core|config)/|^manager/CMakeLists|^manager/tools/(features_test|fps_counter_test)';
+                   Build = @('manager', 'eam_featurestest', 'eam_fpstest');
                    Runs = @(@('features (Windowed on at start-up)', "$mgr\eam_featurestest.exe", @()), @('features (Windowed off at start-up)', "$mgr\eam_featurestest.exe", @('off')),
-                            @('exit with the ReShade watcher running', "$mgr\eam_featurestest.exe", @('abrupt'))) }
+                            @('exit with the ReShade watcher running', "$mgr\eam_featurestest.exe", @('abrupt')),
+                            @('FPS counter corners and saved settings', "$mgr\eam_fpstest.exe", @()),
+                            @('FPS counter leaves other modules untouched', "$mgr\eam_fpstest.exe", @('foreign'))) }
     sample    = @{ When = '^manager/sdk/|^manager/src/(addon|host|config)/|^examples/|^manager/tools/sample_test';
                    Build = @('manager', 'eam_sampletest');
                    Runs = @(, @('sample addon (examples\SampleAddon)', "$mgr\eam_sampletest.exe", @())) }

@@ -60,6 +60,7 @@ set(ADDON_SOURCES
 
 set(FEATURE_SOURCES
     src/features/features.cpp
+    src/features/scaling_overrides.cpp
     src/features/reshade_passthrough.cpp
     src/features/reshade_windows.cpp
     src/features/reshade_input.cpp
@@ -186,6 +187,7 @@ add_executable(eam_uipreview EXCLUDE_FROM_ALL
     src/gui/tabs/tab_about.cpp
     src/gui/tabs/tab_features.cpp
     src/features/features.cpp
+    src/features/scaling_overrides.cpp
     src/features/reshade_passthrough.cpp
     src/features/reshade_windows.cpp
     src/features/reshade_input.cpp
@@ -258,6 +260,13 @@ add_executable(eam_featurestest EXCLUDE_FROM_ALL tools/features_test.cpp
     ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
 target_include_directories(eam_featurestest PRIVATE ${imgui_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party ${minhook_SOURCE_DIR}/include)
 target_link_libraries(eam_featurestest d3d11 dxgi user32 minhook)
+
+# Offscreen FPS counter placement, persistence, live toggling and caller isolation.
+add_executable(eam_fpstest EXCLUDE_FROM_ALL tools/fps_counter_test.cpp
+    ${FEATURE_SOURCES} src/config/config_manager.cpp src/log/logger.cpp
+    ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
+target_include_directories(eam_fpstest PRIVATE ${imgui_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/sdk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party ${minhook_SOURCE_DIR}/include)
+target_link_libraries(eam_fpstest d3d11 dxgi user32 minhook)
 
 # Smoke test of the manager window (real GUI thread, hidden: no window appears). Run it twice: plain, and with the argument "place":
 # cmake --build . --config Release --target eam_guitest
