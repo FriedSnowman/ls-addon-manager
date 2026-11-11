@@ -214,7 +214,7 @@ bool Frame(const EamRealFrame &frame, void *) {
     return result;
 }
 bool Slider(const char *label, float *value, float low, float high) {
-    return ImGui::SliderFloat(label, value, low, high, "%.2f");
+    return ImGui::SliderFloat(label, value, low, high, "%.2f", ImGuiSliderFlags_AlwaysClamp);
 }
 } // namespace
 EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *alloc, void *freeFn, void *user) {
@@ -258,6 +258,12 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
     settings.model.localStructure = Number("localStructure", modelDefaults.localStructure, 0, 2);
     settings.model.localTone = Number("localTone", modelDefaults.localTone, 0, 2);
     settings.model.skinStructure = Number("skinStructure", modelDefaults.skinStructure, -1, 2);
+    // Convert legacy follow-local settings once; the model now receives an explicit strength.
+    if (settings.model.skinStructure < 0) {
+        settings.model.skinStructure = settings.model.localStructure;
+        Put("skinStructure", settings.model.skinStructure);
+        host->SaveConfig();
+    }
     settings.model.autoMask = Number("autoMask", 1, 0, 1) != 0;
     settings.composition.detail = Number("detail", 1, 0, 4);
     settings.composition.colour = Number("colour", 1, 0, 4);
@@ -345,7 +351,7 @@ EAM_EXPORT void AddonRenderSettings() {
     ImGui::TextDisabled("The model DLL is not included.");
     eam::ui::SectionLabel("Quality and performance");
     int scale = int(settings.scalePercent);
-    if (ImGui::SliderInt("Working resolution", &scale, 25, 100, "%d%%")) {
+    if (ImGui::SliderInt("Working resolution", &scale, 25, 100, "%d%%", ImGuiSliderFlags_AlwaysClamp)) {
         settings.scalePercent = unsigned(scale);
         rebuild = true;
     }
@@ -381,10 +387,11 @@ EAM_EXPORT void AddonRenderSettings() {
     rebuild |= Slider("Intensity", &settings.model.intensity, 0, 2);
     rebuild |= Slider("Local structure", &settings.model.localStructure, 0, 2);
     rebuild |= Slider("Local tone", &settings.model.localTone, 0, 2);
-    rebuild |= Slider("Skin structure", &settings.model.skinStructure, -1, 2);
-    ImGui::TextDisabled("Skin -1 follows local structure.");
     rebuild |= ImGui::Checkbox("Automatic skin detection", &settings.model.autoMask);
-    ImGui::TextWrapped("Detects skin so Skin structure can adjust its detail separately.");
+    ImGui::TextWrapped("Enable to adjust detected skin detail separately.");
+    ImGui::BeginDisabled(!settings.model.autoMask);
+    rebuild |= Slider("Skin structure", &settings.model.skinStructure, 0, 2);
+    ImGui::EndDisabled();
     int passes = int(settings.passes);
     if (ImGui::SliderInt("Multipass", &passes, 1, neural::PipelineSettings::MaxPasses,
                          passes == 1 ? "Off" : "%d", ImGuiSliderFlags_AlwaysClamp)) {
@@ -428,7 +435,8 @@ EAM_EXPORT void AddonRenderSettings() {
             settings.composition.reversible = proxy;
             rebuild = true;
         }
-        rebuild |= ImGui::SliderFloat("scRGB reference white", &settings.composition.whiteNits, 80, 1000, "%.0f nits");
+        rebuild |= ImGui::SliderFloat("scRGB reference white", &settings.composition.whiteNits, 80, 1000, "%.0f nits",
+                                      ImGuiSliderFlags_AlwaysClamp);
         int reconstruction = int(settings.composition.reconstruction);
         if (ImGui::Combo("Reconstruction", &reconstruction, "Classic\0Matched residual (default)\0")) {
             settings.composition.reconstruction = reconstruction;

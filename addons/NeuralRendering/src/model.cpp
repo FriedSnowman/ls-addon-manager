@@ -52,10 +52,10 @@ void Model::Initialize(Gpu &gpu, Recording &rec, const std::wstring &forwarder, 
     const auto modelFile = std::filesystem::absolute(model);
     if (!std::filesystem::is_regular_file(modelFile))
         throw std::runtime_error("User-provided nvngx_dlssnr.dll was not found");
-    auto strength = [](float v, float low) { return std::isfinite(v) && v >= low && v <= 2.f; };
-    if (settings.preset > 3 || settings.style > 2 || !strength(settings.intensity, 0) ||
-        !strength(settings.localStructure, 0) || !strength(settings.localTone, 0) ||
-        !strength(settings.skinStructure, -1))
+    auto strength = [](float v) { return std::isfinite(v) && v >= 0 && v <= 2.f; };
+    if (settings.preset > 3 || settings.style > 2 || !strength(settings.intensity) ||
+        !strength(settings.localStructure) || !strength(settings.localTone) ||
+        !strength(settings.skinStructure))
         throw std::runtime_error("Invalid model settings");
     floatSlot_ = -1;
     gpu_ = &gpu;

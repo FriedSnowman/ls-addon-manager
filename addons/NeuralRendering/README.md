@@ -37,8 +37,8 @@ Model and composition controls use the pinned OptiScaler implementation's values
 | Intensity | `DLSSNR.Intensity`, 0–2; **100% = 1**, 50% = 0.5 | 1 |
 | Local structure | `DLSSNR.LocalStructureStrength`, 0–2 | 0.8 |
 | Local tone | `DLSSNR.LocalToneStrength`, 0–2 | 0.3 |
-| Skin structure | `DLSSNR.SkinStructureStrength`, -1–2; -1 follows local structure | -1 |
-| Automatic skin detection | `DLSSNR.UseAutoMask`; detects skin so Skin structure can adjust its detail separately | On |
+| Automatic skin detection | `DLSSNR.UseAutoMask`; enables the Skin structure control below it | On |
+| Skin structure | `DLSSNR.SkinStructureStrength`, 0–2; adjusts detected skin detail when automatic detection is on | 0.8 |
 | Detail | `gTransferStrength`, 0–4; 1 applies the model's luminance edit, 0 removes it | 1 |
 | Colour | `gColourStrength`, 0–4; 0 preserves the original palette, 1 uses model colour, >1 boosts chroma | 1 |
 | Maximum luminance ratio | `gMaxRatio`; two-sided luminance bound, e.g. 2 means 0.5×–2× | 2 |
@@ -49,6 +49,8 @@ Model and composition controls use the pinned OptiScaler implementation's values
 | Working resolution | Explicit per-axis percentage; width/height are floor(capture dimension × percent / 100), with no hidden cap | 100% |
 | Flow grid | NVOFA physical grid spacing: 1, 2 or 4 input pixels; independent of NR working resolution | 4 |
 | Flow quality | NVOFA slow/medium/fast | Medium |
+
+Slider limits also apply to typed values. Skin structure keeps its value while automatic detection is off. Legacy negative skin settings are converted once to the saved Local structure value; Skin structure is then independent of Local structure.
 
 Replace proxy modes decode the model image directly and bypass the normal composition controls. In composed modes, detail 0 and colour 0 together give the original; intensity 0 alone is a model control, not a general replacement for disabling the addon (especially at reduced resolution). The native SDR pipeline's intensity-zero identity is tested. Apply-off retains the exact original handoff (including negative scRGB components) while the backend continues; this comparison-only handoff avoids upstream's final nonnegative clamp. Model/working-size/flow/proxy changes rebuild after the control is released. Capture waits during rebuilding.
 
