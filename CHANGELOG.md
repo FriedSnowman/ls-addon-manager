@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## Build 6 (2026-11-11)
 
+- **Optional GitHub update checks.** The first startup asks for consent, with a persistent toggle under Settings. Enabled checks run in the background at startup and show a bottom banner for newer builds; unrecognized version formats use a generic update notice. Download opens the release page in your browser.
 - **Standalone upscalers identify the actual SDR/HDR NIS shader.** DLSS, FSR and XeSS no longer mistake leftover NIS textures on LSFG passes for scaling work or discard a pending viewport readback. Requires manager API 1.3 or newer; the verified shader identities are for LS 3.2.2.0.
 - **Upscaler diagnostics stay visible without a completed frame.** Startup, missing NIS passes, runtime errors and stopped capture are reported independently of the Settings panel and rendering. LS dispatch counts work with Neural Rendering disabled.
 - **Neural Rendering controls:** typed slider values respect their limits. Automatic skin detection enables the separate Skin structure slider; legacy negative skin values migrate once to the saved Local structure value.
