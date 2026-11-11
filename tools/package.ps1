@@ -1,12 +1,10 @@
-# Builds Release and assembles dist\LSAddonManager-build-<number>-x64.zip: LSAddonManagerSetup.exe, one file that carries the manager and the addons
-# that build, with an install note and the licences. The files are not in the zip a second time: `LSAddonManagerSetup.exe --extract <folder>`
-# writes them out for installing by hand (since 0.9.12; the zip held every file twice before).
+# Builds dist\LSAddonManager-build-<number>-x64.exe and its SHA-256 checksum.
+# The installer carries the manager, addons and documentation; --extract <folder> writes them out for installing by hand.
 # The user-provided NR model is never packaged. All four built addon products are required.
 # GPL NR corresponding source and its exact ImGui build dependency ship inside the payload.
-#   powershell -File tools/package.ps1 [-Build 1]
+#   powershell -File tools/package.ps1 -Build <number>
 param(
-    [ValidateRange(0, 65535)][int]$Build = 0,
-    [switch]$IncludeWip,   # also package addons marked work in progress (none are now)
+    [Parameter(Mandatory = $true)][ValidateRange(1, 65535)][int]$Build,
     [string]$HostBuildDir = 'manager\build',
     [string]$NeuralBuildDir = 'addons\NeuralRendering\build',
     [string]$ScalerBuildDir = 'addons\Upscalers\build',
@@ -30,23 +28,18 @@ $HostBuildDir = BuildPath $HostBuildDir
 $NeuralBuildDir = BuildPath $NeuralBuildDir
 $ScalerBuildDir = BuildPath $ScalerBuildDir
 $SetupBuildDir = BuildPath $SetupBuildDir
-$buildMatch = Select-String -Path "$root\manager\sdk\include\eam\version.h" -Pattern '^#define EAM_BUILD_NUMBER ([1-9][0-9]*)$'
-if (-not $buildMatch) { throw 'Set EAM_BUILD_NUMBER in manager/sdk/include/eam/version.h before packaging.' }
-$sourceBuild = [int]$buildMatch.Matches[0].Groups[1].Value
-if ($sourceBuild -gt 65535) { throw 'EAM_BUILD_NUMBER must be between 1 and 65535.' }
-if ($Build -eq 0) { $Build = $sourceBuild }
-if ($Build -ne $sourceBuild) { throw "Requested Build $Build does not match source Build $sourceBuild. Update EAM_BUILD_NUMBER before packaging." }
 $Version = "Build $Build"
 $buildSlug = "build-$Build"
 if ($PackageSuffix) { $buildSlug += "-$PackageSuffix" }
 # Always build locally; downloaded or stale release artifacts are not a fallback.
-& "$PSScriptRoot\build_all.ps1" -Only host,neural,scalers -HostBuildDir $HostBuildDir -NeuralBuildDir $NeuralBuildDir -ScalerBuildDir $ScalerBuildDir -Jobs $Jobs
+& "$PSScriptRoot\build_all.ps1" -Build $Build -Only host,neural,scalers -HostBuildDir $HostBuildDir -NeuralBuildDir $NeuralBuildDir -ScalerBuildDir $ScalerBuildDir -Jobs $Jobs
 if ($LASTEXITCODE -ne 0) { throw 'Local build failed; refusing to package existing artifacts.' }
 
 $name = "LSAddonManager-$buildSlug-x64"
 $dist = "$root\dist"
-$stage = "$dist\$name"
-RemoveUnder $stage $dist
+$work = "$root\build\package-$buildSlug"
+$stage = "$work\payload"
+RemoveUnder $stage $work
 New-Item -ItemType Directory -Force "$stage\addons" | Out-Null
 
 function Need($path, $what) { if (-not (Test-Path $path)) { throw "missing build output: $what ($path)" } }
@@ -80,9 +73,8 @@ $addons = @(
        Extra = @{ 'Intel-XeSS-LICENSE.txt' = "$root\addons\Upscalers\external\xess\LICENSE.txt"; 'LICENSE.txt' = "$root\addons\Upscalers\LICENSE";
                   'xess\libxess.dll' = "$root\addons\Upscalers\external\xess\bin\libxess.dll" } }
 )
-$included = @(); $skipped = @()
+$included = @()
 foreach ($a in $addons) {
-    if ($a.Wip -and -not $IncludeWip) { Write-Host "$($a.Id) is work in progress: not packaged (-IncludeWip packages it)."; continue }
     $missing = @($a.Files | Where-Object { -not (Test-Path "$($a.Bin)\$_") })
     if ($missing.Count) { throw "Required addon $($a.Id) is incomplete: $($missing -join ', ')" }
     $dst = "$stage\addons\$($a.Id)"
@@ -95,27 +87,45 @@ foreach ($a in $addons) {
     $included += $a.Id
 }
 
-# The single-file installer: the files above (only the ones that get installed) are packed into a bundle that becomes a resource of Setup.exe.
+# Documentation is available through --extract; installation copies the manager, icons and addons only.
+$installFiles = @(Get-ChildItem $stage -Recurse -File)
+Copy-Item "$root\LICENSE" "$stage\LICENSE.txt"
+Copy-Item "$root\NOTICE.md", "$root\DISCLAIMER.md", "$root\CHANGELOG.md" $stage
+@"
+LS Addon Manager $Version
+
+Close Lossless Scaling before installing. Run $name.exe to install,
+repair or remove the manager. Existing files are backed up and failures roll back.
+For manual installation, --extract files extracts the payload. Preserve the original
+Lossless.dll as Lossless_original.dll before replacing the proxy.
+
+Only locally built addons are included. The retired DLSS5NR01 plugin is ignored by
+the manager. Its owned executables move to backups on upgrade; user models and
+settings stay at their paths. DLSSNR02 uses fresh settings and NVIDIA hardware only.
+No neural model is included. Corresponding NR source and licences are in the addon folder.
+See NOTICE.md and DISCLAIMER.md beside this file.
+"@ | Set-Content -Encoding UTF8 "$stage\INSTALL.txt"
+
+# The single-file installer: the payload and documentation become a resource of Setup.exe.
 # It is built in its own folder (installer\build_setup), so the test build of the installer, which carries no files, stays as the tests expect.
 $setupBuild = $SetupBuildDir
-$payloadDir = "$dist\payload-$buildSlug"
-RemoveUnder $payloadDir $dist
-New-Item -ItemType Directory -Force $payloadDir | Out-Null
-Copy-Item "$stage\Lossless.dll", "$stage\manager-icon.ico", "$stage\manager-icon.png" $payloadDir
-Copy-Item "$stage\addons" "$payloadDir\addons" -Recurse
-& cmake -S "$root\installer" -B $setupBuild -G 'Visual Studio 17 2022' -A x64 | Out-Null
+$payloadDir = $stage
+& cmake -S "$root\installer" -B $setupBuild -G 'Visual Studio 17 2022' -A x64 "-DEAM_BUILD_NUMBER=$Build" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Installer configure failed' }
 & cmake --build $setupBuild --config Release --target pack_payload fake_original --parallel $Jobs -- /nr:false | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'the installer packer did not build' }
-$bundle = "$dist\payload-$buildSlug.bin"
+$bundle = "$work\payload.bin"
 & "$setupBuild\Release\pack_payload.exe" $payloadDir $bundle
 if ($LASTEXITCODE -ne 0) { throw 'packing the installer files failed' }
-& cmake -S "$root\installer" -B $setupBuild "-DSETUP_PAYLOAD=$bundle" | Out-Null
+& cmake -S "$root\installer" -B $setupBuild "-DSETUP_PAYLOAD=$bundle" "-DEAM_BUILD_NUMBER=$Build" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Installer payload configure failed' }
 & cmake --build $setupBuild --config Release --target LSAddonManagerSetup --parallel $Jobs -- /nr:false
 if ($LASTEXITCODE -ne 0) { throw 'Installer build failed; refusing stale Setup output.' }
 $setupExe = "$setupBuild\Release\LSAddonManagerSetup.exe"
 if (-not (Test-Path $setupExe)) { throw 'the Setup exe did not build' }
+if ([Diagnostics.FileVersionInfo]::GetVersionInfo($setupExe).FileVersion -ne $Version) {
+    throw "The Setup file version does not match $Version."
+}
 
 # Check the finished exe as a person would use it: it must report the version it carries, and install into a fake Lossless Scaling folder byte for byte
 $check = "$env:TEMP\setup_check_$PID"
@@ -134,12 +144,12 @@ Copy-Item $fakeOriginal "$fake\Lossless.dll"
 $ilog = "$check\install.log"
 $p = Start-Process $setupExe -ArgumentList '--silent', 'install', '--folder', "`"$fake`"", '--no-remember', '--log', "`"$ilog`"" -PassThru -Wait -WindowStyle Hidden
 if ($p.ExitCode -ne 0) { throw "the Setup exe could not install into a test folder: $(Get-Content $ilog -Raw)" }
-$bad = @(Get-ChildItem $payloadDir -Recurse -File | Where-Object {
+$bad = @($installFiles | Where-Object {
     $rel = $_.FullName.Substring($payloadDir.Length + 1)
     (Get-FileHash $_.FullName).Hash -ne (Get-FileHash "$fake\$rel" -ErrorAction SilentlyContinue).Hash })
 if ($bad.Count) { throw "the Setup exe installed files that differ from the package: $($bad.Name -join ', ')" }
 if ((Get-FileHash "$fake\Lossless_original.dll").Hash -ne (Get-FileHash $fakeOriginal).Hash) { throw 'the Setup exe did not keep the original Lossless.dll' }
-Write-Host "  Setup exe checked: reports $Version and installs $((Get-ChildItem $payloadDir -Recurse -File).Count) files byte for byte into a test folder"
+Write-Host "  Setup exe checked: reports $Version and installs $($installFiles.Count) files byte for byte into a test folder"
 # --extract, for installing by hand: the same files, byte for byte, into a new folder
 $ex = "$check\extract"
 $elog = "$check\extract.log"
@@ -150,47 +160,12 @@ $bad = @($want | Where-Object { (Get-FileHash $_.FullName).Hash -ne (Get-FileHas
 if ($bad.Count -or @(Get-ChildItem $ex -Recurse -File).Count -ne $want.Count) { throw "the Setup exe's --extract gave other files than the package: $($bad.Name -join ', ')" }
 Write-Host "  Setup exe checked: --extract writes the $($want.Count) files byte for byte"
 RemoveUnder $check $env:TEMP
-Copy-Item $setupExe "$stage\LSAddonManagerSetup.exe"
-$setupHash = (Get-FileHash -LiteralPath "$stage\LSAddonManagerSetup.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
-"$setupHash  LSAddonManagerSetup.exe" | Set-Content -LiteralPath "$stage\LSAddonManagerSetup.exe.sha256" -Encoding ascii
-RemoveUnder $payloadDir $dist
-# the files are inside Setup: not in the zip a second time
-foreach($file in 'Lossless.dll','manager-icon.ico','manager-icon.png','addons'){RemoveUnder (Join-Path $stage $file) $stage}
-
-Copy-Item "$root\LICENSE" "$stage\LICENSE.txt"
-Copy-Item "$root\NOTICE.md", "$root\DISCLAIMER.md", "$root\CHANGELOG.md" $stage
-@"
-LS Addon Manager $Version
-
-Close Lossless Scaling before installing. Run LSAddonManagerSetup.exe to install,
-repair or remove the manager. Existing files are backed up and failures roll back.
-For manual installation, --extract files extracts the payload. Preserve the original
-Lossless.dll as Lossless_original.dll before replacing the proxy.
-
-Only locally built addons are included. The retired DLSS5NR01 plugin is ignored by
-the manager. Its owned executables move to backups on upgrade; user models and
-settings stay at their paths. DLSSNR02 uses fresh settings and NVIDIA hardware only.
-No neural model is included. Corresponding NR source and licences are in the addon folder.
-See README.md, NOTICE.md and DISCLAIMER.md in the source checkout.
-"@ | Set-Content -Encoding UTF8 "$stage\INSTALL.txt"
-
-$zip = "$dist\$name.zip"
-if (Test-Path $zip) { Remove-Item $zip }
-# Entry by entry, with "/" in the names: Compress-Archive and ZipFile.CreateFromDirectory in Windows PowerShell write backslashes as path
-# separators, which the zip format does not allow and unzip tools on other systems complain about.
-Add-Type -AssemblyName System.IO.Compression
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-$fileStream = [IO.File]::Create($zip)
-$archive = New-Object IO.Compression.ZipArchive($fileStream, [IO.Compression.ZipArchiveMode]::Create)
-Get-ChildItem $stage -Recurse -File | ForEach-Object {
-    $entryName = $_.FullName.Substring($stage.Length + 1).Replace('\', '/')
-    [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $_.FullName, $entryName, [IO.Compression.CompressionLevel]::Optimal)
-}
-$archive.Dispose()
-$fileStream.Dispose()
-$zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-"$zipHash  $name.zip" | Set-Content -LiteralPath "$zip.sha256" -Encoding ascii
-Write-Host "package: $zip"
+New-Item -ItemType Directory -Force $dist | Out-Null
+$installer = "$dist\$name.exe"
+Copy-Item $setupExe $installer
+$setupHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+"$setupHash  $name.exe" | Set-Content -LiteralPath "$installer.sha256" -Encoding ascii
+RemoveUnder $payloadDir $work
+Write-Host "installer: $installer"
+Write-Host "checksum: $installer.sha256"
 Write-Host "  addons included: $($included -join ', ')"
-if ($skipped.Count) { Write-Host "  addons NOT included (not built): $($skipped -join ', ')" }
-Get-ChildItem $stage -Recurse -File | ForEach-Object { '  ' + $_.FullName.Substring($stage.Length + 1) }

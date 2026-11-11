@@ -138,10 +138,10 @@ Windows 11. These are historical upstream reports, not validation of the replace
 The broader packaging route can build `LSAddonManagerSetup.exe` locally. Fetch the required vendor dependencies listed under [Building](#building), then run:
 
 ```powershell
-powershell -NoProfile -File tools/package.ps1
+powershell -NoProfile -File tools/package.ps1 -Build 6
 ```
 
-It writes `dist/LSAddonManager-build-<number>-x64.zip`, containing Setup and the package documentation. Close Lossless Scaling and run the Setup you built.
+It writes `dist/LSAddonManager-build-<number>-x64.exe` and its `.exe.sha256` checksum. The installer embeds the package documentation, available with `--extract <folder>`. Close Lossless Scaling and run the Setup you built.
 It finds your Lossless Scaling folder (Steam or not; otherwise choose **Use a different folder...**) and offers what fits: **Install**, **Update**, **Repair** or **Uninstall**.
 The current packaging script requires all four addon products; Neural Rendering starts on, and included upscalers start off on a new installation.
 
@@ -363,13 +363,20 @@ The standalone upscalers retain their NIS hook and worker-based evaluation. The 
 
 Visual Studio 2022 (Desktop C++) and CMake 3.20+. Dear ImGui and MinHook are fetched at pinned versions on first configure.
 
-Releases are numbered **Build 1, Build 2, Build 3, Build 4, ...**. Set `EAM_BUILD_NUMBER` in [`version.h`](manager/sdk/include/eam/version.h) for the next release; the manager, installer and package name use that number. Rebuilding keeps the same number. `tools/package.ps1 -Build 4` builds and packages Build 4, and refuses a number that differs from the source.
+Releases are numbered **Build 1, Build 2, Build 3, Build 4, ...**. The release tag supplies the number; no version edit or extra source commit is required. For local installers, `tools/package.ps1 -Build 6` sets Build 6 in the manager, installer and filename without modifying source files. Packaging requires `-Build`; the source contains no default release number. Ordinary builds without a number display **Development**.
 
-Use `tools/package.ps1` for local installers too. It supports alternate build directories, serial builds, and a package suffix, and creates the EXE, ZIP and checksums after verifying installation and extraction. See the [installer build commands](tools/README.md#building-an-installer).
+Use `tools/package.ps1` for local installers too. It supports alternate build directories, serial builds, and a package suffix, and creates only the EXE and its SHA-256 checksum after verifying installation and extraction. See the [installer build commands](tools/README.md#building-an-installer).
 
-Pushing a tag such as `build-2` runs the [release workflow](.github/workflows/release.yml). First set `EAM_BUILD_NUMBER` to 2 and commit that change, then tag that commit. After the tests and installer checks pass, it creates a GitHub release named **Build 2** with `LSAddonManager-build-2-x64.zip` and its SHA-256 checksum. The ZIP includes the installer, all four addons, required upscaler runtimes, licences and corresponding NR source; the DLSS5 model DLL is not included. If the release already exists, the workflow uploads the assets there.
+Push an **annotated** tag such as `build-6` to run the [release workflow](.github/workflows/release.yml). Write the release changelog as Markdown in the tag message:
 
-The **build** workflow runs fast smoke tests on branch pushes and pull requests. The **release** workflow runs independently on tag pushes, repeats those tests, then compiles, packages and verifies the installer before publishing. It does not consume the build workflow's output. A transient failure can be retried from the Actions tab. A tag/version mismatch requires correcting the source and tagging the corrected commit; rerunning the unchanged tag cannot fix it.
+```powershell
+git tag -a build-6 --cleanup=verbatim -F release-notes.md
+git push origin build-6
+```
+
+The notes file can be outside the repository and does not need to be committed. After the tests and installer checks pass, the workflow creates **Build 6** with the tag message as its release notes and two assets: `LSAddonManager-build-6-x64.exe` and `LSAddonManager-build-6-x64.exe.sha256`. The installer includes all four addons, required upscaler runtimes, documentation, licences and corresponding NR source; the DLSS5 model DLL is not included. Lightweight tags and empty tag messages are rejected. Rerunning updates the assets and release notes and removes the old release ZIP and its checksum if present.
+
+The **build** workflow runs fast smoke tests on branch pushes, pull requests, or manually from the Actions tab without a new commit. The **release** workflow runs independently on tag pushes, repeats those tests, then compiles, packages and verifies the installer before publishing. It does not consume the build workflow's output. A transient failure can be retried from the Actions tab. Build numbers must be between 1 and 65535.
 
 ~~For the manager and Neural Rendering only, follow the local build guide and run `tools/build_local_nr.ps1`.~~ That build script is retired.
 
@@ -388,7 +395,7 @@ The broader build, test, packaging, and deployment tools are:
 powershell -File tools\build_all.ps1              # the manager and the addons (-Only host: the manager only)
 powershell -File tools\run_addon_tests.ps1        # the offline tests for what changed (-All: everything, as before a release)
 powershell -File tools\ci.ps1                     # fast payload and NR-loader smoke tests (-Full: broader suite)
-powershell -File tools\package.ps1                # the release zip, with Setup built around the files
+powershell -File tools\package.ps1 -Build 6       # the installer EXE and SHA-256 checksum, without a version edit
 powershell -File tools\deploy.ps1 -What all       # copy a build into a Lossless Scaling folder, with backups
 ```
 

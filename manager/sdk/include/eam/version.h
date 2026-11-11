@@ -9,12 +9,15 @@
 #define EAM_PRODUCT_FILE "LSAddonManager"   // used in file names (log, backups, diagnostics)
 #define EAM_PRODUCT_LOGFILE_W L"LSAddonManager.log"
 
-// Increment once per release: Build 1, Build 2, ... (not on every compilation).
+// Release builds receive their number from the build command or release tag.
 // Windows file resources store the corresponding numeric version as 1.0.<build>.0.
-#define EAM_BUILD_NUMBER 5
+#ifdef EAM_BUILD_NUMBER
 #define EAM_STRINGIFY_IMPL(value) #value
 #define EAM_STRINGIFY(value) EAM_STRINGIFY_IMPL(value)
 #define EAM_VERSION_STRING "Build " EAM_STRINGIFY(EAM_BUILD_NUMBER)
+#else
+#define EAM_VERSION_STRING "Development"
+#endif
 
 // The addon API: what an addon can rely on. This is what IHost::GetHostVersion() reports and what an addon's
 // "min_host_version" is compared with (0x00MMmmpp). Bump the minor number when calls are added to IHost (always

@@ -1,10 +1,10 @@
-// Generated into the build folder by CMake from the project version. The version resource is how the installer (and Windows Explorer) can tell this
+// Generated into the build folder by CMake from the build number. The version resource is how the installer (and Windows Explorer) can tell this
 // Lossless.dll from Lossless Scaling's own without loading it: ProductName "Addon Manager for Lossless Scaling" here (before 0.9.1 "Echo Addon Manager"), "Lossless Scaling" in the original.
 #include <winver.h>
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION @LSAddonManager_VERSION_MAJOR@,@LSAddonManager_VERSION_MINOR@,@LSAddonManager_VERSION_PATCH@,0
- PRODUCTVERSION @LSAddonManager_VERSION_MAJOR@,@LSAddonManager_VERSION_MINOR@,@LSAddonManager_VERSION_PATCH@,0
+ FILEVERSION @EAM_VERSION_CSV@
+ PRODUCTVERSION @EAM_VERSION_CSV@
  FILEFLAGSMASK 0x3fL
  FILEFLAGS 0x0L
  FILEOS VOS_NT_WINDOWS32

@@ -6,7 +6,6 @@
 #include "installer.h"
 #include "lsfolder.h"
 #include "state.h"
-#include "../../manager/sdk/include/eam/version.h"
 #include <windows.h>
 #include <cstdio>
 #include <filesystem>
@@ -91,7 +90,8 @@ int wmain(int argc, wchar_t** argv) {
         const VersionResource orig = ReadVersionResource((g_exeDir / L"fake_original.dll").wstring()), mine = ReadVersionResource(g_ours.wstring());
         Check("a stand-in for Lossless Scaling's DLL reads as Lossless Scaling 3.2.2.0", orig.ok && orig.product == "Lossless Scaling" && orig.fileVersion == "3.2.2.0" && orig.company == "THS");
         Check("the manager's real Lossless.dll carries its version resource", mine.ok && mine.product == "Addon Manager for Lossless Scaling", mine.product);
-        Check("...and its version is the release version, EAM_VERSION_STRING", mine.fileVersion == EAM_VERSION_STRING, mine.fileVersion + " vs " + EAM_VERSION_STRING);
+        Check("...and its version identifies development or a numbered build", mine.fileVersion == "Development" ||
+              (mine.fileVersion.compare(0, 6, "Build ") == 0 && CompareVersions(mine.fileVersion, "") > 0), mine.fileVersion);
         Write(g_root / L"plain.txt", "no resource here");
         Check("a file with no version resource reads as none", !ReadVersionResource((g_root / L"plain.txt").wstring()).ok && !ReadVersionResource(L"C:\\no\\such.dll").ok);
         Check("the kinds are told apart", InspectDll((g_exeDir / L"fake_original.dll").wstring()).kind == DllKind::Original && InspectDll(g_ours.wstring()).kind == DllKind::Ours &&
@@ -223,7 +223,7 @@ int wmain(int argc, wchar_t** argv) {
         Check("...and still leaves the person's settings and the original alone", UntouchedByInstall(ls) && Hash(ls / L"Lossless_original.dll") == originalHash);
     }
 
-    printf("== an older install (0.1.0, when it was called Echo Addon Manager) is updated\n");
+    printf("== handling an old release (0.1.0, when it was called Echo Addon Manager)\n");
     {
         const fs::path ls = MakeLs(L"old_install");
         const std::string originalHash = Hash(ls / L"Lossless.dll");
@@ -232,12 +232,19 @@ int wmain(int argc, wchar_t** argv) {
         Write(ls / L"addons" / L"DLSS5NR01" / L"nvngx.dll_lspnr.dll", "the old helper");
         Write(ls / L"LP-icon.ico", "old icon");
         State s = Inspect(ls.wstring());
-        Check("an older install reads as Installed at 0.1.0 and the installer offers an update", s.situation == Situation::Installed && s.installedVersion == "0.1.0" && Advise(s, ourVersion).action == Action::Update);
+        Check("an old install is recognised; only numbered releases offer an update", s.situation == Situation::Installed && s.installedVersion == "0.1.0" &&
+              Advise(s, ourVersion).action == (ourVersion == "Development" ? Action::None : Action::Update));
         const Result r = Install(ls.wstring(), pay.wstring());
-        Check("updating replaces our old Lossless.dll and keeps the original", r.ok && Same(ls / L"Lossless.dll", g_ours) && Hash(ls / L"Lossless_original.dll") == originalHash, r.message);
-        Check("...saves the old one, and moves the old helper DLL aside instead of leaving it", !r.backupDir.empty() && Hash(fs::path(r.backupDir) / L"Lossless.dll.ours") == Hash(g_exeDir / L"fake_ours_old.dll") &&
-              Gone(ls / L"addons" / L"DLSS5NR01" / L"nvngx.dll_lspnr.dll") && Read(fs::path(r.backupDir) / L"nvngx.dll_lspnr.dll") == "the old helper");
-        Check("...and moves the icon under its old name (LP-icon) aside too", Gone(ls / L"LP-icon.ico") && Read(fs::path(r.backupDir) / L"LP-icon.ico") == "old icon" && fs::exists(ls / L"manager-icon.ico"));
+        if (ourVersion == "Development") {
+            Check("an unnumbered development build cannot replace a numbered release", !r.ok && r.backupDir.empty() &&
+                  Same(ls / L"Lossless.dll", g_exeDir / L"fake_ours_old.dll") && Hash(ls / L"Lossless_original.dll") == originalHash &&
+                  Read(ls / L"addons" / L"DLSS5NR01" / L"nvngx.dll_lspnr.dll") == "the old helper" && Read(ls / L"LP-icon.ico") == "old icon", r.message);
+        } else {
+            Check("updating replaces our old Lossless.dll and keeps the original", r.ok && Same(ls / L"Lossless.dll", g_ours) && Hash(ls / L"Lossless_original.dll") == originalHash, r.message);
+            Check("...saves the old one, and moves the old helper DLL aside instead of leaving it", !r.backupDir.empty() && Hash(fs::path(r.backupDir) / L"Lossless.dll.ours") == Hash(g_exeDir / L"fake_ours_old.dll") &&
+                  Gone(ls / L"addons" / L"DLSS5NR01" / L"nvngx.dll_lspnr.dll") && Read(fs::path(r.backupDir) / L"nvngx.dll_lspnr.dll") == "the old helper");
+            Check("...and moves the icon under its old name (LP-icon) aside too", Gone(ls / L"LP-icon.ico") && Read(fs::path(r.backupDir) / L"LP-icon.ico") == "old icon" && fs::exists(ls / L"manager-icon.ico"));
+        }
     }
 
     printf("== retiring NR preserves models/settings and rolls back on locked files\n");
@@ -287,7 +294,8 @@ int wmain(int argc, wchar_t** argv) {
         }
         const State s = Inspect(ls.wstring());
         const Advice a = Advise(s, ourVersion);
-        Check("the folder reads as Installed and the installer offers an update, not a refusal", s.situation == Situation::Installed && s.installedVersion.empty() && a.action == Action::Update && Has(a.headline, "earlier"), a.headline);
+        Check("the folder reads as Installed and offers update or development reinstall", s.situation == Situation::Installed && s.installedVersion.empty() &&
+              a.action == (ourVersion == "Development" ? Action::Reinstall : Action::Update) && Has(a.headline, "earlier"), a.headline);
         Check("with nothing known about the payload it says an earlier version is installed rather than 'up to date'", Advise(s, "").action == Action::Reinstall && Has(Advise(s, "").headline, "earlier") && !Has(Advise(s, "").headline, "up to date"));
         const Result r = Install(ls.wstring(), pay.wstring());
         Check("updating works and keeps Lossless Scaling's own file", r.ok && Same(ls / L"Lossless.dll", g_ours) && Hash(ls / L"Lossless_original.dll") == originalHash, r.message);

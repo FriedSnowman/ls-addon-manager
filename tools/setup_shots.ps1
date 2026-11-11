@@ -5,8 +5,8 @@
 # The folder's path shows in the first picture, so pick a plain one; it must not exist yet (nothing real is ever used).
 param([string]$Folder = "$env:SystemDrive\Games\Lossless Scaling", [string]$Out = "$env:TEMP\setup_shots")
 $root = Split-Path $PSScriptRoot -Parent
-$setup = Get-ChildItem "$root\dist\LSAddonManager-*-x64\LSAddonManagerSetup.exe" | Sort-Object LastWriteTime | Select-Object -Last 1
-if (-not $setup) { Write-Host 'No Setup exe in dist: run tools\package.ps1 first.'; exit 1 }
+$setup = Get-ChildItem "$root\dist\LSAddonManager-*-x64.exe" | Sort-Object LastWriteTime | Select-Object -Last 1
+if (-not $setup) { Write-Host 'No Setup exe in dist: run tools\package.ps1 -Build <number> first.'; exit 1 }
 $fake = "$root\installer\build\Release\fake_original.dll"
 if (-not (Test-Path $fake)) { Write-Host "Not built: $fake (tools\run_addon_tests.ps1 -Only installer builds it)."; exit 1 }
 $top = Split-Path $Folder -Parent

@@ -1,6 +1,18 @@
 cmake_minimum_required(VERSION 3.14)
 project(LSAddonManagerSetup CXX RC)
 
+set(EAM_BUILD_NUMBER "" CACHE STRING "Release build number (empty for development)")
+if(EAM_BUILD_NUMBER STREQUAL "")
+    set(SETUP_VERSION "Development")
+    set(SETUP_VERSION_CSV "0,0,0,0")
+elseif(NOT EAM_BUILD_NUMBER MATCHES "^[1-9][0-9]*$" OR EAM_BUILD_NUMBER GREATER 65535)
+    message(FATAL_ERROR "EAM_BUILD_NUMBER must be between 1 and 65535")
+else()
+    set(SETUP_VERSION "Build ${EAM_BUILD_NUMBER}")
+    set(SETUP_VERSION_CSV "1,0,${EAM_BUILD_NUMBER},0")
+    add_compile_definitions(EAM_BUILD_NUMBER=${EAM_BUILD_NUMBER})
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_definitions(-DUNICODE -D_UNICODE -DNOMINMAX)
@@ -45,20 +57,11 @@ target_link_libraries(setup_payload_test PRIVATE setup_core)
 
 # ---------------------------------------------------------------------------------------------------------------------------------------
 # The Setup exe: a wizard (Windows' TaskDialog) over the core, with a silent mode. The files it installs are a resource of the exe:
-#   pack_payload <folder like the release zip> payload.bin, then configure with -DSETUP_PAYLOAD=<payload.bin> and build LSAddonManagerSetup.
+#   pack_payload <payload folder> payload.bin, then configure with -DSETUP_PAYLOAD=<payload.bin> and build LSAddonManagerSetup.
 # Without SETUP_PAYLOAD the exe carries nothing (it says so); --payload <folder> then supplies the files (tests, development).
 add_executable(pack_payload tools/pack_payload.cpp)
 target_link_libraries(pack_payload PRIVATE setup_core)
 
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/../manager/sdk/include/eam/version.h" _build_line REGEX "^#define EAM_BUILD_NUMBER [0-9]+$")
-# read again when the version changes, or a build folder keeps the old number in Setup's file version
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../manager/sdk/include/eam/version.h")
-string(REGEX REPLACE "^#define EAM_BUILD_NUMBER ([0-9]+)$" "\\1" EAM_BUILD_NUMBER "${_build_line}")
-if(NOT EAM_BUILD_NUMBER MATCHES "^[1-9][0-9]*$" OR EAM_BUILD_NUMBER GREATER 65535)
-    message(FATAL_ERROR "EAM_BUILD_NUMBER must be between 1 and 65535")
-endif()
-set(SETUP_VERSION "Build ${EAM_BUILD_NUMBER}")
-set(SETUP_VERSION_CSV "1,0,${EAM_BUILD_NUMBER},0")
 set(SETUP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/../manager/manager-icon.ico")
 set(SETUP_PAYLOAD "" CACHE FILEPATH "the file bundle to build into the Setup exe (made by pack_payload)")
 if(SETUP_PAYLOAD)

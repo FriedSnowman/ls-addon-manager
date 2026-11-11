@@ -25,8 +25,9 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+          fetch-depth: 0 # include annotated tag objects for release notes
 
-      - name: Check release tag
+      - name: Read build number and changelog from tag
         id: version
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -35,19 +36,26 @@ jobs:
             throw 'Release tags must be build-1, build-2, etc.'
           }
           $number = $Matches[1]
-          $source = Select-String -LiteralPath 'manager/sdk/include/eam/version.h' -Pattern '^#define EAM_BUILD_NUMBER ([1-9][0-9]*)$'
-          if (-not $source) {
-            throw 'EAM_BUILD_NUMBER is missing or invalid in manager/sdk/include/eam/version.h.'
-          }
-          if ([decimal]$number -gt 65535) {
+          if ($number.Length -gt 5 -or [int]$number -gt 65535) {
             throw "Release tag $env:RELEASE_TAG exceeds the maximum build number 65535."
           }
-          $sourceNumber = $source.Matches[0].Groups[1].Value
-          if ($number -ne $sourceNumber) {
-            throw "Release tag $env:RELEASE_TAG requests Build $number, but this commit declares Build $sourceNumber. Update EAM_BUILD_NUMBER in manager/sdk/include/eam/version.h before tagging the release. Rerunning this unchanged tag will fail again."
+          $tagType = git cat-file -t "refs/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0 -or $tagType -ne 'tag') {
+            throw 'Release tags must be annotated: git tag -a build-<number> -F <changelog-file>.'
           }
+          $notes = (git tag --list $env:RELEASE_TAG --format='%(contents)') -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw 'Reading the release tag message failed.' }
+          $signature = (git tag --list $env:RELEASE_TAG --format='%(contents:signature)') -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw 'Reading the release tag signature failed.' }
+          if ($signature -and $notes.EndsWith($signature, [StringComparison]::Ordinal)) {
+            $notes = $notes.Substring(0, $notes.Length - $signature.Length)
+          }
+          if ([string]::IsNullOrWhiteSpace($notes)) { throw 'The release tag must contain a changelog.' }
+          $notesPath = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          $notes.TrimEnd() | Set-Content -LiteralPath $notesPath -Encoding utf8
           "number=$number" >> $env:GITHUB_OUTPUT
-          "archive=dist/LSAddonManager-build-$number-x64.zip" >> $env:GITHUB_OUTPUT
+          "installer=dist/LSAddonManager-build-$number-x64.exe" >> $env:GITHUB_OUTPUT
+          "notes=$notesPath" >> $env:GITHUB_OUTPUT
 
       - name: Fast smoke tests
         timeout-minutes: 3
@@ -69,13 +77,9 @@ jobs:
       - name: Package and verify installer
         env:
           BUILD_NUMBER: ${{ steps.version.outputs.number }}
-          RELEASE_ARCHIVE: ${{ steps.version.outputs.archive }}
         run: |
           powershell -NoProfile -File tools/package.ps1 -Build $env:BUILD_NUMBER
           if ($LASTEXITCODE -ne 0) { throw 'Release packaging failed.' }
-          $hash = (Get-FileHash -LiteralPath $env:RELEASE_ARCHIVE -Algorithm SHA256).Hash.ToLowerInvariant()
-          $filename = Split-Path $env:RELEASE_ARCHIVE -Leaf
-          "$hash  $filename" | Set-Content -LiteralPath "$env:RELEASE_ARCHIVE.sha256" -Encoding ascii
 
       - name: Publish release assets
         env:
@@ -83,17 +87,24 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
           BUILD_NUMBER: ${{ steps.version.outputs.number }}
-          RELEASE_ARCHIVE: ${{ steps.version.outputs.archive }}
+          RELEASE_INSTALLER: ${{ steps.version.outputs.installer }}
+          RELEASE_NOTES: ${{ steps.version.outputs.notes }}
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          $release = gh release view $env:RELEASE_TAG --json isDraft 2>$null
+          $release = gh release view $env:RELEASE_TAG --json assets 2>$null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:RELEASE_TAG $env:RELEASE_ARCHIVE "$env:RELEASE_ARCHIVE.sha256" --clobber
+            gh release upload $env:RELEASE_TAG $env:RELEASE_INSTALLER "$env:RELEASE_INSTALLER.sha256" --clobber
             if ($LASTEXITCODE -ne 0) { throw 'Uploading the release assets failed.' }
-            if (($release | ConvertFrom-Json).isDraft) {
-              gh release edit $env:RELEASE_TAG --draft=false
+            # Reruns also migrate releases made by the old ZIP-based workflow.
+            $legacyZip = "LSAddonManager-build-$env:BUILD_NUMBER-x64.zip"
+            foreach ($asset in ($release | ConvertFrom-Json).assets) {
+              if ($asset.name -in @($legacyZip, "$legacyZip.sha256")) {
+                gh release delete-asset $env:RELEASE_TAG $asset.name --yes
+                if ($LASTEXITCODE -ne 0) { throw 'Removing a legacy ZIP asset failed.' }
+              }
             }
+            gh release edit $env:RELEASE_TAG --title "Build $env:BUILD_NUMBER" --notes-file $env:RELEASE_NOTES --draft=false
           } else {
-            gh release create $env:RELEASE_TAG $env:RELEASE_ARCHIVE "$env:RELEASE_ARCHIVE.sha256" --verify-tag --title "Build $env:BUILD_NUMBER" --generate-notes
+            gh release create $env:RELEASE_TAG $env:RELEASE_INSTALLER "$env:RELEASE_INSTALLER.sha256" --verify-tag --title "Build $env:BUILD_NUMBER" --notes-file $env:RELEASE_NOTES
           }
           if ($LASTEXITCODE -ne 0) { throw 'Publishing the release assets failed.' }

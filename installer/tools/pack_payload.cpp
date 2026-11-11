@@ -1,4 +1,4 @@
-// Packs a folder (laid out like the release zip) into the file bundle the installer carries: pack_payload <folder> <out.bin>
+// Packs the payload folder into the file bundle the installer carries: pack_payload <folder> <out.bin>
 #include "payload.h"
 #include "fileinfo.h"
 #include <cstdio>

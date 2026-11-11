@@ -48,7 +48,7 @@ function MakeLs($name, $dll = 'fake_original.dll') {
     $d
 }
 
-# The files to install, laid out like the release zip
+# The files to install, laid out like the embedded payload
 $payload = "$tmp\payload"
 New-Item -ItemType Directory "$payload\addons\DLSSNR02" -Force | Out-Null
 Copy-Item $ours "$payload\Lossless.dll"
