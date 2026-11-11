@@ -1,7 +1,7 @@
 // DLSS Super Resolution as Lossless Scaling's scaler (the DLSS Upscaler): the Lossless Scaling side.
 //
 // Lossless Scaling scales every frame it presents, real and generated, with one compute pass. With NIS chosen that pass is easy to know: the
-// frame at the game's size in (t0), NIS's two 2x64 RGBA32F coefficient tables (t1, t2), the picture at the screen's size out (u0), and one
+// verified shader identity, frame at the game's size in (t0), NIS's two 2x64 RGBA32F coefficient tables (t1, t2), the picture at the screen's size out (u0), and one
 // thread group per 32x24 pixels of it. The addon skips that pass and puts DLSS's picture in its output instead.
 //
 // DLSS itself runs on a D3D12 device of our own (SrEngine, engine/sr_engine.h): running NVIDIA's D3D11 DLSS on Lossless Scaling's device
@@ -22,7 +22,7 @@ class SrEngine;
 
 namespace nr {
 
-// The NIS pass, recognised from what is bound when it is dispatched; false for any other pass.
+// The NIS pass, recognised by shader identity and validated bindings; false for any other pass.
 // in/out and their sizes are the viewports NIS scales between: the whole textures, or, for a window of another shape than the screen (a 4:3
 // game on a 16:9 screen), the part of each NIS reads and writes (inX/inY, outX/outY their top-left corners), taken from NIS's constants.
 struct NisPass {
@@ -36,6 +36,7 @@ void ReleaseNisPass(NisPass& pass);
 // True when the last FindNisPass call was a NIS pass covering part of its output in a layout that could not be followed (NIS then stays,
 // and the panel says so); false after any other pass.
 bool NisLayoutRefused();
+void ResetNisPass();   // under the frame lock at device changes and addon restart/shutdown
 
 class ScalerLink {
 public:

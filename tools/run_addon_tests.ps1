@@ -56,9 +56,10 @@ $suites = [ordered]@{
                             @('Multipass histories and failure retirement', "$root\addons\NeuralRendering\build\Release\neural_multipasstest.exe", @()),
                             @('Picture controls and zero-work bypass', "$root\addons\NeuralRendering\build\Release\neural_picturetest.exe", @())) }
     scalers   = @{ When = '^addons/Upscalers/|^manager/sdk/';
-                   Build = @('scalers', 'nr_taptest', 'nr_rectest', 'nr_lsrec', 'DLSS4DLAA', 'FSR3UPSC');
+                   Build = @('scalers', 'nr_taptest', 'nr_nistest', 'nr_rectest', 'nr_lsrec', 'DLSS4DLAA', 'FSR3UPSC');
                    Runs = @(@('Recorder codec and file', "$nrBuild\Release\nr_rectest.exe", @()),
-                            @('Scaler frame observer', "$nrBuild\Release\nr_taptest.exe", @())) }
+                            @('Scaler frame observer', "$nrBuild\Release\nr_taptest.exe", @()),
+                            @('NIS shader and viewport isolation', "$nrBuild\Release\nr_nistest.exe", @())) }
 }
 # the XeSS Upscaler is built only when Intel's SDK is in external\xess (tools\fetch_xess_sdk.ps1)
 if (Test-Path "$root\addons\Upscalers\external\xess\inc\xess\xess_d3d12.h") { $suites.scalers.Build += 'XESSUPSC' }

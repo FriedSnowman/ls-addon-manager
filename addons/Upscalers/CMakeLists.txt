@@ -28,7 +28,7 @@ set(SCALER_SOURCES
     src/addon/addon.cpp src/addon/runtime.cpp src/addon/panel.cpp  src/addon/settings.cpp src/addon/log.cpp
     src/addon/screenshot.cpp src/addon/screenshot_pixels.cpp
      src/addon/frame_tap.cpp src/addon/gpu_timer11.cpp
-    src/addon/present_hook.cpp   src/addon/scaler11.cpp src/addon/framegen11.cpp src/addon/hdr.cpp src/addon/lsrec.cpp src/addon/recorder.cpp
+     src/addon/present_hook.cpp   src/addon/scaler11.cpp src/addon/nis_pass.cpp src/addon/framegen11.cpp src/addon/hdr.cpp src/addon/lsrec.cpp src/addon/recorder.cpp
 
      src/engine/sr_engine.cpp src/engine/flow_estimator.cpp src/engine/fg_engine.cpp
     ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp
@@ -107,6 +107,10 @@ add_dependencies(nr_sreval FSR3UPSC)   # (AMD's runtime, in the build's fsr fold
 add_executable(nr_taptest tools/tap_test.cpp src/addon/frame_tap.cpp)
 target_include_directories(nr_taptest PRIVATE src)
 target_link_libraries(nr_taptest PRIVATE d3d11)
+
+add_executable(nr_nistest tools/nis_test.cpp src/addon/nis_pass.cpp)
+target_include_directories(nr_nistest PRIVATE src ../../manager/sdk/include)
+target_link_libraries(nr_nistest PRIVATE d3d11 d3dcompiler)
 
 # ---- offline test of the settings and looks (the table, looks as text and back, the settings file through a stand-in host)
 add_executable(nr_rectest tools/record_test.cpp src/addon/lsrec.cpp)

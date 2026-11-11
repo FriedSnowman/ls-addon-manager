@@ -226,9 +226,9 @@ std::string PassText(const DispatchSig& sig) {
     return text;
 }
 
-void ForgetFramePath() { std::lock_guard<std::mutex> lock(g_frameMutex); g_tap.Reset(); ForgetPair(); screenshot::Forget(); }
+void ForgetFramePath() { std::lock_guard<std::mutex> lock(g_frameMutex); g_tap.Reset(); ResetNisPass(); ForgetPair(); screenshot::Forget(); }
 void OnDeviceEvent(uint32_t id, const void*, uint32_t, void*) {
-    { std::lock_guard<std::mutex> lock(g_frameMutex); g_tap.Reset(); ForgetPair(); screenshot::Forget(); }
+    { std::lock_guard<std::mutex> lock(g_frameMutex); g_tap.Reset(); ResetNisPass(); ForgetPair(); screenshot::Forget(); }
     if (id == EAM_EVENT_D3D11_DEVICE_CHANGED) return;
     auto* const dev = static_cast<ID3D11Device*>(g_host->GetD3D11Device());
     { std::lock_guard<std::mutex> lock(g_textMutex); g_cardDrivesDisplay = false; g_cardName = "?"; }
