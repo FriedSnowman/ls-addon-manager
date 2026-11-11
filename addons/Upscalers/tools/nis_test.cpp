@@ -63,6 +63,10 @@ int main() {
         check("unrelated shader with NIS bindings cannot replace a whole frame",!nr::FindNisPass(context.Get(),20,20,1,pass,log));nr::ReleaseNisPass(pass);
         tag(&nis);
         check("verified whole-frame NIS is accepted",nr::FindNisPass(context.Get(),20,20,1,pass,log)&&pass.inW==320&&pass.outW==640);nr::ReleaseNisPass(pass);
+        const char hdrIdentity[]="706e76dcb5b725b0dc3c0368fac0135e2fffab60357277ddfe05c37c0ade657a";
+        for(size_t i=0;i<nis.size();++i){unsigned v=0;sscanf_s(hdrIdentity+i*2,"%2x",&v);nis[i]=static_cast<uint8_t>(v);}
+        tag(&nis);
+        check("HDR NIS has its own accepted shader identity",nr::FindNisPass(context.Get(),20,20,1,pass,log)&&pass.outFmt==DXGI_FORMAT_R16G16B16A16_FLOAT);nr::ReleaseNisPass(pass);
         check("partial viewport begins async readback",!nr::FindNisPass(context.Get(),12,12,1,pass,log));
         const auto beforeWarnings=warnings;
         bind(input,luma,shortCb.Get());tag(&other);

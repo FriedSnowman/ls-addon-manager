@@ -6,11 +6,15 @@
 
 namespace nr {
 namespace {
-// Verified LS 3.2.2 NIS bytecode identity. The manager attaches this metadata
+// Verified LS 3.2.2 SDR/HDR NIS bytecode identities (resources 245/246).
+// The manager attaches this metadata
 // when the shader is created; no shader bytes or capture processing live here.
 constexpr eam::ShaderSha256 kNis = {
     0xfc,0x8f,0x03,0x00,0xfe,0xc6,0xf8,0x02,0x50,0xb8,0xec,0x60,0x52,0x65,0xba,0x91,
     0xc8,0x0f,0x1d,0x89,0x7f,0xe7,0x99,0x00,0x4f,0x2c,0xb9,0x5e,0x14,0xca,0x3d,0x02};
+constexpr eam::ShaderSha256 kNisHdr = {
+    0x70,0x6e,0x76,0xdc,0xb5,0xb7,0x25,0xb0,0xdc,0x3c,0x03,0x68,0xfa,0xc0,0x13,0x5e,
+    0x2f,0xff,0xab,0x60,0x35,0x72,0x77,0xdd,0xfe,0x05,0xc3,0x7c,0x0a,0xde,0x65,0x7a};
 template <class T> void SafeRelease(T*& p) { if (p) { p->Release(); p = nullptr; } }
 bool Texture2D(ID3D11Resource* r, D3D11_TEXTURE2D_DESC& desc) {
     if (!r) return false;
@@ -104,7 +108,7 @@ bool FindNisPass(ID3D11DeviceContext* ctx, uint32_t x, uint32_t y, uint32_t z, N
     Microsoft::WRL::ComPtr<ID3D11ComputeShader> shader;
     ctx->CSGetShader(&shader, nullptr, nullptr);
     eam::ShaderSha256 identity{};
-    if (!eam::ReadShaderSha256(shader.Get(), identity) || identity != kNis) return false;
+    if (!eam::ReadShaderSha256(shader.Get(), identity) || (identity != kNis && identity != kNisHdr)) return false;
     ID3D11ShaderResourceView* srvs[3] = {}; ID3D11UnorderedAccessView* uav = nullptr;
     ctx->CSGetShaderResources(0, 3, srvs); ctx->CSGetUnorderedAccessViews(0, 1, &uav);
     ID3D11Resource* res[3] = {}; ID3D11Resource* out = nullptr;
