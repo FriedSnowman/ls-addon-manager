@@ -100,14 +100,15 @@ bool EnsureTextures(const D3D11_TEXTURE2D_DESC& back, const LogFn& log) {
 }
 
 // FgEngine and the textures and fence it shares with Lossless Scaling's device, for frames like the back buffer. False: the blend stands in.
-bool EnsureEngine(const D3D11_TEXTURE2D_DESC& back, const LogFn& log) {
+// encoding: what the frames hold (hdr.h: 0 SDR, 1 scRGB, 2 HDR10), so FSR is told an HDR10 back buffer is PQ rather than sRGB
+bool EnsureEngine(const D3D11_TEXTURE2D_DESC& back, uint32_t encoding, const LogFn& log) {
     if (g.engineFailed) return false;
     IDXGIDevice* dxgi = nullptr; IDXGIAdapter* adapter = nullptr; DXGI_ADAPTER_DESC ad{};
     if (FAILED(g.dev->QueryInterface(IID_PPV_ARGS(&dxgi)))) return false;
     dxgi->GetAdapter(&adapter); dxgi->Release();
     if (!adapter) return false;
     adapter->GetDesc(&ad); adapter->Release();
-    const bool hdr = back.Format == DXGI_FORMAT_R16G16B16A16_FLOAT;
+    const bool hdr = encoding != 0;   // (by format alone HDR10 frames went to FSR as sRGB, and the "Frame encoding" setting was ignored)
     if (g.engine.Matches(ad.AdapterLuid, back.Width, back.Height, back.Format, hdr) && g.in12 && g.out12 && g.copied12 && g.made12) return true;
     ReleaseShared();
     auto fail = [&](const char* why) { if (log) { std::string m = std::string("frame generation: ") + why + "; the blend stands in"; log(m.c_str()); } ReleaseShared(); g.engineFailed = true; return false; };
@@ -192,7 +193,7 @@ bool BeforeRealPresent(IDXGISwapChain* sc, UINT sync, UINT flags, uint32_t encod
 
     // the frame between: FSR's (the frame copied over to FgEngine, the frame made copied back), or the blend
     bool byFsr = false;
-    if (EnsureEngine(bd, log)) {
+    if (EnsureEngine(bd, encoding, log)) {
         g.ctx->CopyResource(g.in11, back);
         g.ctx4->Signal(g.copied11, ++g.copiedValue);
         g.ctx->Flush();   // the copy and the signal on the GPU's way before the engine waits for them

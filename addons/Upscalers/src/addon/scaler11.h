@@ -81,8 +81,11 @@ public:
     // What the frames hold (FrameEncoding: 0 SDR, 1 scRGB, 2 HDR10) and the SDR white in nits. An HDR frame is upscaled in its SDR view
     // (engine/hdr_hlsl.h: ToSdr in the grab pass, FromSdr as the picture goes into NIS's output), as Neural Rendering works on it, so the
     // upscaler, the sharpening and the picture controls all see the 0..1 pictures they are made for, and highlights keep their brightness.
-    void SetEncoding(uint32_t encoding, float white) { m_encoding = encoding; m_white = white; }
+    // encoding is the frame's (NIS's input), outEncoding NIS's output's: they differ when, say, a half-float capture goes out to a 10-bit
+    // or 8-bit swap chain, and the place pass then writes the picture in the output's encoding.
+    void SetEncoding(uint32_t encoding, uint32_t outEncoding, float white) { m_encoding = encoding; m_outEncoding = outEncoding; m_white = white; }
     uint32_t Encoding() const { return m_encoding; }
+    uint32_t OutEncoding() const { return m_outEncoding; }
     float White() const { return m_white; }
     // The frame the last Upscale handed to the engine, as the grab pass wrote it (for the recorder: NIS's own input may be a texture a plain
     // copy reads as black, see the grab pass), or null when none was handed over. Taken once.
@@ -128,8 +131,9 @@ private:
     static const int kIn = 2, kOut = 3;   // frames with the engine at most; pictures in turn (the one shown is never one being written)
     ID3D11UnorderedAccessView* m_inUav[kIn] = {};
     Shared m_in[kIn], m_out[kOut], m_flow[kIn];   // frame n reads m_in[n % kIn] (and m_flow[n % kIn]) and writes m_out[n % kOut]
-    // HDR frames: the place pass writes the picture back into the frame's encoding (FromSdr) instead of a copy
-    uint32_t m_encoding = 0; float m_white = 200.0f;
+    // HDR frames or an HDR output: the place pass writes the picture in the output's encoding instead of a copy
+    uint32_t m_encoding = 0, m_outEncoding = 0; float m_white = 200.0f;
+    bool NeedsPlace() const { return m_encoding != 0 || m_outEncoding != 0; }
     ID3D11ComputeShader* m_place = nullptr;
     ID3D11Buffer* m_placeConstants = nullptr;
     ID3D11ShaderResourceView* m_outSrv[kOut] = {}; ID3D11Texture2D* m_outSrvFor[kOut] = {};   // views of m_out, for the place pass
