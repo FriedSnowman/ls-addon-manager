@@ -372,6 +372,11 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
     // Comparison keeps the manager's exact original copy, including negative scRGB
     // components that upstream composition deliberately clamps at its output.
     if (settings.apply) {
+        // Put those components back (scaled by the model's change in light) before the picture
+        // pass or the copy reads the composed image, so wide-gamut colour is not clipped per channel.
+        if (encoding_ == Encoding::ScRgb)
+            gamut_.Apply(ctx, original.Get(), slot.output.uav.Get(), metrics_.width, metrics_.height,
+                         settings.maxRatio);
         // Off/neutral uses the original copy shader, with no picture resources or extra GPU work.
         if (!picture_.Apply(ctx, slot.output.srv.Get(), target.Get(), metrics_.width, metrics_.height,
                             encoding_, settings.whiteNits, picture))

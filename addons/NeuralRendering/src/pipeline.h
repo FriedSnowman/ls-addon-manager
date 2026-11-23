@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include "composition.h"
+#include "gamut_restore.h"
 #include "model.h"
 #include "optical_flow.h"
 #include "picture.h"
@@ -73,6 +74,7 @@ class Pipeline {
     Kernel scene_, guides_;
     Composition composition_;
     Picture picture_;
+    GamutRestore gamut_;
     OpticalFlow flow_;
     Model model_;
     std::vector<std::unique_ptr<Model>> extraModels_;

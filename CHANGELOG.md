@@ -4,6 +4,7 @@
 
 - **Standalone upscalers identify the actual SDR/HDR NIS shader.** DLSS, FSR and XeSS no longer mistake leftover NIS textures on LSFG passes for scaling work or discard a pending viewport readback. Requires manager API 1.3 or newer; the verified shader identities are for LS 3.2.2.0.
 - **Upscaler diagnostics stay visible without a completed frame.** Startup, missing NIS passes, runtime errors and stopped capture are reported independently of the Settings panel and rendering. LS dispatch counts work with Neural Rendering disabled.
+- **Neural Rendering keeps wide-gamut HDR colour.** In scRGB, colours outside BT.709 (negative channels) were clipped one channel at a time by the composition, shifting their hue even where the model changed nothing. The clipped part of each captured pixel is now added back after composition, scaled by the model's change in light and bounded by the maximum luminance ratio; untouched pixels return exactly as captured. Changing the HDR proxy or the scRGB reference white now restarts the model's history instead of rebuilding the whole pipeline. `neural_gamuttest` covers the restore.
 - **Neural Rendering controls:** typed slider values respect their limits. Automatic skin detection enables the separate Skin structure slider; legacy negative skin values migrate once to the saved Local structure value.
 
 ## Build 5 (2026-11-08)

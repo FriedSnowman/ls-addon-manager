@@ -37,6 +37,11 @@ class Service {
     PipelineSettings settings_;
     Request desired_;
     std::unique_ptr<Pipeline> active_;
+    // The HDR proxy the active pipeline's model history was built on. Both are live
+    // per-frame constants; a change only restarts the model's temporal history.
+    const Pipeline *proxyFor_ = nullptr;
+    uint32_t proxyMode_ = 0;
+    float proxyWhite_ = 0;
     ServiceSnapshot snapshot_;
     Progress progress_;
     void Worker();

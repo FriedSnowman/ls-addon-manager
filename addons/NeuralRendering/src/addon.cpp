@@ -433,9 +433,10 @@ EAM_EXPORT void AddonRenderSettings() {
         if (ImGui::Combo("HDR proxy", &proxy,
                          "Knee (default)\0Neutwo composed\0Neutwo replace\0Hybrid composed\0Hybrid replace\0")) {
             settings.composition.reversible = proxy;
-            rebuild = true;
+            changed = true;
         }
-        rebuild |= ImGui::SliderFloat("scRGB reference white", &settings.composition.whiteNits, 80, 1000, "%.0f nits",
+        // Both are read per frame: no pipeline rebuild, the model's history restarts instead.
+        changed |= ImGui::SliderFloat("scRGB reference white", &settings.composition.whiteNits, 80, 1000, "%.0f nits",
                                       ImGuiSliderFlags_AlwaysClamp);
         int reconstruction = int(settings.composition.reconstruction);
         if (ImGui::Combo("Reconstruction", &reconstruction, "Classic\0Matched residual (default)\0")) {
