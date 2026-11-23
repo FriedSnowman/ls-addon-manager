@@ -280,8 +280,8 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
     settings.composition.hud = Number("hud", 0, 0, 1) != 0;
     settings.composition.hudStrength = Number("hudStrength", 1, 0, 1);
     settings.composition.darkGuard = Number("darkGuard", 1, 0, 1);
-    settings.composition.darkKeep = Number("darkKeep", 0, 0, 1);
-    settings.composition.darkKeepThreshold = Number("darkKeepThreshold", .2, .05, .5);
+    settings.composition.darkKeep = Number("darkKeep", .9, 0, 1);
+    settings.composition.darkKeepThreshold = Number("darkKeepThreshold", .16, .05, .5);
     settings.picture.enabled = Number("pictureEnabled", 0, 0, 1) != 0;
     for (const auto &c : neural::PictureControls)
         settings.picture.*(c.value) = Number(c.key, c.neutral, c.low, c.high);
