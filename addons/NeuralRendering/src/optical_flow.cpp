@@ -2,6 +2,7 @@
 // D3D12 fence protocol informed by video2dlssnr (MIT); see licenses and manifest.
 #include "optical_flow.h"
 #include "flow_convert.h"
+#include "flow_filter.h"
 #include "flow_pack.h"
 #include <algorithm>
 
@@ -119,11 +120,13 @@ void OpticalFlow::Initialize(Gpu &gpu, uint32_t w, uint32_t h, uint32_t grid, NV
     }
     flow_ = gpu.Texture((w + grid - 1) / grid, (h + grid - 1) / grid, DXGI_FORMAT_R16G16_SINT);
     cost_ = gpu.Texture(flow_.width, flow_.height, costFormat);
+    filtered_ = gpu.Texture(flow_.width, flow_.height, DXGI_FORMAT_R32G32_FLOAT);
     Register(gpu, flow_, flowHandle_);
     Register(gpu, cost_, costHandle_);
     Check(gpu.queue->Wait(readyFence_.Get(), progress_), "Wait for NVOFA registration");
     lastQueueValue_ = gpu.Signal();
     packKernel_.Initialize(gpu.device.Get(), g_flow_pack, sizeof(g_flow_pack));
+    filterKernel_.Initialize(gpu.device.Get(), g_flow_filter, sizeof(g_flow_filter));
     convertKernel_.Initialize(gpu.device.Get(), g_flow_convert, sizeof(g_flow_convert));
 }
 void OpticalFlow::Prepare(Gpu &gpu, Recording &rec, Resource &original, uint32_t slot) {
@@ -179,11 +182,19 @@ void OpticalFlow::Execute(Gpu &gpu, uint32_t current, uint32_t previous, bool re
 }
 void OpticalFlow::Convert(Gpu &gpu, Recording &rec, Resource &motion, bool reset) {
     flow_.Transition(rec.list.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    cost_.Transition(rec.list.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    filtered_.Transition(rec.list.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    // The neighbourhood reaches about 64 input pixels whatever the grid: taps 4 cells apart at grid 4, 16 at grid 1.
+    const uint32_t f[] = {flow_.width, flow_.height, std::max(1u, 16u / grid_), uint32_t(confidenceFilter_)};
+    filterKernel_.Dispatch(gpu.device.Get(), rec, f, sizeof(f), {&flow_, &cost_}, {&filtered_},
+                           (flow_.width + 7) / 8, (flow_.height + 7) / 8);
+    filtered_.Transition(rec.list.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     motion.Transition(rec.list.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     const uint32_t c[] = {motion.width, motion.height, width_, height_, grid_, uint32_t(reset), 0, 0};
-    convertKernel_.Dispatch(gpu.device.Get(), rec, c, sizeof(c), {&flow_}, {&motion}, (motion.width + 7) / 8,
+    convertKernel_.Dispatch(gpu.device.Get(), rec, c, sizeof(c), {&filtered_}, {&motion}, (motion.width + 7) / 8,
                             (motion.height + 7) / 8);
     flow_.Transition(rec.list.Get(), D3D12_RESOURCE_STATE_COMMON);
+    cost_.Transition(rec.list.Get(), D3D12_RESOURCE_STATE_COMMON);
 }
 bool OpticalFlow::Shutdown(DWORD timeout) {
     if (!session_)
@@ -228,10 +239,13 @@ OpticalFlow::~OpticalFlow() {
         r.object.Detach();
     flow_.object.Detach();
     cost_.object.Detach();
+    filtered_.object.Detach();
     readyFence_.Detach();
     lastQueueFence_.Detach();
     packKernel_.signature.Detach();
     packKernel_.pipeline.Detach();
+    filterKernel_.signature.Detach();
+    filterKernel_.pipeline.Detach();
     convertKernel_.signature.Detach();
     convertKernel_.pipeline.Detach();
 }

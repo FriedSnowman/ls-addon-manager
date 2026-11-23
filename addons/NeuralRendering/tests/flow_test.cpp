@@ -9,7 +9,12 @@
 
 using namespace neural;
 namespace {
-std::vector<uint8_t> Pattern(uint32_t w, uint32_t h, int dx, int dy, uint32_t seed) {
+// level: the brightest value as a share of white (a night scene keeps its whole texture in the bottom few levels);
+// cell: the texture's feature size in pixels; grain: +-levels of noise that differs every frame (film grain, dithering)
+struct Look {
+    float level = 1.f, cell = 5.f, floor = 0.f, grain = 0.f;
+};
+std::vector<uint8_t> Pattern(uint32_t w, uint32_t h, int dx, int dy, uint32_t seed, const Look &look = {}, uint32_t frame = 0) {
     std::vector<uint8_t> result(size_t(w) * h * 4);
     auto hash = [](uint32_t x) {
         x ^= x >> 16;
@@ -22,15 +27,21 @@ std::vector<uint8_t> Pattern(uint32_t w, uint32_t h, int dx, int dy, uint32_t se
     auto noise = [&](int x, int y, int c) {
         return float(hash(uint32_t(x) * 73856093u ^ uint32_t(y) * 19349663u ^ uint32_t(c) * 83492791u ^ seed) & 255);
     };
+    auto grain = [&](uint32_t x, uint32_t y, int c) {
+        if (look.grain <= 0.f)
+            return 0.f;
+        const uint32_t r = hash(x * 2654435761u ^ y * 40503u ^ uint32_t(c) * 9973u ^ (frame + 1) * 0x9e3779b9u);
+        return (float(r & 65535) / 65535.f * 2.f - 1.f) * look.grain;
+    };
     for (uint32_t y = 0; y < h; ++y)
         for (uint32_t x = 0; x < w; ++x) {
-            const float px = (int(x) - dx) / 5.f, py = (int(y) - dy) / 5.f;
+            const float px = (int(x) - dx) / look.cell, py = (int(y) - dy) / look.cell;
             int ix = int(floor(px)), iy = int(floor(py));
             const float fx = px - ix, fy = py - iy;
             for (int c = 0; c < 3; ++c) {
                 float a = noise(ix, iy, c) * (1 - fx) + noise(ix + 1, iy, c) * fx,
                       b = noise(ix, iy + 1, c) * (1 - fx) + noise(ix + 1, iy + 1, c) * fx;
-                result[(size_t(y) * w + x) * 4 + c] = uint8_t(std::clamp(a * (1 - fy) + b * fy, 0.f, 255.f));
+                result[(size_t(y) * w + x) * 4 + c] = uint8_t(std::clamp(look.floor + (a * (1 - fy) + b * fy) * look.level + grain(x, y, c) + .5f, 0.f, 255.f));
             }
             result[(size_t(y) * w + x) * 4 + 3] = 255;
         }
@@ -46,9 +57,16 @@ float P95(std::vector<float> v) {
     std::nth_element(v.begin(), i, v.end());
     return *i;
 }
-bool Run(Gpu &gpu, uint32_t w, uint32_t h, uint32_t tw, uint32_t th, uint32_t grid) {
-    printf("Initialize flow %ux%u grid %u\n", w, h, grid);
+struct Errors {
+    float median = 0, p95 = 0;
+};
+// look/filter: the night-scene check (see main); worst collects the largest moving-step errors
+bool Run(Gpu &gpu, uint32_t w, uint32_t h, uint32_t tw, uint32_t th, uint32_t grid, const Look &look = {},
+         bool filter = true, Errors *worst = nullptr) {
+    printf("Initialize flow %ux%u grid %u level %.3f cell %.0f grain %.1f confidence filter %s\n", w, h, grid, look.level,
+           look.cell, look.grain, filter ? "on" : "off");
     OpticalFlow flow;
+    flow.SetConfidenceFilter(filter);
     flow.Initialize(gpu, w, h, grid);
     Recording prepare, finish, transfer;
     prepare.Initialize(gpu.device.Get());
@@ -66,7 +84,7 @@ bool Run(Gpu &gpu, uint32_t w, uint32_t h, uint32_t tw, uint32_t th, uint32_t gr
     bool passed = true;
     for (uint32_t f = 0; f < std::size(steps); ++f) {
         const auto s = steps[f];
-        const auto pixels = Pattern(w, h, s.x, s.y, s.seed);
+        const auto pixels = Pattern(w, h, s.x, s.y, s.seed, look, f);
         test::Upload(gpu, transfer, original, pixels.data(), w * 4);
         const auto start = std::chrono::steady_clock::now();
         prepare.Begin(gpu.fence.Get());
@@ -95,9 +113,14 @@ bool Run(Gpu &gpu, uint32_t w, uint32_t h, uint32_t tw, uint32_t th, uint32_t gr
         // Ground-truth displacement, not implementation-mirroring expected bytes.
         const bool ok = std::isfinite(err) && std::isfinite(p95) && err < (s.reset ? 0.0001f : 0.75f) &&
                         p95 < (s.reset ? 0.0001f : 1.5f);
-        passed &= ok;
+        if (worst && !s.reset) {
+            worst->median = std::max(worst->median, err);
+            worst->p95 = std::max(worst->p95, p95);
+        }
+        if (!worst)
+            passed &= ok;
         printf("%s %ux%u grid%u -> %ux%u step%u%s: expected %.3f %.3f median %.3f %.3f EPE %.4f p95 %.4f %.3fms\n",
-               ok ? "PASS" : "FAIL", w, h, grid, tw, th, f, s.reset ? " reset" : "", ex, ey, mx, my, err, p95, ms);
+               worst ? "INFO" : ok ? "PASS" : "FAIL", w, h, grid, tw, th, f, s.reset ? " reset" : "", ex, ey, mx, my, err, p95, ms);
         if (f == 1) {
             const unsigned bpp = flow.Cost().format == DXGI_FORMAT_R32_UINT ? 4 : 1;
             const auto cost = test::Read(gpu, transfer, flow.Cost(), bpp);
@@ -107,7 +130,7 @@ bool Run(Gpu &gpu, uint32_t w, uint32_t h, uint32_t tw, uint32_t th, uint32_t gr
                 memcpy(&value, cost.data() + i * bpp, bpp);
                 sum += value;
             }
-            printf("Confidence cost mean %.3f (diagnostic only; no vector attenuation)\n",
+            printf("Confidence cost mean %.3f (above 24: blended toward confident neighbours)\n",
                    double(sum) / (cost.size() / bpp));
         }
     }
@@ -147,6 +170,26 @@ int main() {
         ok = Run(gpu, 641, 359, 321, 179, 2) && ok;
         ok = Run(gpu, 1024, 576, 768, 256, 1) && ok;
         ok = Run(gpu, 1920, 1080, 1280, 720, 4) && ok;
+        // Night scenes: the texture within the bottom few levels, sharp and noise-free, then smooth with
+        // grain. NVOFA tracks the sharp ones; on the smooth, grainy ones its raw vectors jitter by a pixel
+        // or more (a still frame included), which NR smeared its history along. flow_filter.hlsl cleans
+        // them where NVOFA's cost says it is unsure; the sharp ones must come through as they were.
+        const struct {
+            const char *name;
+            Look look;
+        } nights[] = {{"sharp 16 levels", {16.f / 255.f}},
+                      {"sharp 8 levels", {8.f / 255.f}},
+                      {"smooth 10 levels, grain 1", {10.f / 255.f, 24.f, 3.f, 1.f}},
+                      {"smooth 6 levels, grain 1.5", {6.f / 255.f, 24.f, 2.f, 1.5f}}};
+        for (const auto &night : nights) {
+            Errors raw, cleaned;
+            Run(gpu, 640, 360, 640, 360, 4, night.look, false, &raw);
+            Run(gpu, 640, 360, 640, 360, 4, night.look, true, &cleaned);
+            const bool better = cleaned.p95 <= std::max(raw.p95 * .6f, .05f) && cleaned.median <= std::max(raw.median * .6f, .02f);
+            printf("%s night %s: worst EPE %.3f -> %.3f, p95 %.3f -> %.3f with the confidence filter\n", better ? "PASS" : "FAIL",
+                   night.name, raw.median, cleaned.median, raw.p95, cleaned.p95);
+            ok &= better;
+        }
         bool rejected = false;
         try {
             OpticalFlow invalid;

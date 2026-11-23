@@ -16,6 +16,9 @@ class OpticalFlow {
     void Execute(Gpu &, uint32_t current, uint32_t previous, bool reset, uint64_t originalsReady);
     void Convert(Gpu &, Recording &, Resource &motion, bool reset);
     void Invalidate() { hintsReady_ = false; }
+    // Low-confidence vectors (high NVOFA cost) replaced by their neighbourhood's confidence-weighted
+    // average before NR sees them (flow_filter.hlsl). On by default; off only to compare in tests.
+    void SetConfidenceFilter(bool on) { confidenceFilter_ = on; }
     bool Shutdown(DWORD timeoutMs = 3000);
     Resource &Grid() { return flow_; }
     Resource &Cost() { return cost_; }
@@ -30,13 +33,14 @@ class OpticalFlow {
     std::array<NvOFGPUBufferHandle, kSlots> inputHandles_{};
     NvOFGPUBufferHandle flowHandle_ = nullptr, costHandle_ = nullptr;
     std::array<Resource, kSlots> inputs_, packed_;
-    Resource flow_, cost_;
-    Kernel packKernel_, convertKernel_;
+    Resource flow_, cost_, filtered_;
+    Kernel packKernel_, filterKernel_, convertKernel_;
     ComPtr<ID3D12Fence> readyFence_, lastQueueFence_;
     uint64_t progress_ = 0, lastQueueValue_ = 0;
     uint32_t width_ = 0, height_ = 0, grid_ = 0, rowPitch_ = 0;
     Gpu *gpu_ = nullptr; // containing queue outlives this session
     bool hintsReady_ = false;
+    bool confidenceFilter_ = true;
     std::vector<uint32_t> grids_;
     std::vector<uint32_t> Caps(NV_OF_CAPS);
     std::vector<DXGI_FORMAT> Formats(NV_OF_BUFFER_USAGE);
