@@ -118,6 +118,8 @@ void Save() {
     Put("proxy", settings.composition.reversible);
     Put("reconstruction", settings.composition.reconstruction);
     Put("apply", settings.composition.apply);
+    Put("hud", settings.composition.hud);
+    Put("hudStrength", settings.composition.hudStrength);
     Put("pictureEnabled", settings.picture.enabled);
     for (const auto &c : neural::PictureControls)
         Put(c.key, settings.picture.*(c.value));
@@ -272,6 +274,8 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
     settings.composition.reversible = unsigned(Number("proxy", 0, 0, 4));
     settings.composition.reconstruction = unsigned(Number("reconstruction", 1, 0, 1));
     settings.composition.apply = Number("apply", 1, 0, 1) != 0;
+    settings.composition.hud = Number("hud", 0, 0, 1) != 0;
+    settings.composition.hudStrength = Number("hudStrength", 1, 0, 1);
     settings.picture.enabled = Number("pictureEnabled", 0, 0, 1) != 0;
     for (const auto &c : neural::PictureControls)
         settings.picture.*(c.value) = Number(c.key, c.neutral, c.low, c.high);
@@ -424,6 +428,19 @@ EAM_EXPORT void AddonRenderSettings() {
         }
         if (!settings.composition.apply)
             ImGui::TextWrapped("Showing the original: picture adjustments are also bypassed.");
+    }
+    if (ImGui::CollapsingHeader("HUD protection (experimental)")) {
+        changed |= ImGui::Checkbox("Keep the HUD original", &settings.composition.hud);
+        ImGui::TextWrapped("The capture has the game's interface drawn in, so the model enhances it like the rest of "
+                           "the picture. This guesses where the HUD is (pixels that stay still while the scene "
+                           "around them moves) and puts the captured pixels back there. It learns over about a "
+                           "second of camera movement; a still scene teaches it nothing, and still scenery next to "
+                           "moving things can be mistaken for HUD.");
+        ImGui::BeginDisabled(!settings.composition.hud);
+        changed |= ImGui::SliderFloat("HUD strength", &settings.composition.hudStrength, 0, 1, "%.2f",
+                                      ImGuiSliderFlags_AlwaysClamp);
+        changed |= ImGui::Checkbox("Show detected HUD (not saved)", &settings.composition.hudShowMask);
+        ImGui::EndDisabled();
     }
     if (ImGui::CollapsingHeader("Composition (advanced)")) {
         changed |= Slider("Detail", &settings.composition.detail, 0, 4);

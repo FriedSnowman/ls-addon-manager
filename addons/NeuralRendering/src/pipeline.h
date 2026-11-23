@@ -2,6 +2,7 @@
 #pragma once
 #include "composition.h"
 #include "gamut_restore.h"
+#include "hud_mask.h"
 #include "model.h"
 #include "optical_flow.h"
 #include "picture.h"
@@ -75,6 +76,7 @@ class Pipeline {
     Composition composition_;
     Picture picture_;
     GamutRestore gamut_;
+    HudMask hud_;
     OpticalFlow flow_;
     Model model_;
     std::vector<std::unique_ptr<Model>> extraModels_;

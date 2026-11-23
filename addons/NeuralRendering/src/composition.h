@@ -12,6 +12,10 @@ struct CompositionSettings {
     uint32_t reversible = 0;     // upstream: knee, Neutwo composed/replace, hybrid composed/replace
     uint32_t reconstruction = 1; // upstream matched residual, same frame only
     bool apply = true;
+    // Experimental: estimate the HUD from the captures and keep the captured pixels there.
+    bool hud = false;
+    float hudStrength = 1.f;
+    bool hudShowMask = false;
 };
 // The exact pinned OptiScaler cbuffer layout, including fields deliberately disabled
 // for captured images: no game exposure or UI layer is invented.

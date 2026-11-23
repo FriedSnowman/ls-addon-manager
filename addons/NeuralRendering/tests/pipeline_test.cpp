@@ -35,7 +35,7 @@ int wmain(int argc, wchar_t **argv) {
     InstallExceptionDiagnostics();
     setvbuf(stdout, nullptr, _IONBF, 0);
     auto usage = [] {
-        puts("usage: neural_pipelinetest <model DLL> [--debug] [--picture | --picture-strong] "
+        puts("usage: neural_pipelinetest <model DLL> [--debug] [--picture | --picture-strong] [--hud] "
              "[--preset 0|1|2|3] [--passes 1..10] "
              "[--capture-output file | --verify-output file]");
         return 2;
@@ -45,6 +45,7 @@ int wmain(int argc, wchar_t **argv) {
     bool enableDebug = false;
     bool pictureMode = false;
     bool pictureStrong = false;
+    bool hudMode = false;
     unsigned preset = 0;
     unsigned passes = 1;
     std::filesystem::path capturePath, verifyPath;
@@ -53,6 +54,8 @@ int wmain(int argc, wchar_t **argv) {
             enableDebug = true;
         } else if (!wcscmp(argv[i], L"--picture")) {
             pictureMode = true;
+        } else if (!wcscmp(argv[i], L"--hud")) {
+            hudMode = true;
         } else if (!wcscmp(argv[i], L"--picture-strong")) {
             pictureMode = pictureStrong = true;
         } else if (!wcscmp(argv[i], L"--preset") && i + 1 < argc) {
@@ -209,6 +212,8 @@ int wmain(int argc, wchar_t **argv) {
                     picture.enabled = frame % 2 != 0;
                     picture.exposure = picture.enabled ? 0.f : 1.f;
                 }
+                settings.composition.hud = hudMode;
+                settings.composition.hudShowMask = hudMode && frame % 3 == 2;
                 pipeline->Process(f, settings.composition, picture);
                 accepted++;
                 const auto out = Read(device.Get(), context.Get(), output.Get());

@@ -56,6 +56,8 @@ Replace proxy modes decode the model image directly and bypass the normal compos
 
 Flow compares **current original to previous accepted original**. NVOFA S10.5 vectors are divided by 32 and scaled separately by workingWidth/captureWidth and workingHeight/captureHeight. NR receives working-pixel displacement with MV scale 1. Flow cost is diagnostic and does not attenuate vectors. This differs from OptiScaler's usual game-vector input; no numerical mapping to an undocumented LSFG flow texture is assumed.
 
+**HUD protection (experimental, off by default).** The capture already has the game's interface drawn in, so the model's UI inputs (`DLSSNR.UI`, `UIAlpha`, `Backbuffer`) stay empty and the HUD is enhanced like the scene. When enabled, each captured pixel keeps a confidence that rises (over roughly 45 frames) while it stays unchanged and at least 4 of 16 samples on two rings around it (about 24 and 48 pixels at 1080p) change, falls quickly when the pixel itself changes, and holds otherwise. Above the threshold the captured pixel, widened by one pixel for anti-aliased edges, is blended back into the composed image before Picture. A still scene teaches nothing; still scenery beside moving objects can be mistaken for HUD. **Show detected HUD** tints the mask. `neural_hudtest` covers it on WARP; `neural_pipelinetest --hud` runs it in the real pipeline.
+
 Shortfuse/RenoDX composition inspired upstream OptiScaler, but controls from other revisions are not automatically interchangeable. This build pins OptiScaler `973761621353b99bee3dc7d4bb27b117fef2644f`; the exact shader and licences ship with the corresponding source. The parity test compares against that revision, not an evolving upstream HEAD.
 
 ## Picture

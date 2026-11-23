@@ -377,11 +377,17 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
         if (encoding_ == Encoding::ScRgb)
             gamut_.Apply(ctx, original.Get(), slot.output.uav.Get(), metrics_.width, metrics_.height,
                          settings.maxRatio);
+        // Before the picture pass, so the HUD gets the same grading as everything else.
+        if (settings.hud)
+            hud_.Apply(ctx, static_cast<ID3D11Texture2D *>(frame.original), original.Get(), slot.output.uav.Get(),
+                       metrics_.width, metrics_.height, settings.hudStrength, settings.hudShowMask);
         // Off/neutral uses the original copy shader, with no picture resources or extra GPU work.
         if (!picture_.Apply(ctx, slot.output.srv.Get(), target.Get(), metrics_.width, metrics_.height,
                             encoding_, settings.whiteNits, picture))
             Copy(ctx, slot.output.srv.Get(), target.Get());
     }
+    if (!settings.apply || !settings.hud)
+        hud_.Reset(); // a stale previous capture would read as one big change when turned back on
     Check(context->Signal(consumed11_.Get(), transfer), "Signal enhanced image consumed");
     slot.consumed = transfer;
     lastConsumed_ = transfer;
