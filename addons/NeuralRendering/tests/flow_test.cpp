@@ -60,13 +60,13 @@ float P95(std::vector<float> v) {
 struct Errors {
     float median = 0, p95 = 0;
 };
-// look/filter: the night-scene check (see main); worst collects the largest moving-step errors
+// look/guard: the night-scene check (guard: the Dark motion guard, 0..1; see main); worst collects the largest
+// moving-step errors
 bool Run(Gpu &gpu, uint32_t w, uint32_t h, uint32_t tw, uint32_t th, uint32_t grid, const Look &look = {},
-         bool filter = true, Errors *worst = nullptr) {
-    printf("Initialize flow %ux%u grid %u level %.3f cell %.0f grain %.1f confidence filter %s\n", w, h, grid, look.level,
-           look.cell, look.grain, filter ? "on" : "off");
+         float guard = 1.f, Errors *worst = nullptr) {
+    printf("Initialize flow %ux%u grid %u level %.3f cell %.0f grain %.1f dark guard %.2f\n", w, h, grid, look.level,
+           look.cell, look.grain, guard);
     OpticalFlow flow;
-    flow.SetConfidenceFilter(filter);
     flow.Initialize(gpu, w, h, grid);
     Recording prepare, finish, transfer;
     prepare.Initialize(gpu.device.Get());
@@ -92,7 +92,7 @@ bool Run(Gpu &gpu, uint32_t w, uint32_t h, uint32_t tw, uint32_t th, uint32_t gr
         const auto ready = gpu.Submit(prepare);
         flow.Execute(gpu, f % 3, (f + 2) % 3, s.reset, ready);
         finish.Begin(gpu.fence.Get());
-        flow.Convert(gpu, finish, motion, s.reset);
+        flow.Convert(gpu, finish, motion, s.reset, guard);
         test::Finish(gpu, finish);
         const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
         const auto bytes = test::Read(gpu, transfer, motion, 4);
@@ -183,12 +183,17 @@ int main() {
                       {"smooth 6 levels, grain 1.5", {6.f / 255.f, 24.f, 2.f, 1.5f}}};
         for (const auto &night : nights) {
             Errors raw, cleaned;
-            Run(gpu, 640, 360, 640, 360, 4, night.look, false, &raw);
-            Run(gpu, 640, 360, 640, 360, 4, night.look, true, &cleaned);
+            Errors half;
+            Run(gpu, 640, 360, 640, 360, 4, night.look, 0.f, &raw);
+            Run(gpu, 640, 360, 640, 360, 4, night.look, .5f, &half);
+            Run(gpu, 640, 360, 640, 360, 4, night.look, 1.f, &cleaned);
             const bool better = cleaned.p95 <= std::max(raw.p95 * .6f, .05f) && cleaned.median <= std::max(raw.median * .6f, .02f);
-            printf("%s night %s: worst EPE %.3f -> %.3f, p95 %.3f -> %.3f with the confidence filter\n", better ? "PASS" : "FAIL",
-                   night.name, raw.median, cleaned.median, raw.p95, cleaned.p95);
-            ok &= better;
+            // the slider half-way lands in between (a little slack for NVOFA's own run-to-run noise)
+            const bool between = half.median <= raw.median + .02f && half.median + .02f >= cleaned.median;
+            printf("%s night %s: worst EPE %.3f -> %.3f (guard 50%%: %.3f), p95 %.3f -> %.3f (%.3f) with the dark guard\n",
+                   better && between ? "PASS" : "FAIL", night.name, raw.median, cleaned.median, half.median, raw.p95,
+                   cleaned.p95, half.p95);
+            ok &= better && between;
         }
         bool rejected = false;
         try {

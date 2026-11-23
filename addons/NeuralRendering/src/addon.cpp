@@ -120,6 +120,7 @@ void Save() {
     Put("apply", settings.composition.apply);
     Put("hud", settings.composition.hud);
     Put("hudStrength", settings.composition.hudStrength);
+    Put("darkGuard", settings.composition.darkGuard);
     Put("pictureEnabled", settings.picture.enabled);
     for (const auto &c : neural::PictureControls)
         Put(c.key, settings.picture.*(c.value));
@@ -276,6 +277,7 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
     settings.composition.apply = Number("apply", 1, 0, 1) != 0;
     settings.composition.hud = Number("hud", 0, 0, 1) != 0;
     settings.composition.hudStrength = Number("hudStrength", 1, 0, 1);
+    settings.composition.darkGuard = Number("darkGuard", 1, 0, 1);
     settings.picture.enabled = Number("pictureEnabled", 0, 0, 1) != 0;
     for (const auto &c : neural::PictureControls)
         settings.picture.*(c.value) = Number(c.key, c.neutral, c.low, c.high);
@@ -370,10 +372,27 @@ EAM_EXPORT void AddonRenderSettings() {
         settings.flowQuality = quality + 1;
         rebuild = true;
     }
+    int guard = int(settings.composition.darkGuard * 100.f + .5f);
+    if (ImGui::SliderInt("Dark motion guard", &guard, 0, 100, "%d%%", ImGuiSliderFlags_AlwaysClamp)) {
+        settings.composition.darkGuard = guard / 100.f;
+        changed = true;
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::BeginTooltip();
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28);
+        ImGui::TextUnformatted("In smooth, grainy darkness (night, unlit caves) the optical flow loses track and its "
+                               "motion jitters every frame, which makes NR look oily and smeared. This replaces the "
+                               "motion it marks as unreliable with its surroundings' motion. 0% passes the optical "
+                               "flow through unchanged; well-lit areas are never affected. Applies live.");
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
     eam::ui::SectionLabel("Model controls");
     if (ImGui::Button("Restore defaults")) {
         settings.model = neural::ModelSettings{};
+        const float guard = settings.composition.darkGuard; // a flow setting: kept, like grid and quality
         settings.composition = neural::CompositionSettings{};
+        settings.composition.darkGuard = guard;
         settings.passes = 1;
         changed = true;
         rebuild = true;

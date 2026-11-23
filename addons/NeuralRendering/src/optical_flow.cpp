@@ -5,6 +5,8 @@
 #include "flow_filter.h"
 #include "flow_pack.h"
 #include <algorithm>
+#include <cmath>
+#include <cstring>
 
 namespace neural {
 namespace {
@@ -180,12 +182,15 @@ void OpticalFlow::Execute(Gpu &gpu, uint32_t current, uint32_t previous, bool re
     Check(gpu.queue->Wait(readyFence_.Get(), progress_), "Wait for current optical flow");
     lastQueueValue_ = gpu.Signal();
 }
-void OpticalFlow::Convert(Gpu &gpu, Recording &rec, Resource &motion, bool reset) {
+void OpticalFlow::Convert(Gpu &gpu, Recording &rec, Resource &motion, bool reset, float guard) {
     flow_.Transition(rec.list.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     cost_.Transition(rec.list.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     filtered_.Transition(rec.list.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     // The neighbourhood reaches about 64 input pixels whatever the grid: taps 4 cells apart at grid 4, 16 at grid 1.
-    const uint32_t f[] = {flow_.width, flow_.height, std::max(1u, 16u / grid_), uint32_t(confidenceFilter_)};
+    const float strength = std::isfinite(guard) ? std::clamp(guard, 0.f, 1.f) : 1.f;
+    uint32_t strengthBits = 0;
+    memcpy(&strengthBits, &strength, sizeof(strengthBits));
+    const uint32_t f[] = {flow_.width, flow_.height, std::max(1u, 16u / grid_), strengthBits};
     filterKernel_.Dispatch(gpu.device.Get(), rec, f, sizeof(f), {&flow_, &cost_}, {&filtered_},
                            (flow_.width + 7) / 8, (flow_.height + 7) / 8);
     filtered_.Transition(rec.list.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);

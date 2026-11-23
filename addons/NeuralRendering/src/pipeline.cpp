@@ -343,7 +343,7 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
     flow_.Execute(gpu_, index, previous_ < 0 ? unsigned(index) : unsigned(previous_), reset, ready);
     auto &finish = slot.finish;
     finish.Begin(gpu_.fence.Get());
-    flow_.Convert(gpu_, finish, slot.motion, reset);
+    flow_.Convert(gpu_, finish, slot.motion, reset, settings.darkGuard);
     finish.list->EndQuery(queries_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query + 2);
     Mark(Stage::Model);
     model_.Evaluate(finish, slot.working, depth_, slot.motion, slot.model, reset);

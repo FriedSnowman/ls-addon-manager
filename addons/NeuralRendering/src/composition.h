@@ -16,6 +16,9 @@ struct CompositionSettings {
     bool hud = false;
     float hudStrength = 1.f;
     bool hudShowMask = false;
+    // Not composition, but read every frame like it: how strongly optical-flow vectors NVOFA marks as
+    // unreliable (smooth, grainy darkness) are replaced by their confident surroundings. 0 = raw NVOFA.
+    float darkGuard = 1.f;
 };
 // The exact pinned OptiScaler cbuffer layout, including fields deliberately disabled
 // for captured images: no game exposure or UI layer is invented.

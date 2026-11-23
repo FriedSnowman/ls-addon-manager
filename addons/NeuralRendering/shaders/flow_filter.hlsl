@@ -10,8 +10,9 @@
 // where there are none the noise averages out. NVOFA's errors there are correlated over tens of pixels,
 // so a smaller neighbourhood barely helped (16 px: p95 3.6 -> 2.8 px; 64 px: -> 2.1 px; 128 px no
 // better); a second, outlier-rejecting round did not help either. Confident cells -- nearly all of a lit
-// picture -- pass through untouched.
-cbuffer Parameters : register(b0) { uint2 size; uint spacing; uint enabled; };
+// picture -- pass through untouched. `strength` (the panel's Dark motion guard, 0..1) scales the blend:
+// 0 hands NVOFA's vectors to NR as they are.
+cbuffer Parameters : register(b0) { uint2 size; uint spacing; float strength; };
 Texture2D<int2> flowGrid : register(t0);
 Texture2D<uint> cost : register(t1);
 RWTexture2D<float2> filtered : register(u0);
@@ -22,7 +23,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     if(any(id.xy>=size))return;
     const float2 own=float2(flowGrid.Load(int3(id.xy,0)));
     const float c=float(cost.Load(int3(id.xy,0)));
-    if(enabled==0||c<=kTrusted){filtered[id.xy]=own;return;}
+    if(strength<=0.0||c<=kTrusted){filtered[id.xy]=own;return;}
     const int2 last=int2(size)-1;
     float2 sum=0;float total=0;
     [loop]for(int j=-kRadius;j<=kRadius;++j)
@@ -32,5 +33,5 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
             const float w=near/(1.0+float(cost.Load(int3(p,0)))/kTrusted);
             sum+=w*float2(flowGrid.Load(int3(p,0)));total+=w;
         }
-    filtered[id.xy]=lerp(own,sum/max(total,1e-6),saturate((c-kTrusted)/(kUntrusted-kTrusted)));
+    filtered[id.xy]=lerp(own,sum/max(total,1e-6),strength*saturate((c-kTrusted)/(kUntrusted-kTrusted)));
 }
