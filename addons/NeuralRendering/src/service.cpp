@@ -100,6 +100,15 @@ bool Service::Process(const EamRealFrame &frame) {
         auto *pipeline = active_.get();
         const auto composition = settings_.composition;
         const auto picture = settings_.picture;
+        // A different HDR proxy curve or reference white shows the model a different picture:
+        // restart its history on this frame rather than rebuilding the pipeline.
+        if (pipeline != proxyFor_) {
+            proxyFor_ = pipeline;
+        } else if (proxyMode_ != composition.reversible || proxyWhite_ != composition.whiteNits) {
+            pipeline->Invalidate();
+        }
+        proxyMode_ = composition.reversible;
+        proxyWhite_ = composition.whiteNits;
         processing_ = true;
         lock.unlock();
         std::string error;

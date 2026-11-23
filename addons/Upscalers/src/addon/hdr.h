@@ -16,8 +16,10 @@ DisplayHdr QueryDisplayHdr(IDXGISwapChain* chain, ID3D11Device* device);
 
 // A frame of this format: 8-bit is SDR; half-float is scRGB; 10-bit is HDR10 when the display runs in HDR, else 10-bit SDR. setting (the
 // addon's "Frame encoding", for a setup the automatic choice gets wrong): 0 decides so; 1 takes the half-float and 10-bit frames as SDR; 2 as
-// HDR (scRGB, HDR10). 8-bit frames are SDR whatever it says.
-FrameEncoding EncodingOf(DXGI_FORMAT viewFormat, int setting, bool displayHdr);
+// HDR (scRGB, HDR10). 8-bit frames are SDR whatever it says. colorSpace: the colour space of the swap chain the frame is presented in, when
+// known (ColorSpaceHook): with it, "Automatic" takes a 10-bit frame as HDR10 only when that swap chain is in PQ (a 10-bit SDR swap chain on a
+// display in HDR is SDR); without it (a captured frame, or a swap chain made before the hook), the display's state decides.
+FrameEncoding EncodingOf(DXGI_FORMAT viewFormat, int setting, bool displayHdr, const DXGI_COLOR_SPACE_TYPE* colorSpace = nullptr);
 const char* EncodingName(FrameEncoding e);
 
 } // namespace nr

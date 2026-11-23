@@ -3,7 +3,7 @@ cbuffer Parameters : register(b0) {
     uint2 targetSize; uint2 inputSize;
     uint gridSize; uint reset; uint2 reserved;
 };
-Texture2D<int2> flowGrid : register(t0);
+Texture2D<float2> flowGrid : register(t0);   // NVOFA's S10.5 grid after flow_filter
 RWTexture2D<float2> motion : register(u0);
 float2 Read(int2 p,int2 maxIndex) {return float2(flowGrid.Load(int3(clamp(p,0,maxIndex),0)));}
 [numthreads(8,8,1)]

@@ -84,17 +84,21 @@ void CSGrab(uint3 id : SV_DispatchThreadID) {
 }
 )HLSL";
 
-// The place pass (HDR frames only): the upscaler's picture, made as light (1 = the SDR white) in DLSS's or FSR's HDR mode, into the frame's own encoding, written into
-// NIS's output (at the output viewport's corner). SDR frames are copied as they are, without it.
+// The place pass (whenever the frame or NIS's output is HDR): the upscaler's picture, written into NIS's output (at the output viewport's corner)
+// in the output's own encoding, which need not be the frame's (a half-float capture can go out to a 10-bit or 8-bit swap chain). The picture
+// is light (1 = the SDR white) when the frame was HDR (DLSS's or FSR's HDR mode), else the frame's sRGB-encoded SDR picture; an SDR output
+// gets the SDR view of light, and SDR pictures go into an HDR output with their white at the SDR white, as Windows shows SDR in HDR.
+// SDR frames into an SDR output are copied as they are, without it.
 const char* const kPlaceHlsl = R"HLSL(
 Texture2D<float4>   tPicture : register(t0);
 RWTexture2D<float4> uOut     : register(u0);
-cbuffer C : register(b0) { uint2 origin; uint2 size; uint encoding; float white; float2 unused; };
+cbuffer C : register(b0) { uint2 origin; uint2 size; uint encoding; float white; uint light; float unused; };   // encoding: the output's
 [numthreads(8, 8, 1)]
 void CSPlace(uint3 id : SV_DispatchThreadID) {
     if (id.x >= size.x || id.y >= size.y) return;
     const float4 p = tPicture.Load(int3(id.xy, 0));
-    uOut[id.xy + origin] = float4(FromLight(p.rgb, encoding, white), p.a);
+    const float3 lin = light != 0u ? p.rgb : SrgbToLinear(saturate(p.rgb));
+    uOut[id.xy + origin] = float4(encoding != 0u ? FromLight(lin, encoding, white) : LightToSdr(lin), p.a);
 }
 )HLSL";
 
@@ -391,13 +395,15 @@ std::string ScalerLink::Describe() const {
 }
 
 bool ScalerLink::PlacePicture(const NisPass& pass, ID3D11Texture2D* picture) {
-    m_step = m_encoding ? "the HDR place pass" : "copying the picture";
-    if (m_encoding != m_loggedEncoding) {
-        m_loggedEncoding = m_encoding;
-        if (m_encoding) Log("%s upscaler: HDR frames (%s, SDR white %.0f nits): upscaled as light in the upscaler's HDR mode, the picture put back in their own encoding",
-                            kUpscalerName, m_encoding == 1 ? "scRGB" : "HDR10", m_white);
+    m_step = NeedsPlace() ? "the HDR place pass" : "copying the picture";
+    if (const uint32_t pair = m_encoding << 8 | m_outEncoding; pair != m_loggedEncoding) {
+        m_loggedEncoding = pair;
+        static const char* const names[] = { "SDR", "scRGB", "HDR10" };
+        if (NeedsPlace()) Log("%s upscaler: %s frames into a %s output (SDR white %.0f nits): %s, the picture written in the output's encoding", kUpscalerName,
+                              names[m_encoding < 3 ? m_encoding : 0], names[m_outEncoding < 3 ? m_outEncoding : 0], m_white,
+                              m_encoding ? "upscaled as light in the upscaler's HDR mode" : "upscaled as SDR");
     }
-    if (m_encoding) return PlaceHdr(pass, picture);
+    if (NeedsPlace()) return PlaceHdr(pass, picture);
     if (!pass.Partial()) { m_ctx->CopyResource(pass.out, picture); return true; }
     m_ctx->CopySubresourceRegion(pass.out, 0, pass.outX, pass.outY, 0, picture, 0, nullptr);
     if (!m_loggedPartial) {
@@ -428,7 +434,8 @@ bool ScalerLink::PlaceHdr(const NisPass& pass, ID3D11Texture2D* picture) {
     const uint32_t w = pass.outW, h = pass.outH;
     D3D11_MAPPED_SUBRESOURCE mapped{};
     if (FAILED(m_ctx->Map(m_placeConstants, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) return false;
-    struct { uint32_t x, y, w, h, encoding; float white; float unused[2]; } constants = { pass.Partial() ? pass.outX : 0u, pass.Partial() ? pass.outY : 0u, w, h, m_encoding, m_white, { 0, 0 } };
+    struct { uint32_t x, y, w, h, encoding; float white; uint32_t light; float unused; } constants = { pass.Partial() ? pass.outX : 0u, pass.Partial() ? pass.outY : 0u, w, h,
+                                                                                                      m_outEncoding, m_white, m_encoding != 0 ? 1u : 0u, 0 };
     static_assert(sizeof constants == 32, "the place pass's cbuffer");
     memcpy(mapped.pData, &constants, sizeof constants); m_ctx->Unmap(m_placeConstants, 0);
     ID3D11Buffer* before = nullptr; m_ctx->CSGetConstantBuffers(0, 1, &before);
@@ -445,7 +452,7 @@ bool ScalerLink::PlaceHdr(const NisPass& pass, ID3D11Texture2D* picture) {
 }
 
 void ScalerLink::PresentCopy(IDXGISwapChain* sc) {
-    if (!m_atPresent || !m_dev || m_handoff != Handoff::AtPresent || m_encoding) return;   // (HDR pictures need the place pass: not at Present)
+    if (!m_atPresent || !m_dev || m_handoff != Handoff::AtPresent || NeedsPlace()) return;   // (HDR pictures need the place pass: not at Present)
     ID3D11Texture2D* back = nullptr;
     if (FAILED(sc->GetBuffer(0, IID_PPV_ARGS(&back)))) return;
     ID3D11Device* dev = nullptr; back->GetDevice(&dev);

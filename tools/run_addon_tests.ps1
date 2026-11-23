@@ -50,13 +50,15 @@ $suites = [ordered]@{
                    Build = @('installer', 'setup_core', 'setup_cli', 'pack_payload', 'LSAddonManagerSetup');
                    Script = "$root\installer\tests\setup_exe_test.ps1" }
     nr        = @{ When = '^addons/NeuralRendering/|^manager/sdk/|^manager/src/core/real_frame';
-                   Build = @('neural','DLSSNR02','neural_statustest','neural_forwardertest','neural_flowtest','neural_compositiontest','neural_modeltest','neural_pipelinetest','neural_multipasstest','neural_picturetest');
+                   Build = @('neural','DLSSNR02','neural_statustest','neural_forwardertest','neural_flowtest','neural_compositiontest','neural_modeltest','neural_pipelinetest','neural_multipasstest','neural_picturetest','neural_gamuttest','neural_hudtest');
                    Runs = @(@('NR blocked capture diagnostics', "$root\addons\NeuralRendering\build\Release\neural_statustest.exe", @()),
                             @('NR runtime compatibility and model selection', "$root\addons\NeuralRendering\build\Release\neural_forwardertest.exe", @()),
                             @('NVIDIA independent optical flow', "$root\addons\NeuralRendering\build\Release\neural_flowtest.exe", @()),
                             @('OptiScaler composition parity', "$root\addons\NeuralRendering\build\Release\neural_compositiontest.exe", @()),
                             @('Multipass histories and failure retirement', "$root\addons\NeuralRendering\build\Release\neural_multipasstest.exe", @()),
-                            @('Picture controls and zero-work bypass', "$root\addons\NeuralRendering\build\Release\neural_picturetest.exe", @())) }
+                            @('Picture controls and zero-work bypass', "$root\addons\NeuralRendering\build\Release\neural_picturetest.exe", @()),
+                            @('scRGB wide-gamut restore', "$root\addons\NeuralRendering\build\Release\neural_gamuttest.exe", @()),
+                            @('HUD protection', "$root\addons\NeuralRendering\build\Release\neural_hudtest.exe", @())) }
     scalers   = @{ When = '^addons/Upscalers/|^manager/sdk/';
                    Build = @('scalers', 'nr_taptest', 'nr_nistest', 'nr_statustest', 'nr_rectest', 'nr_lsrec', 'DLSS4DLAA', 'FSR3UPSC');
                    Runs = @(@('Recorder codec and file', "$nrBuild\Release\nr_rectest.exe", @()),

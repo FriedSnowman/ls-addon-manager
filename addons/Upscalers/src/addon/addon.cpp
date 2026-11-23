@@ -1,6 +1,7 @@
 #include "addon/state.h"
 #include "addon/log.h"
 #include "addon/present_hook.h"
+#include "addon/colorspace_hook.h"
 #include "addon/screenshot.h"
 #include "addon/live_status.h"
 #include "imgui.h"
@@ -113,6 +114,9 @@ void Start(IHost* host, ImGuiContext* ctx, void* allocFunc, void* freeFunc, void
     host->SubscribeEvent(EAM_EVENT_D3D11_DEVICE_READY, OnDeviceEvent, nullptr);
     host->SubscribeEvent(EAM_EVENT_D3D11_DEVICE_CHANGED, OnDeviceEvent, nullptr);
     Log("%s initialised (host version 0x%x), addon dir %ls", kAddonId, host->GetHostVersion(), g_addonDir.c_str());
+    // the swap chains' colour spaces, followed from now on (with a device of its own): it has to be in place before Lossless Scaling makes the
+    // swap chain it scales into, to tell a 10-bit HDR10 one from a 10-bit SDR one (hdr.h EncodingOf)
+    ColorSpaceHook::Install([](const char* m) { Log("%s", m); });
     // Lossless Scaling's passes come from the manager's dispatch callback; the present hook needs a device to find DXGI's table, so it is put
     // in place at the first tapped frame. No device is taken from the host here: the newest one it has seen may be gone already (Lossless
     // Scaling makes and drops devices as it starts and stops scaling); devices are only touched in the events or from a live pass.

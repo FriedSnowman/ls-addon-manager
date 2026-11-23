@@ -74,10 +74,13 @@ DisplayHdr QueryDisplayHdr(IDXGISwapChain* chain, ID3D11Device* device) {
     return d;
 }
 
-FrameEncoding EncodingOf(DXGI_FORMAT viewFormat, int setting, bool displayHdr) {
+FrameEncoding EncodingOf(DXGI_FORMAT viewFormat, int setting, bool displayHdr, const DXGI_COLOR_SPACE_TYPE* colorSpace) {
     switch (viewFormat) {
     case DXGI_FORMAT_R16G16B16A16_FLOAT: return setting == 1 ? FrameEncoding::Sdr : FrameEncoding::ScRgb;
-    case DXGI_FORMAT_R10G10B10A2_UNORM: return setting == 2 || (setting == 0 && displayHdr) ? FrameEncoding::Hdr10 : FrameEncoding::Sdr;
+    case DXGI_FORMAT_R10G10B10A2_UNORM:
+        if (setting != 0) return setting == 2 ? FrameEncoding::Hdr10 : FrameEncoding::Sdr;   // set by hand
+        if (colorSpace) return *colorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020 ? FrameEncoding::Hdr10 : FrameEncoding::Sdr;
+        return displayHdr ? FrameEncoding::Hdr10 : FrameEncoding::Sdr;
     default: return FrameEncoding::Sdr;   // 8-bit holds SDR only
     }
 }

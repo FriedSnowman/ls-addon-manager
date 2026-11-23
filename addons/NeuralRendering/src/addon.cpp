@@ -118,6 +118,11 @@ void Save() {
     Put("proxy", settings.composition.reversible);
     Put("reconstruction", settings.composition.reconstruction);
     Put("apply", settings.composition.apply);
+    Put("hud", settings.composition.hud);
+    Put("hudStrength", settings.composition.hudStrength);
+    Put("darkGuard", settings.composition.darkGuard);
+    Put("darkKeep", settings.composition.darkKeep);
+    Put("darkKeepThreshold", settings.composition.darkKeepThreshold);
     Put("pictureEnabled", settings.picture.enabled);
     for (const auto &c : neural::PictureControls)
         Put(c.key, settings.picture.*(c.value));
@@ -272,6 +277,11 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
     settings.composition.reversible = unsigned(Number("proxy", 0, 0, 4));
     settings.composition.reconstruction = unsigned(Number("reconstruction", 1, 0, 1));
     settings.composition.apply = Number("apply", 1, 0, 1) != 0;
+    settings.composition.hud = Number("hud", 0, 0, 1) != 0;
+    settings.composition.hudStrength = Number("hudStrength", 1, 0, 1);
+    settings.composition.darkGuard = Number("darkGuard", 1, 0, 1);
+    settings.composition.darkKeep = Number("darkKeep", .9, 0, 1);
+    settings.composition.darkKeepThreshold = Number("darkKeepThreshold", .16, .05, .5);
     settings.picture.enabled = Number("pictureEnabled", 0, 0, 1) != 0;
     for (const auto &c : neural::PictureControls)
         settings.picture.*(c.value) = Number(c.key, c.neutral, c.low, c.high);
@@ -366,10 +376,56 @@ EAM_EXPORT void AddonRenderSettings() {
         settings.flowQuality = quality + 1;
         rebuild = true;
     }
+    int guard = int(settings.composition.darkGuard * 100.f + .5f);
+    if (ImGui::SliderInt("Dark motion guard", &guard, 0, 100, "%d%%", ImGuiSliderFlags_AlwaysClamp)) {
+        settings.composition.darkGuard = guard / 100.f;
+        changed = true;
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::BeginTooltip();
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28);
+        ImGui::TextUnformatted("In smooth, grainy darkness (night, unlit caves) the optical flow loses track and its "
+                               "motion jitters every frame, which makes NR look oily and smeared. This replaces the "
+                               "motion it marks as unreliable with its surroundings' motion. 0% passes the optical "
+                               "flow through unchanged; well-lit areas are never affected. Applies live.");
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+    int keep = int(settings.composition.darkKeep * 100.f + .5f);
+    if (ImGui::SliderInt("Dark area protection", &keep, 0, 100, keep == 0 ? "Off" : "%d%%", ImGuiSliderFlags_AlwaysClamp)) {
+        settings.composition.darkKeep = keep / 100.f;
+        changed = true;
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::BeginTooltip();
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28);
+        ImGui::TextUnformatted("On dark, grainy scenes (night, unlit caves) the model smooths the grain into an oily, "
+                               "painted look. This brings the original capture back where it is dark: 100% shows the "
+                               "capture itself there. Brighter areas keep the model's result. Applies live.");
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+    ImGui::BeginDisabled(settings.composition.darkKeep <= 0);
+    int below = int(settings.composition.darkKeepThreshold * 100.f + .5f);
+    if (ImGui::SliderInt("Dark up to", &below, 5, 50, "%d%% brightness", ImGuiSliderFlags_AlwaysClamp)) {
+        settings.composition.darkKeepThreshold = below / 100.f;
+        changed = true;
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::BeginTooltip();
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28);
+        ImGui::TextUnformatted("How bright an area may be and still count as dark (display brightness, as you see it). "
+                               "Protection is full below half of this and fades out up to it.");
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+    ImGui::EndDisabled();
     eam::ui::SectionLabel("Model controls");
     if (ImGui::Button("Restore defaults")) {
         settings.model = neural::ModelSettings{};
+        const float guard = settings.composition.darkGuard; // a flow setting: kept, like grid and quality
         settings.composition = neural::CompositionSettings{};
+        settings.composition.darkGuard = guard;
         settings.passes = 1;
         changed = true;
         rebuild = true;
@@ -425,6 +481,19 @@ EAM_EXPORT void AddonRenderSettings() {
         if (!settings.composition.apply)
             ImGui::TextWrapped("Showing the original: picture adjustments are also bypassed.");
     }
+    if (ImGui::CollapsingHeader("HUD protection (experimental)")) {
+        changed |= ImGui::Checkbox("Keep the HUD original", &settings.composition.hud);
+        ImGui::TextWrapped("The capture has the game's interface drawn in, so the model enhances it like the rest of "
+                           "the picture. This guesses where the HUD is (pixels that stay still while the scene "
+                           "around them moves) and puts the captured pixels back there. It learns over about a "
+                           "second of camera movement; a still scene teaches it nothing, and still scenery next to "
+                           "moving things can be mistaken for HUD.");
+        ImGui::BeginDisabled(!settings.composition.hud);
+        changed |= ImGui::SliderFloat("HUD strength", &settings.composition.hudStrength, 0, 1, "%.2f",
+                                      ImGuiSliderFlags_AlwaysClamp);
+        changed |= ImGui::Checkbox("Show detected HUD (not saved)", &settings.composition.hudShowMask);
+        ImGui::EndDisabled();
+    }
     if (ImGui::CollapsingHeader("Composition (advanced)")) {
         changed |= Slider("Detail", &settings.composition.detail, 0, 4);
         changed |= Slider("Colour", &settings.composition.colour, 0, 4);
@@ -433,9 +502,10 @@ EAM_EXPORT void AddonRenderSettings() {
         if (ImGui::Combo("HDR proxy", &proxy,
                          "Knee (default)\0Neutwo composed\0Neutwo replace\0Hybrid composed\0Hybrid replace\0")) {
             settings.composition.reversible = proxy;
-            rebuild = true;
+            changed = true;
         }
-        rebuild |= ImGui::SliderFloat("scRGB reference white", &settings.composition.whiteNits, 80, 1000, "%.0f nits",
+        // Both are read per frame: no pipeline rebuild, the model's history restarts instead.
+        changed |= ImGui::SliderFloat("scRGB reference white", &settings.composition.whiteNits, 80, 1000, "%.0f nits",
                                       ImGuiSliderFlags_AlwaysClamp);
         int reconstruction = int(settings.composition.reconstruction);
         if (ImGui::Combo("Reconstruction", &reconstruction, "Classic\0Matched residual (default)\0")) {

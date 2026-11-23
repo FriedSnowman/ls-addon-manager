@@ -2,6 +2,7 @@
 #include "addon/state.h"
 #include "addon/log.h"
 #include "addon/present_hook.h"
+#include "addon/colorspace_hook.h"
 #include "addon/framegen11.h"
 #include "addon/screenshot.h"
 #include "addon/scaler11.h"
@@ -93,18 +94,28 @@ void Record(ID3D11DeviceContext* ctx, ID3D11Texture2D* frame, uint32_t source, u
     if (saveAfter > 0 && !savedForTest && g_recorder.GetStatus().frames >= static_cast<uint32_t>(saveAfter)) { savedForTest = true; SaveRecording(); }
 }
 
-nr::FrameEncoding FrameEncodingOf(DXGI_FORMAT format, IDXGISwapChain* chain, float* white, ID3D11Device* device = nullptr) {
+// Whose encoding is asked: the frame NIS reads (a capture, which no swap chain of ours names), NIS's output (the back buffer of Lossless
+// Scaling's swap chain) or the back buffer at Present; the last two follow that swap chain's colour space when ColorSpaceHook knows it.
+enum class FrameRole { Input = 0, Output = 1, Presented = 2 };
+nr::FrameEncoding FrameEncodingOf(DXGI_FORMAT format, IDXGISwapChain* chain, float* white, ID3D11Device* device, FrameRole role, bool* spaceKnown = nullptr) {
     int setting;
     { std::lock_guard<std::mutex> lock(g_settingsMutex); setting = g_config.frameEncoding; }
     const nr::DisplayHdr display = nr::QueryDisplayHdr(chain, device ? device : nullptr);
-    const nr::FrameEncoding e = nr::EncodingOf(scaler::ViewFormat(format), setting, display.hdr);
+    DXGI_COLOR_SPACE_TYPE space{};
+    const bool known = role != FrameRole::Input && chain && ColorSpaceHook::Known(chain, space);
+    if (spaceKnown) *spaceKnown = known;
+    const nr::FrameEncoding e = nr::EncodingOf(scaler::ViewFormat(format), setting, display.hdr, known ? &space : nullptr);
     *white = display.whiteNits;
-    static uint64_t said = ~0ull;
-    const uint64_t key = (uint64_t)e << 48 | (uint64_t)format << 32 | (uint32_t)display.whiteNits | (display.hdr ? 1ull << 31 : 0);
-    if (key != said) {
-        said = key;
-        Log("frames of format %d are %s (display in %s, SDR white %.0f nits%s)", (int)format, nr::EncodingName(e), display.hdr ? "HDR" : "SDR",
-            display.whiteNits, setting ? ", set by hand" : "");
+    static uint64_t said[3] = { ~0ull, ~0ull, ~0ull };   // each role its own, so frames and output of different formats do not log by turns
+    const uint64_t key = (uint64_t)e << 48 | (uint64_t)format << 32 | (uint32_t)display.whiteNits | (display.hdr ? 1ull << 31 : 0) |
+                         (known ? (uint64_t)(space + 1) << 56 : 0);
+    if (key != said[static_cast<int>(role)]) {
+        said[static_cast<int>(role)] = key;
+        static const char* const roles[] = { "frames", "NIS's output", "presented frames" };
+        Log("%s of format %d are %s (display in %s, SDR white %.0f nits%s%s)", roles[static_cast<int>(role)], (int)format, nr::EncodingName(e),
+            display.hdr ? "HDR" : "SDR", display.whiteNits, setting ? ", set by hand" : "",
+            known ? (space == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020 ? ", swap chain in PQ" : ", swap chain not in PQ") : "");
+        if (role != FrameRole::Input) return e;   // (the panel shows the frames')
         char text[96];
         if (e == nr::FrameEncoding::Sdr) snprintf(text, sizeof text, "SDR");
         else snprintf(text, sizeof text, "%s, SDR white %.0f nits", nr::EncodingName(e), display.whiteNits);
@@ -197,7 +208,7 @@ void OnPresent(IDXGISwapChain* sc, UINT sync, UINT flags) {
             (void)runtimeSet;
             float white = 80.0f; uint32_t encoding = 0;
             { ID3D11Texture2D* back = nullptr;   // what its frames hold (scRGB or HDR10 on an HDR display), for measuring their motion in their SDR view
-              if (SUCCEEDED(sc->GetBuffer(0, IID_PPV_ARGS(&back))) && back) { D3D11_TEXTURE2D_DESC d; back->GetDesc(&d); back->Release(); encoding = static_cast<uint32_t>(FrameEncodingOf(d.Format, sc, &white)); } }
+              if (SUCCEEDED(sc->GetBuffer(0, IID_PPV_ARGS(&back))) && back) { D3D11_TEXTURE2D_DESC d; back->GetDesc(&d); back->Release(); encoding = static_cast<uint32_t>(FrameEncodingOf(d.Format, sc, &white, nullptr, FrameRole::Presented)); } }
             bool recordShown, guard; { std::lock_guard<std::mutex> lock(g_settingsMutex); recordShown = g_config.recordShown; guard = g_config.frameGenGuard; }
             nr::framegen::SetGuard(guard);
             nr::framegen::ShownFn shown;   // "record what is shown": every frame presented, the frames between and the real ones, tagged
@@ -441,7 +452,7 @@ bool ScalerPass(ID3D11DeviceContext* ctx, uint32_t x, uint32_t y, uint32_t z) {
     if (g_pairStep == 2) {   // NIS's half: this pass runs as NIS, and its result is taken right after its dispatch (OnPostPass)
         SafeReleasePair();
         g_pairOut = pass.out; g_pairOut->AddRef();
-        g_pairBox = PairBox(pass); g_pairFormat = scaler::ViewFormat(pass.outFmt); g_pairEncoding = g_link.Encoding(); g_pairWhite = g_link.White();
+        g_pairBox = PairBox(pass); g_pairFormat = scaler::ViewFormat(pass.outFmt); g_pairEncoding = g_link.OutEncoding(); g_pairWhite = g_link.White();
         g_pairStep = 3;
         ReleaseNisPass(pass);
         return false;
@@ -497,10 +508,15 @@ bool ScalerPass(ID3D11DeviceContext* ctx, uint32_t x, uint32_t y, uint32_t z) {
                         if (FAILED(surface->GetParent(IID_PPV_ARGS(&chain)))) chain = nullptr;
                         surface->Release();
                     }
-                    float white; const nr::FrameEncoding e = FrameEncodingOf(pass.inFmt, chain, &white, dev);
+                    // the frame's encoding and the output's apart: a half-float capture can go out to a 10-bit or 8-bit swap chain
+                    float white, outWhite; bool outKnown = false;
+                    const nr::FrameEncoding e = FrameEncodingOf(pass.inFmt, chain, &white, dev, FrameRole::Input);
+                    nr::FrameEncoding out = FrameEncodingOf(pass.outFmt, chain, &outWhite, dev, FrameRole::Output, &outKnown);
+                    // the output's colour space not known: as before (the picture in the frame's encoding) unless the formats show otherwise
+                    if (!outKnown && (e == nr::FrameEncoding::Sdr || scaler::ViewFormat(pass.inFmt) == scaler::ViewFormat(pass.outFmt))) out = e;
                     g_fgChain.store(chain, std::memory_order_release);   // (only compared with, never used: frame generation's swap chain)
                     if (chain) chain->Release();
-                    g_link.SetEncoding(static_cast<uint32_t>(e), white);
+                    g_link.SetEncoding(static_cast<uint32_t>(e), static_cast<uint32_t>(out), white);
                 }
                 {   // Technical status's frame line (with the encoding FrameEncodingOf decided)
                     static uint64_t shownKey = 0;
@@ -530,7 +546,7 @@ bool ScalerPass(ID3D11DeviceContext* ctx, uint32_t x, uint32_t y, uint32_t z) {
                 if (g_pairStep == 1) {   // the upscaled half: NIS's output as the upscaler just wrote it
                     if (replaced) {
                         const std::wstring path = g_pairBase + L"_" + std::wstring(kRuntimeListW) + L".png";
-                        if (screenshot::Capture(ctx, pass.out, PairBox(pass), scaler::ViewFormat(pass.outFmt), path, g_link.Encoding(), g_link.White())) g_pairStep = 2;
+                        if (screenshot::Capture(ctx, pass.out, PairBox(pass), scaler::ViewFormat(pass.outFmt), path, g_link.OutEncoding(), g_link.White())) g_pairStep = 2;
                         else { g_pairStep = 0; Log("before / after pair: the upscaled picture could not be copied"); }
                     } else if (++g_pairWaited > 240) { g_pairStep = 0; Log("before / after pair not taken: the upscaler is not replacing NIS"); }
                 }

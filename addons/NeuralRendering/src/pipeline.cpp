@@ -343,7 +343,7 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
     flow_.Execute(gpu_, index, previous_ < 0 ? unsigned(index) : unsigned(previous_), reset, ready);
     auto &finish = slot.finish;
     finish.Begin(gpu_.fence.Get());
-    flow_.Convert(gpu_, finish, slot.motion, reset);
+    flow_.Convert(gpu_, finish, slot.motion, reset, settings.darkGuard);
     finish.list->EndQuery(queries_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, query + 2);
     Mark(Stage::Model);
     model_.Evaluate(finish, slot.working, depth_, slot.motion, slot.model, reset);
@@ -372,11 +372,26 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
     // Comparison keeps the manager's exact original copy, including negative scRGB
     // components that upstream composition deliberately clamps at its output.
     if (settings.apply) {
+        // Put those components back (scaled by the model's change in light) before the picture
+        // pass or the copy reads the composed image, so wide-gamut colour is not clipped per channel.
+        if (encoding_ == Encoding::ScRgb)
+            gamut_.Apply(ctx, original.Get(), slot.output.uav.Get(), metrics_.width, metrics_.height,
+                         settings.maxRatio);
+        // Dark areas back toward the capture (before the HUD and the picture pass, which treat them as
+        // any other pixel). Nothing is dispatched at strength 0.
+        darkKeep_.Apply(ctx, original.Get(), slot.output.uav.Get(), metrics_.width, metrics_.height, settings.darkKeep,
+                        settings.darkKeepThreshold, encoding_ == Encoding::ScRgb, settings.whiteNits);
+        // Before the picture pass, so the HUD gets the same grading as everything else.
+        if (settings.hud)
+            hud_.Apply(ctx, static_cast<ID3D11Texture2D *>(frame.original), original.Get(), slot.output.uav.Get(),
+                       metrics_.width, metrics_.height, settings.hudStrength, settings.hudShowMask);
         // Off/neutral uses the original copy shader, with no picture resources or extra GPU work.
         if (!picture_.Apply(ctx, slot.output.srv.Get(), target.Get(), metrics_.width, metrics_.height,
                             encoding_, settings.whiteNits, picture))
             Copy(ctx, slot.output.srv.Get(), target.Get());
     }
+    if (!settings.apply || !settings.hud)
+        hud_.Reset(); // a stale previous capture would read as one big change when turned back on
     Check(context->Signal(consumed11_.Get(), transfer), "Signal enhanced image consumed");
     slot.consumed = transfer;
     lastConsumed_ = transfer;

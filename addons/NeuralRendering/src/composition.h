@@ -12,6 +12,17 @@ struct CompositionSettings {
     uint32_t reversible = 0;     // upstream: knee, Neutwo composed/replace, hybrid composed/replace
     uint32_t reconstruction = 1; // upstream matched residual, same frame only
     bool apply = true;
+    // Experimental: estimate the HUD from the captures and keep the captured pixels there.
+    bool hud = false;
+    float hudStrength = 1.f;
+    bool hudShowMask = false;
+    // Not composition, but read every frame like it: how strongly optical-flow vectors NVOFA marks as
+    // unreliable (smooth, grainy darkness) are replaced by their confident surroundings. 0 = raw NVOFA.
+    float darkGuard = 1.f;
+    // Dark area protection (dark_keep.hlsl): where the capture is dark, the result is blended back toward
+    // it, so the model's oily smoothing of dark grain does not show. darkKeep 0..1 (0 = off, default 90%);
+    // darkKeepThreshold: sRGB-encoded display brightness at which it has faded out.
+    float darkKeep = .9f, darkKeepThreshold = .16f;
 };
 // The exact pinned OptiScaler cbuffer layout, including fields deliberately disabled
 // for captured images: no game exposure or UI layer is invented.

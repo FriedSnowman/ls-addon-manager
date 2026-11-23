@@ -14,7 +14,9 @@ class OpticalFlow {
     // The engine waits for the exact submitted original. The graphics queue then
     // waits for this execution before converting/consuming its output. No CPU wait.
     void Execute(Gpu &, uint32_t current, uint32_t previous, bool reset, uint64_t originalsReady);
-    void Convert(Gpu &, Recording &, Resource &motion, bool reset);
+    // guard 0..1: how far vectors NVOFA marks as unreliable are blended toward their confident
+    // surroundings (flow_filter.hlsl); 0 hands NVOFA's vectors to NR as they are. Read every frame.
+    void Convert(Gpu &, Recording &, Resource &motion, bool reset, float guard = 1.f);
     void Invalidate() { hintsReady_ = false; }
     bool Shutdown(DWORD timeoutMs = 3000);
     Resource &Grid() { return flow_; }
@@ -30,8 +32,8 @@ class OpticalFlow {
     std::array<NvOFGPUBufferHandle, kSlots> inputHandles_{};
     NvOFGPUBufferHandle flowHandle_ = nullptr, costHandle_ = nullptr;
     std::array<Resource, kSlots> inputs_, packed_;
-    Resource flow_, cost_;
-    Kernel packKernel_, convertKernel_;
+    Resource flow_, cost_, filtered_;
+    Kernel packKernel_, filterKernel_, convertKernel_;
     ComPtr<ID3D12Fence> readyFence_, lastQueueFence_;
     uint64_t progress_ = 0, lastQueueValue_ = 0;
     uint32_t width_ = 0, height_ = 0, grid_ = 0, rowPitch_ = 0;
