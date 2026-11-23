@@ -121,6 +121,8 @@ void Save() {
     Put("hud", settings.composition.hud);
     Put("hudStrength", settings.composition.hudStrength);
     Put("darkGuard", settings.composition.darkGuard);
+    Put("darkKeep", settings.composition.darkKeep);
+    Put("darkKeepThreshold", settings.composition.darkKeepThreshold);
     Put("pictureEnabled", settings.picture.enabled);
     for (const auto &c : neural::PictureControls)
         Put(c.key, settings.picture.*(c.value));
@@ -278,6 +280,8 @@ EAM_EXPORT void AddonInitialize(IHost *supplied, ImGuiContext *context, void *al
     settings.composition.hud = Number("hud", 0, 0, 1) != 0;
     settings.composition.hudStrength = Number("hudStrength", 1, 0, 1);
     settings.composition.darkGuard = Number("darkGuard", 1, 0, 1);
+    settings.composition.darkKeep = Number("darkKeep", 0, 0, 1);
+    settings.composition.darkKeepThreshold = Number("darkKeepThreshold", .2, .05, .5);
     settings.picture.enabled = Number("pictureEnabled", 0, 0, 1) != 0;
     for (const auto &c : neural::PictureControls)
         settings.picture.*(c.value) = Number(c.key, c.neutral, c.low, c.high);
@@ -387,6 +391,35 @@ EAM_EXPORT void AddonRenderSettings() {
         ImGui::PopTextWrapPos();
         ImGui::EndTooltip();
     }
+    int keep = int(settings.composition.darkKeep * 100.f + .5f);
+    if (ImGui::SliderInt("Dark area protection", &keep, 0, 100, keep == 0 ? "Off" : "%d%%", ImGuiSliderFlags_AlwaysClamp)) {
+        settings.composition.darkKeep = keep / 100.f;
+        changed = true;
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::BeginTooltip();
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28);
+        ImGui::TextUnformatted("On dark, grainy scenes (night, unlit caves) the model smooths the grain into an oily, "
+                               "painted look. This brings the original capture back where it is dark: 100% shows the "
+                               "capture itself there. Brighter areas keep the model's result. Applies live.");
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+    ImGui::BeginDisabled(settings.composition.darkKeep <= 0);
+    int below = int(settings.composition.darkKeepThreshold * 100.f + .5f);
+    if (ImGui::SliderInt("Dark up to", &below, 5, 50, "%d%% brightness", ImGuiSliderFlags_AlwaysClamp)) {
+        settings.composition.darkKeepThreshold = below / 100.f;
+        changed = true;
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::BeginTooltip();
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28);
+        ImGui::TextUnformatted("How bright an area may be and still count as dark (display brightness, as you see it). "
+                               "Protection is full below half of this and fades out up to it.");
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+    ImGui::EndDisabled();
     eam::ui::SectionLabel("Model controls");
     if (ImGui::Button("Restore defaults")) {
         settings.model = neural::ModelSettings{};

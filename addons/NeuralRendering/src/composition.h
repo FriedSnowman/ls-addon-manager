@@ -19,6 +19,10 @@ struct CompositionSettings {
     // Not composition, but read every frame like it: how strongly optical-flow vectors NVOFA marks as
     // unreliable (smooth, grainy darkness) are replaced by their confident surroundings. 0 = raw NVOFA.
     float darkGuard = 1.f;
+    // Dark area protection (dark_keep.hlsl): where the capture is dark, the result is blended back toward
+    // it, so the model's oily smoothing of dark grain does not show. darkKeep 0..1 (0 = off);
+    // darkKeepThreshold: sRGB-encoded display brightness at which it has faded out.
+    float darkKeep = 0.f, darkKeepThreshold = .2f;
 };
 // The exact pinned OptiScaler cbuffer layout, including fields deliberately disabled
 // for captured images: no game exposure or UI layer is invented.

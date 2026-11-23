@@ -377,6 +377,10 @@ void Pipeline::Process(const EamRealFrame &frame, const CompositionSettings &set
         if (encoding_ == Encoding::ScRgb)
             gamut_.Apply(ctx, original.Get(), slot.output.uav.Get(), metrics_.width, metrics_.height,
                          settings.maxRatio);
+        // Dark areas back toward the capture (before the HUD and the picture pass, which treat them as
+        // any other pixel). Nothing is dispatched at strength 0.
+        darkKeep_.Apply(ctx, original.Get(), slot.output.uav.Get(), metrics_.width, metrics_.height, settings.darkKeep,
+                        settings.darkKeepThreshold, encoding_ == Encoding::ScRgb, settings.whiteNits);
         // Before the picture pass, so the HUD gets the same grading as everything else.
         if (settings.hud)
             hud_.Apply(ctx, static_cast<ID3D11Texture2D *>(frame.original), original.Get(), slot.output.uav.Get(),
